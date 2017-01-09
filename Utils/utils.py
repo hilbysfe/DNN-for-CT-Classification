@@ -98,6 +98,10 @@ class DataSet(object):
     @property
     def epochs_completed(self):
         return self._epochs_completed
+        
+    @property
+    def index_in_epoch(self):
+        return self._index_in_epoch
 
     def next_batch(self, batch_size):
         """
@@ -122,7 +126,7 @@ class DataSet(object):
         end = self._index_in_epoch
 
         image_batch = np.array([ \
-            sitk.GetArrayFromImage(sitk.ReadImage(image_path)) \
+            sitk.GetArrayFromImage(sitk.ReadImage(image_path))[11:23,16:240,16:240] \
                 for image_path in self._images[start:end]])
         label_batch = self._labels[start:end]
 

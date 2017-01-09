@@ -13,7 +13,7 @@ from siamese import Siamese
 
 
 LEARNING_RATE_DEFAULT = 1e-4
-BATCH_SIZE_DEFAULT = 4
+BATCH_SIZE_DEFAULT = 1
 MAX_STEPS_DEFAULT = 15000
 EVAL_FREQ_DEFAULT = 1000
 CHECKPOINT_FREQ_DEFAULT = 5000
@@ -23,55 +23,13 @@ LOG_DIR_DEFAULT = './logs/'
 CHECKPOINT_DIR_DEFAULT = './checkpoints'
 
 def train_step(loss):
-	"""
-	Defines the ops to conduct an optimization step. You can set a learning
-	rate scheduler or pick your favorite optimizer here. This set of operations
-	should be applicable to both ConvNet() and Siamese() objects.
-
-	Args:
-		loss: scalar float Tensor, full loss = cross_entropy + reg_loss
-
-	Returns:
-		train_op: Ops for optimization.
-	"""
 	
 	train_op = tf.train.AdamOptimizer(FLAGS.learning_rate).minimize(loss)
 	
 	return train_op
-
 	
 
 def train():
-	"""
-	Performs training and evaluation of ConvNet model.
-
-	First define your graph using class ConvNet and its methods. Then define
-	necessary operations such as trainer (train_step in this case), savers
-	and summarizers. Finally, initialize your model within a tf.Session and
-	do the training.
-
-	---------------------------
-	How to evaluate your model:
-	---------------------------
-	Evaluation on test set should be conducted over full batch, i.e. 10k images,
-	while it is alright to do it over minibatch for train set.
-
-	---------------------------------
-	How often to evaluate your model:
-	---------------------------------
-	- on training set every print_freq iterations
-	- on test set every eval_freq iterations
-
-	------------------------
-	Additional requirements:
-	------------------------
-	Also you are supposed to take snapshots of your model state (i.e. graph,
-	weights and etc.) every checkpoint_freq iterations. For this, you should
-	study TensorFlow's tf.train.Saver class. For more information, please
-	checkout:
-	[https://www.tensorflow.org/versions/r0.11/how_tos/variables/index.html]
-	"""
-
 	# Set the random seeds for reproducibility. DO NOT CHANGE.
 	tf.set_random_seed(42)
 	np.random.seed(42)
@@ -79,31 +37,35 @@ def train():
 		
 	def feed_dict(train):
 		if train:
-			xs, ys = cifar10_dataset.train.next_batch(FLAGS.batch_size)
+			xs, ys = Training_Set.next_batch(FLAGS.batch_size)
 		else:
-			xs, ys = cifar10_dataset.test.images, cifar10_dataset.test.labels
+			xs, ys = Validation_Set.next_batch(Validation_Set.num_examples)
 		return {x: xs, y_: ys, is_training: train}	
 	
 	# Load data
-	cifar10_dataset = cifar10_utils.get_cifar10(FLAGS.data_dir)
+	data_dir = 'D:\\AdamHilbert\\DNN_Classification_Project\\data\\'
+	images_root_sub = 'MRCLEAN_CT24h\\'
+	image_sub = 'CT24h\\thick\\'
+
+	label_root_sub = 'MRCLEAN\\'
+	label_filename = 'MRCLEAN_MRSDICH.xlsx'
+
+	Training_Set, Validation_Set = utils.read_datasets(data_dir, images_root_sub, image_sub, label_root_sub, label_filename, 0.3)
 	
 	# Define session
 	sess = tf.InteractiveSession()
 
 	# Input placeholders
 	with tf.name_scope('input'):
-		x = tf.placeholder(tf.float32, [None, 32, 32, 3], name='x-input')
-		y_ = tf.placeholder(tf.float32, [None, 10], name='y-input')
+		x = tf.placeholder(tf.float32, [None, 224, 224, 12], name='x-input')
+		y_ = tf.placeholder(tf.float32, [None, 2], name='y-input')
 		is_training = tf.placeholder(tf.bool, name='is-training')
-		
-	# Define and initialize network	
-	net = ConvNet(10, is_training)
 	
 	# Calculate predictions
-	logits = net.inference(x)	
-	loss = net.loss(logits, y_)
-	accuracy = net.accuracy(logits, y_)
-	# confusion = net.confusion(logits, y_)
+	logits, _ = alexnet.alexnet_v2(eval_inputs, is_training=False)
+	
+	loss = alexnet.loss(logits, y_)
+	accuracy = alexnet.accuracy(logits, y_)
 		
 	# Call optimizer
 	train_op = train_step(loss)
@@ -131,18 +93,13 @@ def train():
 				#saver.save(sess, checkpoint_path)
 				max_acc = acc
 			print('Accuracy at step %s: %s' % (i, acc))
-					
-#			if i == FLAGS.max_steps:
-#				np.savetxt("confusion_matrix.csv", conf.astype(int), delimiter=",")
-						
-		
-#			print('Adding run metadata for', i)
+							
 		elif i % FLAGS.print_freq == 0:
 			# ------------ PRINT -------------
 			summary = sess.run([merged], feed_dict=feed_dict(True))
 			train_writer.add_summary(summary[0], i)
 		
-		if i % FLAGS.checkpoint_freq == 0: # or i == FLAGS.max_steps:
+		if i % FLAGS.checkpoint_freq == 0 or i == FLAGS.max_steps:
 			checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'model.ckpt')
 			saver.save(sess, checkpoint_path, global_step=i)
 	train_writer.close()
