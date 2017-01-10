@@ -33,7 +33,7 @@ def preprocess_data(X_raw):
 
     return X
 
-def read_datasets(data_dir, images_root_sub, image_sub, label_root_sub, label_filename, validation_ratio=0.3, preprocess=False):
+def read_datasets(data_dir, images_root_sub, image_sub, image_filenames, label_root_sub, label_filename, validation_ratio=0.3, preprocess=False):
     """
     Function to read up images and labels.
     Store only paths as images would fit to memory.
@@ -47,12 +47,8 @@ def read_datasets(data_dir, images_root_sub, image_sub, label_root_sub, label_fi
     # --- Retrieve all patients we have images from ---
     patients = [name for name in os.listdir(data_dir + images_root_sub)
                     if os.path.isdir(os.path.join(data_dir + images_root_sub, name))]
-    # image_sub = "CT24h\\thick\\"
-    all_samples = len(patients)
-
-    # --- Store image paths ---
-    all_images = np.array([data_dir + images_root_sub + name.zfill(4) + '\\' + image_sub + 'result_resampled.mhd' # 'pat' + name.zfill(4) + '.mhd' \
-                                    for name in patients ])
+    
+    all_samples = len(patients)*len(image_filenames)
 
     # --- Load labels from file ---
     labels_wb = ox.load_workbook(data_dir + label_root_sub + label_filename)
@@ -61,11 +57,21 @@ def read_datasets(data_dir, images_root_sub, image_sub, label_root_sub, label_fi
     label_dict = {key[0].value.zfill(4): value[0].value 
                                 for (key, value) in zip(labels_ws[followid_attribute], labels_ws[label_attribute]) }
 
-    labels = np.array( [ label_dict[name] for name in patients] )
+    labels = []
+    all_images = []
+    
+    # --- Store images(optionally more per patient) + labels ---
+    for image_filename in image_filenames:
+        all_images = all_images + [ data_dir + images_root_sub + name.zfill(4) + '\\' + image_sub + image_filename
+                                    for name in patients ]
+        labels = labels + [ label_dict[name] for name in patients ]
+        
+    labels = np.array( labels )
+    all_images = np.array( all_images )
 
     # --- Preprocess if desired ---
     if preprocess:
-        images = preprocess_data(images)
+        all_images = preprocess_data(all_images)
 
     # --- Shuffle examples to split fairly ---	
     perm = np.arange(all_samples)
@@ -88,13 +94,6 @@ def read_datasets(data_dir, images_root_sub, image_sub, label_root_sub, label_fi
     training_labels = dense_to_one_hot(training_labels, num_classes)
     validation_labels = dense_to_one_hot(validation_labels, num_classes)
 
-    #		for i in range(all_samples):
-    #				if i < validation_size:
-    #						validation_images.append(all_images[perm[i]])
-    #						validation_labels.append(labels[perm[i]])
-    #				else:
-    #						training_images.append(all_images[perm[i]])
-    #						training_labels.append(labels[perm[i]])
 
     # --- Return 2 DataSet objects for training and validation set ---	
     return DataSet(np.array(training_images), np.array(training_labels)), \

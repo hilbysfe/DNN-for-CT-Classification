@@ -16,7 +16,7 @@ import tensorflow.contrib.slim as slim
 
 
 LEARNING_RATE_DEFAULT = 1e-4
-BATCH_SIZE_DEFAULT = 1
+BATCH_SIZE_DEFAULT = 16
 MAX_EPOCHS_DEFAULT = 30
 EVAL_FREQ_DEFAULT = 1000
 CHECKPOINT_FREQ_DEFAULT = 5000
@@ -65,24 +65,24 @@ def train():
 	# Set the random seeds for reproducibility. DO NOT CHANGE.
 	tf.set_random_seed(42)
 	np.random.seed(42)
-
 		
 	def feed_dict(train):
 		if train:
 			xs, ys = Training_Set.next_batch(FLAGS.batch_size)
 		else:
-			xs, ys = Validation_Set.next_batch(Validation_Set.num_examples)
+			xs, ys = Validation_Set.next_batch(FLAGS.batch_size)
 		return {x: xs, y_: ys, is_training: train}	
 	
 	# Load data
 	data_dir = 'D:\\AdamHilbert\\DNN_Classification_Project\\data\\'
 	images_root_sub = 'MRCLEAN_CT24h\\'
 	image_sub = 'CT24h\\thick\\alignedRigid\\'
-
+	image_filenames = ['result_resampled.mhd', 'result2_resampled.mhd']
+	
 	label_root_sub = 'MRCLEAN\\'
 	label_filename = 'MRCLEAN_MRSDICH.xlsx'
 
-	Training_Set, Validation_Set = utils.read_datasets(data_dir, images_root_sub, image_sub, label_root_sub, label_filename)
+	Training_Set, Validation_Set = utils.read_datasets(data_dir, images_root_sub, image_sub, image_filenames, label_root_sub, label_filename)
 	
 	# Define session
 	sess = tf.InteractiveSession()
@@ -119,23 +119,30 @@ def train():
 	# Train
 	max_acc = 0
 	training_steps = int(Training_Set.num_examples/FLAGS.batch_size)
+	validation_steps = int(Validation_Set.num_examples/FLAGS.batch_size)
+	print(training_steps)
+	print(validation_steps)
 	
 	for i in range(1, FLAGS.max_epochs):
 		# ------------ TRAIN -------------
-		avg_acc = 0
-		
+		avg_acc = 0		
 		for j in range(training_steps):
 			_, acc = sess.run([train_op, accuracy], feed_dict=feed_dict(True))
 			avg_acc += acc
-#			print('Training Accuracy at epoch %s step %s: %s' % (Training_Set.index_in_epoch, Training_Set.epochs_completed, acc))
+#			print('Training Accuracy at epoch %s step %s: %s' % (Training_Set.epochs_completed, Training_Set.index_in_epoch, acc))
 		print('Average Training Accuracy at epoch %s : %s' % (Training_Set.epochs_completed, avg_acc/training_steps))
 		
 		# ------------ VALIDATION -------------	
-		summary, acc = sess.run([merged, accuracy], feed_dict=feed_dict(False))
-#		test_writer.add_summary(summary, i)
+		avg_acc = 0		
+		for j in range(validation_steps):
+			_, acc = sess.run([merged, accuracy], feed_dict=feed_dict(False))
+#			test_writer.add_summary(summary, i)
+			avg_acc += acc
+#			print('Training Accuracy at epoch %s step %s: %s' % (Validation_Set.epochs_completed, Validation_Set.index_in_epoch, acc))
+		print('Average Validation Accuracy at epoch %s : %s' % (Validation_Set.epochs_completed, avg_acc/validation_steps))
 		
-		print('Average Validation Accuracy at epoch %s : %s' % (Validation_Set.epochs_completed, acc))
 
+		
 #		if acc > max_acc:
 #				checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'best_model.ckpt')
 #				saver.save(sess, checkpoint_path)
