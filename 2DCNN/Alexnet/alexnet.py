@@ -115,7 +115,7 @@ def alexnet_v2(inputs,
 						num_classes, [1, 1],
 						activation_fn=None,
 						normalizer_fn=None,
-						biases_initializer=init_ops.zeros_initializer(),
+						biases_initializer=init_ops.constant_initializer(0.0),
 						scope='fc8')
 
 			# Convert end_points_collection into a end_point dict.
@@ -125,37 +125,6 @@ def alexnet_v2(inputs,
 				end_points[sc.name + '/fc8'] = net
 			return net, end_points
 
-def accuracy(logits, labels):
-	
-	softmax = tf.nn.softmax(logits)
-	with tf.name_scope('correct_prediction'):
-		correct_prediction = tf.equal(tf.argmax(softmax, 1), tf.argmax(labels, 1))
-	with tf.name_scope('accuracy'):
-		accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-	tf.scalar_summary('accuracy', accuracy)
 
-
-	return accuracy
-
-def loss(logits, labels):
-	
-	with tf.variable_scope('Losses') as scope:		
-		with tf.name_scope('Cross_Entropy_Loss'):
-			cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits, labels, name='cross_entropy_per_example')
-			cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
-			
-			tf.add_to_collection('losses', cross_entropy_mean)		
-			tf.scalar_summary('cross_entropy', cross_entropy_mean)
-		with tf.name_scope('Regularization_Loss'):
-			reg_loss = tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES), name='reg_loss')
-			
-			tf.add_to_collection('losses', reg_loss)
-			tf.scalar_summary('reg_loss', reg_loss)
-		with tf.name_scope('Total_Loss'):
-			loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
-			
-			tf.scalar_summary('total_loss', loss)
-
-	return loss	
 			
 alexnet_v2.default_image_size = 224

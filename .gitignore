@@ -1,2 +1,4 @@
 2DCNN/CNN/logs/
 2DCNN/VGG/logs/
+2DCNN/Alexnet/checkpoints/
+2DCNN/Alexnet/logs/
