@@ -7,7 +7,7 @@ from scipy import stats
 
 # ============ Skull stripping with 2D connected component segmentation ==============
 
-def skullstripping(path):
+def skullstripping(img_data):
 
 #	rootDir = 'D:\\AdamHilbert\\DNN_Classification_Project\\data\\'
 #	datasetDir = 'MRCLEAN_CT24h'
@@ -17,7 +17,7 @@ def skullstripping(path):
 #	path = rootDir + datasetDir + patient + fileName
 
 	# --- Read Image ---
-	image = sitk.ReadImage(path)
+#	image = sitk.ReadImage(path)
 
 	# --- Load Data ---
 
@@ -29,19 +29,20 @@ def skullstripping(path):
 	#window_filter.SetWindowMaximum(center + (width / 2))
 	#window_filter.SetOutputMinimum(0)
 	#window_filter.SetOutputMaximum(255)
-
-	img_data = sitk.GetArrayFromImage(image)
-
+    
+#	img_data = sitk.GetArrayFromImage(image)
+    
 	#img_plot = sitk.GetArrayFromImage(window_filter.Execute(img))
-
-	data_new = np.zeros((30,512,512))
-
-	for k in range(30):
+	width = np.shape(img_data)[1]
+	height = np.shape(img_data)[2]
+	data_new = np.zeros(np.shape(img_data))
+	
+	for k in range(np.shape(img_data)[0]):
 		# --- Thresholding ---
 		img = img_data[k,:,:]
 		
-		for i in range(3,509):
-			for j in range(3,509):
+		for i in range(3,width-3):
+			for j in range(3,height-3):
 				if img[i,j] < 80 and img[i,j] > 0 \
 					and np.min(img[i-3:i+3, j-3:j+3]) < 0 and np.max(img[i-3:i+3, j-3:j+3]) > 80:
 					img[i,j] = 0
@@ -51,7 +52,7 @@ def skullstripping(path):
 
 		# --- Find connected component of brain ---
 
-		w = np.zeros((512,512))
+		w = np.zeros((width,height))
 
 		dx = [0,0,1,1,1,-1,-1,-1]
 		dy = [1,-1,0,1,-1,0,1,-1]
@@ -68,14 +69,14 @@ def skullstripping(path):
 						# for more sophisticated method here could be a check for surrounding average intensity
 						nx = v[0]+dx[i]
 						ny = v[1]+dy[i]
-						if nx >= 0 and ny >= 0 and nx < 512 and ny < 512 \
+						if nx >= 0 and ny >= 0 and nx < width and ny < height \
 							and g[nx,ny] and (nx,ny) not in visited and img[nx,ny] > 0:
 							stack.append((nx,ny))
 
 
 		s = 1
-		for i in range(0,512):
-			for j in range(0,512):
+		for i in range(0,width):
+			for j in range(0,height):
 				if g[i,j] == True and w[i,j] == 0 and img[i,j] > 10:
 					dfs_it(i,j,s)
 					s = s+1
@@ -91,7 +92,7 @@ def skullstripping(path):
 		for i in range(s):
 			ind_i = np.where(w == i)
 			component_sizes.append(np.shape(ind_i)[1])
-			img_compi = np.zeros((512,512))
+			img_compi = np.zeros((width,height))
 			for j in range(np.shape(ind_i)[1]):
 				x = ind_i[0][j]
 				y = ind_i[1][j]
@@ -106,7 +107,7 @@ def skullstripping(path):
 	#    print(valid_means)
 	#    print(valid_sizes)
 
-		data_stripped = np.zeros((512,512))
+		data_stripped = np.zeros((width,height))
 		for i in valid_indices:
 			if component_sizes[i] > 5000:
 				data_stripped = data_stripped + img_components[i]

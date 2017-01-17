@@ -9,8 +9,7 @@ import tensorflow as tf
 import numpy as np
 
 import utils
-from tensorflow.contrib.slim.python.slim.nets import alexnet
-#import alexnet
+import alexnet
 import tensorflow.contrib.slim as slim
 
 
@@ -36,6 +35,8 @@ def accuracy_function(logits, labels):
 	return accuracy
 
 def loss_function(logits, labels):	
+	print(logits.get_shape())
+	print(labels.get_shape())
 	with tf.variable_scope('Losses') as scope:		
 		with tf.name_scope('Cross_Entropy_Loss'):
 			cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits, labels, name='cross_entropy_per_example')
@@ -74,32 +75,26 @@ def train():
 		return {x: xs, y_: ys, is_training: train}	
 	
 	# Load data
-	data_dir = 'D:\\AdamHilbert\\DNN_Classification_Project\\data\\'
-	images_root_sub = 'MRCLEAN_CT24h\\'
-	image_sub = 'CT24h\\thick\\alignedRigid\\'
-	image_filenames = ['result_resampled.mhd', 'result2_resampled.mhd']
+	root = 'D:\\AdamHilbert\\DNN_Classification_Project\\data\\CT24h_Datasets\\'
+	image_dir = root + 'RigidAligned_Skullstripped_256x256x30+Flipped'
 	
-	label_root_sub = 'MRCLEAN\\'
-	label_filename = 'MRCLEAN_MRSDICH.xlsx'
+	label_filename = 'D:\\AdamHilbert\\DNN_Classification_Project\\data\\MRCLEAN\\MRCLEAN_MRSDICH.xlsx'
 
-	Training_Set, Validation_Set = utils.read_datasets(data_dir, images_root_sub, image_sub, image_filenames, label_root_sub, label_filename)
+	Training_Set, Validation_Set = utils.read_datasets(image_dir, label_filename)
 	
 	# Define session
 	sess = tf.InteractiveSession()
 
 	# Input placeholders
 	with tf.name_scope('input'):
-		x = tf.placeholder(tf.float32, [None, 224, 224, 12], name='x-input')
+		x = tf.placeholder(tf.float32, [None, 224, 224, 16, 1], name='x-input')
 		y_ = tf.placeholder(tf.float32, [None, 2], name='y-input')
 		is_training = tf.placeholder(tf.bool, name='is-training')
 	
 	# Calculate predictions
-	with slim.arg_scope(alexnet.alexnet_v2_arg_scope()):
-		
-		logits, _ = alexnet.alexnet_v2(x,
-						num_classes=2,
-						is_training=is_training)
-	
+	logits, _ = alexnet.alexnet_v2(x,
+					num_classes=2,
+					is_training=is_training)	
 	
 	loss = loss_function(logits, y_)
 	accuracy = accuracy_function(logits, y_)
@@ -120,8 +115,8 @@ def train():
 	max_acc = 0
 	training_steps = int(Training_Set.num_examples/FLAGS.batch_size)
 	validation_steps = int(Validation_Set.num_examples/FLAGS.batch_size)
-	print(training_steps)
-	print(validation_steps)
+	#print(training_steps)
+	#print(validation_steps)
 	
 	for i in range(1, FLAGS.max_epochs):
 		# ------------ TRAIN -------------

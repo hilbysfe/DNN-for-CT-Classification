@@ -165,7 +165,7 @@ class DataSet(object):
         end = self._index_in_epoch
 
         image_batch = np.array([ \
-                sitk.GetArrayFromImage(sitk.ReadImage(image_path))[11:23,16:240,16:240] \
+                sitk.GetArrayFromImage(sitk.ReadImage(image_path))[:,16:240,16:240] \
                         for image_path in self._images[start:end]])
         label_batch = self._labels[start:end]
 
