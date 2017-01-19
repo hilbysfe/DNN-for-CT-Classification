@@ -116,7 +116,7 @@ def alexnet_v2(inputs,
 		
 		print(inputs.get_shape())
 		# Collect outputs for conv3d, fully_connected and max_pool3d.
-		net = _conv_layer(inputs, [11, 11, 7, 1, 64], [1, 4, 4, 1, 1],
+		net = _conv_layer(inputs, [11, 11, 7, 3, 64], [1, 4, 4, 1, 1],
 			w_init = tf.contrib.layers.xavier_initializer(), 
 			b_init = init_ops.constant_initializer(0.1), 
 			w_reg = regularizers.l2_regularizer(0.0005),
