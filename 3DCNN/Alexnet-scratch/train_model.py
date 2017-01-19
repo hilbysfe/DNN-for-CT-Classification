@@ -125,7 +125,7 @@ def train():
 			_, acc = sess.run([train_op, accuracy], feed_dict=feed_dict(True))
 			avg_acc += acc
 #			print('Training Accuracy at epoch %s step %s: %s' % (Training_Set.epochs_completed, Training_Set.index_in_epoch, acc))
-		print('Average Training Accuracy at epoch %s : %s' % (dataset.Training.epochs_completed, avg_acc/training_steps))
+		print('Average Training Accuracy at epoch %s : %s' % (dataset.epochs_completed, avg_acc/training_steps))
 		
 		# ------------ VALIDATION -------------	
 		avg_acc = 0		
@@ -134,7 +134,7 @@ def train():
 #			test_writer.add_summary(summary, i)
 			avg_acc += acc
 #		print('Validation Accuracy at epoch %s: %s' % (Validation_Set.epochs_completed, acc))
-		print('Average Validation Accuracy at epoch %s : %s' % (dataset.Validation.epochs_completed, avg_acc/validation_steps))
+		print('Average Validation Accuracy at epoch %s : %s' % (dataset.epochs_completed, avg_acc/validation_steps))
 		
 		dataset.initialize_subsets()
 		

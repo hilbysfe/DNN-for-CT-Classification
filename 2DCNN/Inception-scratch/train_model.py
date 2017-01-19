@@ -113,8 +113,8 @@ def train():
 	
 	# Train
 	max_acc = 0
-	training_steps = int(dataset.Training.num_examples/FLAGS.batch_size)
-	validation_steps = int(dataset.Validation.num_examples/FLAGS.batch_size)
+	training_steps = int(dataset.num_examples/FLAGS.batch_size)
+	validation_steps = int(dataset.num_examples/FLAGS.batch_size)
 	#print(training_steps)
 	#print(validation_steps)
 	

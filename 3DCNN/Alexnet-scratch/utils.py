@@ -80,7 +80,7 @@ class DataSet(object):
 	"""
 	def initialize_subsets(self):
 		
-		self._num_examples = self._images.shape[0]
+		self._epochs_completed += 1
 		
 		# --- Shuffle examples to split fairly ---	
 		perm = np.arange(np.shape(self._images)[0])
@@ -111,10 +111,15 @@ class DataSet(object):
 		self._images = images
 		self._labels = labels
 				
-		
+		self._epochs_completed = 0
 		self._validation_size = int(np.shape(self._images)[0]*validation_ratio)
 
-		self.initialize_subsets()
+		self.initialize_subsets()		
+		self._epochs_completed = 0
+		
+	@property
+	def epochs_completed(self):
+		return self._epochs_completed
 		
 	@property
 	def Training(self):
@@ -157,10 +162,6 @@ class SubSet(object):
 		return self._num_examples
 
 	@property
-	def epochs_completed(self):
-		return self._epochs_completed
-
-	@property
 	def index_in_epoch(self):
 		return self._index_in_epoch
 
@@ -174,8 +175,6 @@ class SubSet(object):
 		start = self._index_in_epoch
 		self._index_in_epoch += batch_size
 		if self._index_in_epoch > self._num_examples:
-			self._epochs_completed += 1
-
 			perm = np.arange(self._num_examples)
 			np.random.shuffle(perm)
 			self._images = self._images[perm]
