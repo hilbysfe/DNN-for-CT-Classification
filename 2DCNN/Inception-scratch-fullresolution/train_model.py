@@ -9,13 +9,14 @@ import tensorflow as tf
 import numpy as np
 
 import utils
-import alexnet
+from tensorflow.contrib.slim.python.slim.nets import inception
+
 import tensorflow.contrib.slim as slim
 
 
 
 LEARNING_RATE_DEFAULT = 1e-4
-BATCH_SIZE_DEFAULT = 32
+BATCH_SIZE_DEFAULT = 16
 MAX_EPOCHS_DEFAULT = 30
 EVAL_FREQ_DEFAULT = 1000
 CHECKPOINT_FREQ_DEFAULT = 5000
@@ -35,8 +36,6 @@ def accuracy_function(logits, labels):
 	return accuracy
 
 def loss_function(logits, labels):	
-	print(logits.get_shape())
-	print(labels.get_shape())
 	with tf.variable_scope('Losses') as scope:		
 		with tf.name_scope('Cross_Entropy_Loss'):
 			cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits, labels, name='cross_entropy_per_example')
@@ -69,14 +68,14 @@ def train():
 		
 	def feed_dict(train):
 		if train:
-			xs, ys = dataset.Training.next_batch(FLAGS.batch_size)
+			xs, ys = Training_Set.next_batch(FLAGS.batch_size)
 		else:
-			xs, ys = dataset.Validation.next_batch(FLAGS.batch_size)
+			xs, ys = Validation_Set.next_batch(FLAGS.batch_size)
 		return {x: xs, y_: ys, is_training: train}	
 	
 	# Load data
 	root = 'D:\\AdamHilbert\\DNN_Classification_Project\\data\\CT24h_Datasets\\'
-	image_dir = root + 'RigidAligned_256x256x30+Flipped'
+	image_dir = root + 'Resampled_299x299x30+Flipped'
 	
 	label_filename = 'D:\\AdamHilbert\\DNN_Classification_Project\\data\\MRCLEAN\\MRCLEAN_MRSDICH.xlsx'
 
@@ -87,14 +86,15 @@ def train():
 
 	# Input placeholders
 	with tf.name_scope('input'):
-		x = tf.placeholder(tf.float32, [None, 224, 224, 16, 1], name='x-input')
+		x = tf.placeholder(tf.float32, [None, 299, 299, 16], name='x-input')
 		y_ = tf.placeholder(tf.float32, [None, 2], name='y-input')
 		is_training = tf.placeholder(tf.bool, name='is-training')
 	
 	# Calculate predictions
-	logits, _ = alexnet.alexnet_v2(x,
-					num_classes=2,
-					is_training=is_training)	
+	with slim.arg_scope(inception.inception_v3_arg_scope()):		
+		logits, _ = inception.inception_v3(x,
+						num_classes=2,
+						is_training=is_training)	
 	
 	loss = loss_function(logits, y_)
 	accuracy = accuracy_function(logits, y_)
@@ -113,8 +113,8 @@ def train():
 	
 	# Train
 	max_acc = 0
-	training_steps = int(dataset.Training.num_examples/FLAGS.batch_size)
-	validation_steps = int(dataset.Validation.num_examples/FLAGS.batch_size)
+	training_steps = int(dataset.num_examples/FLAGS.batch_size)
+	validation_steps = int(dataset.num_examples/FLAGS.batch_size)
 	#print(training_steps)
 	#print(validation_steps)
 	
@@ -125,7 +125,7 @@ def train():
 			_, acc = sess.run([train_op, accuracy], feed_dict=feed_dict(True))
 			avg_acc += acc
 #			print('Training Accuracy at epoch %s step %s: %s' % (Training_Set.epochs_completed, Training_Set.index_in_epoch, acc))
-		print('Average Training Accuracy at epoch %s : %s' % (i, avg_acc/training_steps))
+		print('Average Training Accuracy at epoch %s : %s' % (dataset.Training.epochs_completed, avg_acc/training_steps))
 		
 		# ------------ VALIDATION -------------	
 		avg_acc = 0		
@@ -134,8 +134,10 @@ def train():
 #			test_writer.add_summary(summary, i)
 			avg_acc += acc
 #		print('Validation Accuracy at epoch %s: %s' % (Validation_Set.epochs_completed, acc))
-		print('Average Validation Accuracy at epoch %s : %s' % (i, avg_acc/validation_steps))
+		print('Average Validation Accuracy at epoch %s : %s' % (dataset.Validation.epochs_completed, avg_acc/validation_steps))
 		
+		dataset.initialize_subsets()
+
 		
 #		if acc > max_acc:
 #				checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'best_model.ckpt')
@@ -149,8 +151,8 @@ def train():
 #		if i % FLAGS.checkpoint_freq == 0 or i == FLAGS.max_epochs:
 #			checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'model.ckpt')
 #			saver.save(sess, checkpoint_path, global_step=i)
-#	train_writer.close()
-#	test_writer.close()
+	train_writer.close()
+	test_writer.close()
 #	print('Max accuracy : %s' % (max_acc))
 
 

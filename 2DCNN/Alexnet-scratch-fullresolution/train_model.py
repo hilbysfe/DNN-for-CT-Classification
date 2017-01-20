@@ -9,13 +9,14 @@ import tensorflow as tf
 import numpy as np
 
 import utils
+#from tensorflow.contrib.slim.python.slim.nets import alexnet
 import alexnet
 import tensorflow.contrib.slim as slim
 
 
 
 LEARNING_RATE_DEFAULT = 1e-4
-BATCH_SIZE_DEFAULT = 32
+BATCH_SIZE_DEFAULT = 16
 MAX_EPOCHS_DEFAULT = 30
 EVAL_FREQ_DEFAULT = 1000
 CHECKPOINT_FREQ_DEFAULT = 5000
@@ -35,8 +36,6 @@ def accuracy_function(logits, labels):
 	return accuracy
 
 def loss_function(logits, labels):	
-	print(logits.get_shape())
-	print(labels.get_shape())
 	with tf.variable_scope('Losses') as scope:		
 		with tf.name_scope('Cross_Entropy_Loss'):
 			cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits, labels, name='cross_entropy_per_example')
@@ -76,7 +75,7 @@ def train():
 	
 	# Load data
 	root = 'D:\\AdamHilbert\\DNN_Classification_Project\\data\\CT24h_Datasets\\'
-	image_dir = root + 'RigidAligned_256x256x30+Flipped'
+	image_dir = root + 'RigidAligned_512x512x30+Flipped'
 	
 	label_filename = 'D:\\AdamHilbert\\DNN_Classification_Project\\data\\MRCLEAN\\MRCLEAN_MRSDICH.xlsx'
 
@@ -87,14 +86,15 @@ def train():
 
 	# Input placeholders
 	with tf.name_scope('input'):
-		x = tf.placeholder(tf.float32, [None, 224, 224, 16, 1], name='x-input')
+		x = tf.placeholder(tf.float32, [None, 448, 448, 16], name='x-input')
 		y_ = tf.placeholder(tf.float32, [None, 2], name='y-input')
 		is_training = tf.placeholder(tf.bool, name='is-training')
 	
 	# Calculate predictions
-	logits, _ = alexnet.alexnet_v2(x,
-					num_classes=2,
-					is_training=is_training)	
+	with slim.arg_scope(alexnet.alexnet_v2_arg_scope()):		
+		logits, _ = alexnet.alexnet_v2(x,
+						num_classes=2,
+						is_training=is_training)	
 	
 	loss = loss_function(logits, y_)
 	accuracy = accuracy_function(logits, y_)
