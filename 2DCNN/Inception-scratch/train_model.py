@@ -9,8 +9,8 @@ import tensorflow as tf
 import numpy as np
 
 import utils
-from tensorflow.contrib.slim.python.slim.nets import inception
-
+#from tensorflow.contrib.slim.python.slim.nets import inception
+import inception
 import tensorflow.contrib.slim as slim
 
 
@@ -135,8 +135,6 @@ def train():
 			avg_acc += acc
 #		print('Validation Accuracy at epoch %s: %s' % (Validation_Set.epochs_completed, acc))
 		print('Average Validation Accuracy at epoch %s : %s' % (dataset.Validation.epochs_completed, avg_acc/validation_steps))
-		
-		dataset.initialize_subsets()
 
 		
 #		if acc > max_acc:
@@ -151,8 +149,8 @@ def train():
 #		if i % FLAGS.checkpoint_freq == 0 or i == FLAGS.max_epochs:
 #			checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'model.ckpt')
 #			saver.save(sess, checkpoint_path, global_step=i)
-	train_writer.close()
-	test_writer.close()
+#	train_writer.close()
+#	test_writer.close()
 #	print('Max accuracy : %s' % (max_acc))
 
 

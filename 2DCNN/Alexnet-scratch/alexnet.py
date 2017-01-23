@@ -99,10 +99,11 @@ def alexnet_v2(inputs,
 			print(net.get_shape())
 			
 			# Use conv2d instead of fully_connected layers.
+			k = net.get_shape()[1].value
 			with slim.arg_scope([slim.conv2d],
 													weights_initializer=trunc_normal(0.005),
 													biases_initializer=tf.constant_initializer(0.1)):
-				net = slim.conv2d(net, 4096, [12, 12], padding='VALID',
+				net = slim.conv2d(net, 4096, [k, k], padding='VALID',
 													scope='fc6')
 				print(net.get_shape())
 				net = slim.dropout(net, dropout_keep_prob, is_training=is_training,
@@ -126,4 +127,3 @@ def alexnet_v2(inputs,
 				net = tf.squeeze(net, [1, 2], name='fc8/squeezed')
 				end_points[sc.name + '/fc8'] = net
 			return net, end_points
-alexnet_v2.default_image_size = 224

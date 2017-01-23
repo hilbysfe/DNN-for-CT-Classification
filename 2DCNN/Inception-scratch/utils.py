@@ -193,7 +193,6 @@ class SubSet(object):
 			image_batch = np.swapaxes(image_batch, 1, 2)
 			image_batch = np.swapaxes(image_batch, 2, 3)
 
-			image_batch = np.expand_dims(image_batch, axis=4)
 		else:
 			image_batch = np.swapaxes(image_batch, 1, 2)
 			image_batch = np.swapaxes(image_batch, 2, 3)
@@ -214,9 +213,9 @@ class SubSet(object):
 		"""
 		
 		if not multiAttenuation:
-			return sitk.GetArrayFromImage(sitk.ReadImage(image_path))[9:25,16:240,16:240]
+			return sitk.GetArrayFromImage(sitk.ReadImage(image_path))[9:22,:,:]
 		else:
-			arr = sitk.GetArrayFromImage(sitk.ReadImage(image_path))[9:25,16:240,16:240]
+			arr = sitk.GetArrayFromImage(sitk.ReadImage(image_path))[9:22,:,:]
 			return np.array([
 				np.multiply(np.divide(np.add(arr, 50),130),255),
 				np.multiply(np.divide(arr, 80),255),

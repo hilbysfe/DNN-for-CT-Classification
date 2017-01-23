@@ -9,8 +9,8 @@ import tensorflow as tf
 import numpy as np
 
 import utils
-from tensorflow.contrib.slim.python.slim.nets import alexnet
-#import alexnet
+#from tensorflow.contrib.slim.python.slim.nets import alexnet
+import alexnet
 import tensorflow.contrib.slim as slim
 
 
@@ -68,9 +68,9 @@ def train():
 		
 	def feed_dict(train):
 		if train:
-			xs, ys = Training_Set.next_batch(FLAGS.batch_size)
+			xs, ys = dataset.Training.next_batch(FLAGS.batch_size)
 		else:
-			xs, ys = Validation_Set.next_batch(FLAGS.batch_size)
+			xs, ys = dataset.Validation.next_batch(FLAGS.batch_size)
 		return {x: xs, y_: ys, is_training: train}	
 	
 	# Load data
@@ -86,7 +86,7 @@ def train():
 
 	# Input placeholders
 	with tf.name_scope('input'):
-		x = tf.placeholder(tf.float32, [None, 224, 224, 30], name='x-input')
+		x = tf.placeholder(tf.float32, [None, 224, 224, 16], name='x-input')
 		y_ = tf.placeholder(tf.float32, [None, 2], name='y-input')
 		is_training = tf.placeholder(tf.bool, name='is-training')
 	
@@ -103,7 +103,7 @@ def train():
 	train_op = train_step(loss)
 	
 	# Create a saver.
-	saver = tf.train.Saver(tf.all_variables())
+#	saver = tf.train.Saver(tf.all_variables())
 	
 	# Merge all the summaries and write them out to log
 #	merged = tf.merge_all_summaries()
@@ -136,7 +136,6 @@ def train():
 #		print('Validation Accuracy at epoch %s: %s' % (Validation_Set.epochs_completed, acc))
 		print('Average Validation Accuracy at epoch %s : %s' % (dataset.epochs_completed, avg_acc/validation_steps))
 		
-		dataset.initialize_subsets()
 		
 #		if acc > max_acc:
 #				checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'best_model.ckpt')
@@ -150,8 +149,8 @@ def train():
 #		if i % FLAGS.checkpoint_freq == 0 or i == FLAGS.max_epochs:
 #			checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'model.ckpt')
 #			saver.save(sess, checkpoint_path, global_step=i)
-	train_writer.close()
-	test_writer.close()
+#	train_writer.close()
+#	test_writer.close()
 #	print('Max accuracy : %s' % (max_acc))
 
 
