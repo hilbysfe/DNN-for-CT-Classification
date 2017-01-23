@@ -9,3 +9,6 @@
 2DCNN/VGG-scratch/pretrained_params/vgg16_weights.npz
 2DCNN/Alexnet-scratch-fullresolution/logs/
 2DCNN/Inception-scratch-fullresolution/logs/
+2DCNN/Inception/logs/
+3DCNN/Alexnet/logs/
+3DCNN/C3D/logs/

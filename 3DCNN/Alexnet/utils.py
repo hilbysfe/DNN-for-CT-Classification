@@ -214,7 +214,7 @@ class SubSet(object):
 		"""
 		
 		if not multiAttenuation:
-			return sitk.GetArrayFromImage(sitk.ReadImage(image_path))[9:25,16:240,16:240]
+			return sitk.GetArrayFromImage(sitk.ReadImage(image_path))[9:25,:,:]
 		else:
 			arr = sitk.GetArrayFromImage(sitk.ReadImage(image_path))[9:25,16:240,16:240]
 			return np.array([

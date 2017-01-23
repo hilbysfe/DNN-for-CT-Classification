@@ -83,22 +83,13 @@ def _last_conv_layer(input, shape, stride, padding, w_init, b_init, w_reg, name)
 		
 	return conv_out
 
-def alexnet_v2(inputs,
+def c3d(inputs,
 							 num_classes=1000,
 							 is_training=True,
 							 dropout_keep_prob=0.5,
 							 spatial_squeeze=True,
-							 scope='alexnet_v2'):
-	"""AlexNet version 2.
-	Described in: http://arxiv.org/pdf/1404.5997v2.pdf
-	Parameters from:
-	github.com/akrizhevsky/cuda-convnet2/blob/master/layers/
-	layers-imagenet-1gpu.cfg
-	Note: All the fully_connected layers have been transformed to conv3d layers.
-				To use in classification mode, resize input to 224x224. To use in fully
-				convolutional mode, set spatial_squeeze to false.
-				The LRN layers have been removed and change the initializers from
-				random_normal_initializer to xavier_initializer.
+							 scope='c3d'):
+	""" 	3D CNN architecture from paper Learning Spatiotemporal Features
 	Args:
 		inputs: a tensor of size [batch_size, height, width, channels].
 		num_classes: number of predicted classes.
@@ -111,58 +102,92 @@ def alexnet_v2(inputs,
 	Returns:
 		the last op containing the log predictions and end_points dict.
 	"""
-	with variable_scope.variable_scope(scope, 'alexnet_v2', [inputs]) as sc:
+	with variable_scope.variable_scope(scope, 'c3d', [inputs]) as sc:
 		end_points_collection = sc.original_name_scope + '_end_points'
 		
 		print(inputs.get_shape())
 		# Collect outputs for conv3d, fully_connected and max_pool3d.
+		
+		# --- CONV1 ---
 		c = inputs.get_shape()[4]
-		net = _conv_layer(inputs, [11, 11, 7, c, 64], [1, 4, 4, 1, 1],
+		net = _conv_layer(inputs, [3, 3, 3, c, 64], [1, 1, 1, 1, 1],
 			w_init = tf.contrib.layers.xavier_initializer(), 
 			b_init = init_ops.constant_initializer(0.1), 
 			w_reg = regularizers.l2_regularizer(0.0005),
-			padding='VALID', name='conv1'
+			padding='SAME', name='conv1'
 		)
-		print(net.get_shape())
-		net = tf.nn.max_pool3d(net, [1, 3, 3, 3, 1], [1, 2, 2, 1, 1], 
+		net = tf.nn.max_pool3d(net, [1, 2, 2, 1, 1], [1, 2, 2, 1, 1], 
 			padding='VALID', name='pool1')
 		print(net.get_shape())
-		net = _conv_layer(net, [5, 5, 5, 64, 192], [1, 1, 1, 1, 1],
+		
+		# --- CONV2 ---
+		net = _conv_layer(net, [3, 3, 3, 64, 128], [1, 1, 1, 1, 1],
 			w_init = tf.contrib.layers.xavier_initializer(), 
 			b_init = init_ops.constant_initializer(0.1), 
 			w_reg = regularizers.l2_regularizer(0.0005),
 			padding='SAME', name='conv2'
 		)
-		print(net.get_shape())
-		net = tf.nn.max_pool3d(net, [1, 3, 3, 2, 1], [1, 2, 2, 2, 1], 
+		net = tf.nn.max_pool3d(net, [1, 2, 2, 2, 1], [1, 2, 2, 2, 1], 
 			padding='VALID', name='pool2')
 		print(net.get_shape())
-		net = _conv_layer(net, [3, 3, 3, 192, 384], [1, 1, 1, 1, 1], 
+		
+		# --- CONV3 ---
+		net = _conv_layer(net, [3, 3, 3, 128, 256], [1, 1, 1, 1, 1], 
 			w_init = tf.contrib.layers.xavier_initializer(), 
 			b_init = init_ops.constant_initializer(0.1), 
 			w_reg = regularizers.l2_regularizer(0.0005), 
-			padding='SAME', name='conv3'
+			padding='SAME', name='conv3a'
 		)
-		print(net.get_shape())
-		net = _conv_layer(net, [3, 3, 3, 384, 384], [1, 1, 1, 1, 1], 
+		net = _conv_layer(net, [3, 3, 3, 256, 256], [1, 1, 1, 1, 1], 
 			w_init = tf.contrib.layers.xavier_initializer(), 
 			b_init = init_ops.constant_initializer(0.1), 
 			w_reg = regularizers.l2_regularizer(0.0005), 
-			padding='SAME', name='conv4'
+			padding='SAME', name='conv3b'
 		)	
+		net = tf.nn.max_pool3d(net, [1, 2, 2, 2, 1], [1, 2, 2, 2, 1], 
+			padding='VALID', name='pool3')
 		print(net.get_shape())
-		net = _conv_layer(net, [3, 3, 3, 384, 256], [1, 1, 1, 1, 1], 
+		
+		# --- CONV4 ---
+		net = _conv_layer(net, [3, 3, 3, 256, 512], [1, 1, 1, 1, 1], 
 			w_init = tf.contrib.layers.xavier_initializer(), 
 			b_init = init_ops.constant_initializer(0.1), 
 			w_reg = regularizers.l2_regularizer(0.0005), 
-			padding='SAME', name='conv5'
+			padding='SAME', name='conv4a'
 		)
+		net = _conv_layer(net, [3, 3, 3, 512, 512], [1, 1, 1, 1, 1], 
+			w_init = tf.contrib.layers.xavier_initializer(), 
+			b_init = init_ops.constant_initializer(0.1), 
+			w_reg = regularizers.l2_regularizer(0.0005), 
+			padding='SAME', name='conv4b'
+		)	
+		net = tf.nn.max_pool3d(net, [1, 2, 2, 2, 1], [1, 2, 2, 2, 1], 
+			padding='VALID', name='pool4')
 		print(net.get_shape())
-		net = tf.nn.max_pool3d(net, [1, 3, 3, 2, 1], [1, 2, 2, 1, 1], 
+		
+		# --- CONV5 ---
+		net = _conv_layer(net, [3, 3, 3, 512, 512], [1, 1, 1, 1, 1], 
+			w_init = tf.contrib.layers.xavier_initializer(), 
+			b_init = init_ops.constant_initializer(0.1), 
+			w_reg = regularizers.l2_regularizer(0.0005), 
+			padding='SAME', name='conv5a'
+		)
+		net = _conv_layer(net, [3, 3, 3, 512, 512], [1, 1, 1, 1, 1], 
+			w_init = tf.contrib.layers.xavier_initializer(), 
+			b_init = init_ops.constant_initializer(0.1), 
+			w_reg = regularizers.l2_regularizer(0.0005), 
+			padding='SAME', name='conv5b'
+		)	
+		net = tf.nn.max_pool3d(net, [1, 2, 2, 2, 1], [1, 2, 2, 2, 1], 
 			padding='VALID', name='pool5')
+		
 		print(net.get_shape())
 		# Use conv3d instead of fully_connected layers.
-		net = _conv_layer(net, [5, 5, 3, 256, 4096], [1, 1, 1, 1, 1], 
+		s = net.get_shape()
+		w = s[1].value
+		h = s[2].value
+		d = s[3].value
+		net = _conv_layer(net, [w, h, d, 512, 4096], [1, 1, 1, 1, 1], 
 			w_init=trunc_normal(0.005), 
 			b_init = init_ops.constant_initializer(0.1),
 			w_reg = None,			
@@ -197,6 +222,3 @@ def alexnet_v2(inputs,
 			end_points[sc.name + '/fc8'] = net
 		
 		return net, end_points
-
-
-alexnet_v2.default_image_size = 224

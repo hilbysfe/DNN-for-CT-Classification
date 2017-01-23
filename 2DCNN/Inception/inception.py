@@ -115,8 +115,7 @@ def inception_v3_base(inputs,
 				return net, end_points
 			# 147 x 147 x 32
 			end_point = 'Conv2d_2b_3x3'
-			net = layers.conv2d(
-					net, depth(64), [3, 3], padding='SAME', scope=end_point)
+			net = layers.conv2d(net, depth(64), [3, 3], padding='SAME', scope=end_point)
 			end_points[end_point] = net
 			if end_point == final_endpoint:
 				return net, end_points

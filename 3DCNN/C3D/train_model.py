@@ -9,13 +9,13 @@ import tensorflow as tf
 import numpy as np
 
 import utils
-import alexnet
+import c3d
 import tensorflow.contrib.slim as slim
 
 
 
 LEARNING_RATE_DEFAULT = 1e-4
-BATCH_SIZE_DEFAULT = 32
+BATCH_SIZE_DEFAULT = 2
 MAX_EPOCHS_DEFAULT = 30
 EVAL_FREQ_DEFAULT = 1000
 CHECKPOINT_FREQ_DEFAULT = 5000
@@ -76,7 +76,7 @@ def train():
 	
 	# Load data
 	root = 'D:\\AdamHilbert\\DNN_Classification_Project\\data\\CT24h_Datasets\\'
-	image_dir = root + 'RigidAligned_256x256x30+Flipped'
+	image_dir = root + 'Resampled_224x224x30+Flipped'
 	
 	label_filename = 'D:\\AdamHilbert\\DNN_Classification_Project\\data\\MRCLEAN\\MRCLEAN_MRSDICH.xlsx'
 
@@ -92,7 +92,7 @@ def train():
 		is_training = tf.placeholder(tf.bool, name='is-training')
 	
 	# Calculate predictions
-	logits, _ = alexnet.alexnet_v2(x,
+	logits, _ = c3d.c3d(x,
 					num_classes=2,
 					is_training=is_training)	
 	

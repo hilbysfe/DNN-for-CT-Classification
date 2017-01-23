@@ -9,12 +9,13 @@ import tensorflow as tf
 import numpy as np
 
 import utils
-from tensorflow.contrib.slim.python.slim.nets import vgg
+import alexnet
 import tensorflow.contrib.slim as slim
 
 
+
 LEARNING_RATE_DEFAULT = 1e-4
-BATCH_SIZE_DEFAULT = 1
+BATCH_SIZE_DEFAULT = 8
 MAX_EPOCHS_DEFAULT = 30
 EVAL_FREQ_DEFAULT = 1000
 CHECKPOINT_FREQ_DEFAULT = 5000
@@ -34,6 +35,8 @@ def accuracy_function(logits, labels):
 	return accuracy
 
 def loss_function(logits, labels):	
+	print(logits.get_shape())
+	print(labels.get_shape())
 	with tf.variable_scope('Losses') as scope:		
 		with tf.name_scope('Cross_Entropy_Loss'):
 			cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits, labels, name='cross_entropy_per_example')
@@ -66,38 +69,32 @@ def train():
 		
 	def feed_dict(train):
 		if train:
-			xs, ys = Training_Set.next_batch(FLAGS.batch_size)
+			xs, ys = dataset.Training.next_batch(FLAGS.batch_size)
 		else:
-			xs, ys = Validation_Set.next_batch(FLAGS.batch_size)
+			xs, ys = dataset.Validation.next_batch(FLAGS.batch_size)
 		return {x: xs, y_: ys, is_training: train}	
 	
 	# Load data
-	data_dir = 'D:\\AdamHilbert\\DNN_Classification_Project\\data\\'
-	images_root_sub = 'MRCLEAN_CT24h\\'
-	image_sub = 'CT24h\\thick\\alignedRigid\\'
-	image_filenames = ['result_resampled.mhd', 'result2_resampled.mhd']
+	root = 'D:\\AdamHilbert\\DNN_Classification_Project\\data\\CT24h_Datasets\\'
+	image_dir = root + 'RigidAligned_512x512x30+Flipped'
 	
-	label_root_sub = 'MRCLEAN\\'
-	label_filename = 'MRCLEAN_MRSDICH.xlsx'
+	label_filename = 'D:\\AdamHilbert\\DNN_Classification_Project\\data\\MRCLEAN\\MRCLEAN_MRSDICH.xlsx'
 
-	Training_Set, Validation_Set = utils.read_datasets(data_dir, images_root_sub, image_sub, image_filenames, label_root_sub, label_filename)
+	dataset = utils.read_dataset(image_dir, label_filename)
 	
 	# Define session
 	sess = tf.InteractiveSession()
 
 	# Input placeholders
 	with tf.name_scope('input'):
-		x = tf.placeholder(tf.float32, [None, 224, 224, 12], name='x-input')
+		x = tf.placeholder(tf.float32, [None, 512, 512, 16, 1], name='x-input')
 		y_ = tf.placeholder(tf.float32, [None, 2], name='y-input')
 		is_training = tf.placeholder(tf.bool, name='is-training')
 	
 	# Calculate predictions
-	with slim.arg_scope(vgg.vgg_arg_scope()):
-		
-		logits, _ = vgg.vgg_a(x,
-						num_classes=2,
-						is_training=is_training)
-	
+	logits, _ = alexnet.alexnet_v2(x,
+					num_classes=2,
+					is_training=is_training)	
 	
 	loss = loss_function(logits, y_)
 	accuracy = accuracy_function(logits, y_)
@@ -109,15 +106,15 @@ def train():
 	saver = tf.train.Saver(tf.all_variables())
 	
 	# Merge all the summaries and write them out to log
-	merged = tf.merge_all_summaries()
-	train_writer = tf.train.SummaryWriter(FLAGS.log_dir + '/train',	sess.graph)
-	test_writer = tf.train.SummaryWriter(FLAGS.log_dir + '/test')
+#	merged = tf.merge_all_summaries()
+#	train_writer = tf.train.SummaryWriter(FLAGS.log_dir + '/train',	sess.graph)
+#	test_writer = tf.train.SummaryWriter(FLAGS.log_dir + '/test')
 	tf.initialize_all_variables().run()
 	
 	# Train
 	max_acc = 0
-	training_steps = int(Training_Set.num_examples/FLAGS.batch_size)
-	validation_steps = int(Validation_Set.num_examples/FLAGS.batch_size)
+	training_steps = int(dataset.Training.num_examples/FLAGS.batch_size)
+	validation_steps = int(dataset.Validation.num_examples/FLAGS.batch_size)
 	#print(training_steps)
 	#print(validation_steps)
 	
@@ -128,18 +125,17 @@ def train():
 			_, acc = sess.run([train_op, accuracy], feed_dict=feed_dict(True))
 			avg_acc += acc
 #			print('Training Accuracy at epoch %s step %s: %s' % (Training_Set.epochs_completed, Training_Set.index_in_epoch, acc))
-		print('Average Training Accuracy at epoch %s : %s' % (Training_Set.epochs_completed, avg_acc/training_steps))
+		print('Average Training Accuracy at epoch %s : %s' % (i, avg_acc/training_steps))
 		
 		# ------------ VALIDATION -------------	
 		avg_acc = 0		
 		for j in range(validation_steps):
-			_, acc = sess.run([merged, accuracy], feed_dict=feed_dict(False))
+			acc = sess.run(accuracy, feed_dict=feed_dict(False))
 #			test_writer.add_summary(summary, i)
 			avg_acc += acc
-#			print('Training Accuracy at epoch %s step %s: %s' % (Validation_Set.epochs_completed, Validation_Set.index_in_epoch, acc))
-		print('Average Validation Accuracy at epoch %s : %s' % (Validation_Set.epochs_completed, avg_acc/validation_steps))
+#		print('Validation Accuracy at epoch %s: %s' % (Validation_Set.epochs_completed, acc))
+		print('Average Validation Accuracy at epoch %s : %s' % (i, avg_acc/validation_steps))
 		
-
 		
 #		if acc > max_acc:
 #				checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'best_model.ckpt')
@@ -153,8 +149,8 @@ def train():
 #		if i % FLAGS.checkpoint_freq == 0 or i == FLAGS.max_epochs:
 #			checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'model.ckpt')
 #			saver.save(sess, checkpoint_path, global_step=i)
-	train_writer.close()
-	test_writer.close()
+#	train_writer.close()
+#	test_writer.close()
 #	print('Max accuracy : %s' % (max_acc))
 
 
