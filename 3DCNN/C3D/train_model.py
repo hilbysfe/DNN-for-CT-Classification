@@ -103,7 +103,7 @@ def train():
 	train_op = train_step(loss)
 	
 	# Create a saver.
-	saver = tf.train.Saver(tf.all_variables())
+#	saver = tf.train.Saver(tf.all_variables())
 	
 	# Merge all the summaries and write them out to log
 #	merged = tf.merge_all_summaries()

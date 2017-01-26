@@ -4,6 +4,7 @@ import os
 import SimpleITK as sitk
 import numpy as np
 import openpyxl as ox
+import operator
 
 def dense_to_one_hot(labels_dense, num_classes):
 	"""
@@ -59,16 +60,35 @@ def read_dataset(image_dir, label_filename, validation_ratio=0.3, preprocess=Fal
 	# --- Store images(optionally more per patient) + labels ---
 	all_images = [ image_dir + '\\' + name for name in patients ]
 	all_labels = [ label_dict[name.split('.',1)[0].replace('_2', '')] for name in patients ]				
-
+	
 	all_labels = np.array( all_labels )
 	all_images = np.array( all_images )
-
+	
+	uni, classes = np.unique(all_labels, return_counts = True)
+	num_classes = np.shape(classes)[0]
+	
+	num_examples = np.min(classes) * num_classes
+	smallest_class = dict(zip(classes, uni))[np.min(classes)]
+	
+	indices = []
+	for i in range(num_classes):
+		indices_class_i = np.where(all_labels == i)[0]
+		if i != smallest_class:
+			perm = np.arange(min(classes))
+			np.random.shuffle(perm)
+			indices_class_i = indices_class_i[perm]
+		
+		indices = np.append(indices, indices_class_i)
+		
+	indices = map(int, indices)
+	
+	all_labels = all_labels[indices]
+	all_images = all_images[indices]
+	
 	# --- Preprocess if desired ---
 	if preprocess:
 		all_images = preprocess_data(all_images)
 
-	num_classes = len(np.unique(all_labels))
-	
 	all_labels = dense_to_one_hot(all_labels, num_classes)
 
 	# --- Return DataSet objects ---	
@@ -79,10 +99,10 @@ class DataSet(object):
 	Utility class to handle complete dataset structure.
 	"""
 	def initialize_subsets(self):
-		
+
 		self._epochs_completed += 1
-		
-		# --- Shuffle examples to split fairly ---	
+
+		# --- Shuffle examples to split fairly ---
 		perm = np.arange(np.shape(self._images)[0])
 		np.random.shuffle(perm)
 
@@ -94,10 +114,10 @@ class DataSet(object):
 		validation_labels = self._labels[:self._validation_size]
 		training_images = self._images[self._validation_size:]
 		training_labels = self._labels[self._validation_size:]
-		
+
 		self._Training = SubSet(training_images, training_labels)
 		self._Validation = SubSet(validation_images, validation_labels)
-		
+
 	def __init__(self, images, labels, validation_ratio):
 		"""
 		Builds dataset with images and labels.
@@ -110,21 +130,21 @@ class DataSet(object):
 
 		self._images = images
 		self._labels = labels
-				
+
 		self._epochs_completed = 0
 		self._validation_size = int(np.shape(self._images)[0]*validation_ratio)
 
-		self.initialize_subsets()		
+		self.initialize_subsets()
 		self._epochs_completed = 0
-		
+
 	@property
 	def epochs_completed(self):
 		return self._epochs_completed
-		
+
 	@property
 	def Training(self):
 		return self._Training
-		
+
 	@property
 	def Validation(self):
 		return self._Validation
@@ -198,7 +218,7 @@ class SubSet(object):
 			image_batch = np.swapaxes(image_batch, 1, 2)
 			image_batch = np.swapaxes(image_batch, 2, 3)
 			image_batch = np.swapaxes(image_batch, 3, 4)
-			
+
 			image_batch = np.swapaxes(image_batch, 1, 2)
 			image_batch = np.swapaxes(image_batch, 2, 3)
 
@@ -212,11 +232,11 @@ class SubSet(object):
 			image_path: Path of image to read from.
 			multiAttenuation: Boolean whether ranges of attenuation is required
 		"""
-		
+
 		if not multiAttenuation:
-			return sitk.GetArrayFromImage(sitk.ReadImage(image_path))[9:25,16:240,16:240]
+			return sitk.GetArrayFromImage(sitk.ReadImage(image_path))[9:25,:,:]
 		else:
-			arr = sitk.GetArrayFromImage(sitk.ReadImage(image_path))[9:25,16:240,16:240]
+			arr = sitk.GetArrayFromImage(sitk.ReadImage(image_path))[9:25,:,:]
 			return np.array([
 				np.multiply(np.divide(np.add(arr, 50),130),255),
 				np.multiply(np.divide(arr, 80),255),
