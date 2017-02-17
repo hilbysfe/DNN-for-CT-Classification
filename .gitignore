@@ -12,3 +12,5 @@
 2DCNN/Inception/logs/
 3DCNN/Alexnet/logs/
 3DCNN/C3D/logs/
+Training/cifar10/
+Training/logs/

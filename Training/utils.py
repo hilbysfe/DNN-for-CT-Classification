@@ -80,7 +80,7 @@ def read_dataset(image_dir, label_filename, validation_ratio=0.3, preprocess=Fal
 		
 		indices = np.append(indices, indices_class_i)
 		
-	indices = map(int, indices)
+	indices = [int(x) for x in indices]
 	
 	all_labels = all_labels[indices]
 	all_images = all_images[indices]
@@ -213,7 +213,9 @@ class SubSet(object):
 			image_batch = np.swapaxes(image_batch, 1, 2)
 			image_batch = np.swapaxes(image_batch, 2, 3)
 
-			image_batch = np.expand_dims(image_batch, axis=4)
+			# --- Only in case of 3D model ---
+			#image_batch = np.expand_dims(image_batch, axis=4)
+			
 		else:
 			image_batch = np.swapaxes(image_batch, 1, 2)
 			image_batch = np.swapaxes(image_batch, 2, 3)
