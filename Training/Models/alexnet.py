@@ -55,14 +55,15 @@ class Alexnet(object):
 						is_training=True,
 						dropout_keep_prob=0.5,
 						spatial_squeeze=True,
-						scope='alexnet_v2'):
+						scope='Alexnet_v2'):
 						
-		self.num_classes				= num_classes
+		self.num_classes			= num_classes
 		self.dropout_keep_prob		= dropout_keep_prob
 		self.is_training			= is_training
 
 		self.inference				= self.inference_3d if kernels_3d else self.inference_2d
 		self.scope					= scope
+		self.spatial_squeeze		= spatial_squeeze
 		
 	def _conv_layer_3d(self, input, shape, stride, padding, w_init, b_init, w_reg, name):
 		with tf.variable_scope(name) as scope:
@@ -103,27 +104,27 @@ class Alexnet(object):
 		return conv_out
 	
 	def inference_2d(self, inputs):
-		with tf.variable_scope(self.scope, 'alexnet_v2', [inputs]) as sc:
+		with tf.variable_scope(self.scope, 'Alexnet_v2', [inputs]) as sc:
 			end_points_collection = sc.name + '_end_points'
 			# Collect outputs for conv2d, fully_connected and max_pool2d.
 			with slim.arg_scope([slim.conv2d, slim.fully_connected, slim.max_pool2d],
 													outputs_collections=[end_points_collection]):
 				print(inputs.get_shape())
-				net = slim.conv2d(inputs, 64, [11, 11], 4, padding='VALID', scope='conv1')
+				net = slim.conv2d(inputs, 64, [11, 11], 4, padding='VALID', scope='Conv1')
 				print(net.get_shape())
-				net = slim.max_pool2d(net, [3, 3], 2, scope='pool1')
+				net = slim.max_pool2d(net, [3, 3], 2, scope='Pool1')
 				print(net.get_shape())
-				net = slim.conv2d(net, 192, [5, 5], scope='conv2')
+				net = slim.conv2d(net, 192, [5, 5], scope='Conv2')
 				print(net.get_shape())
-				net = slim.max_pool2d(net, [3, 3], 2, scope='pool2')
+				net = slim.max_pool2d(net, [3, 3], 2, scope='Pool2')
 				print(net.get_shape())
-				net = slim.conv2d(net, 384, [3, 3], scope='conv3')
+				net = slim.conv2d(net, 384, [3, 3], scope='Conv3')
 				print(net.get_shape())
-				net = slim.conv2d(net, 384, [3, 3], scope='conv4')
+				net = slim.conv2d(net, 384, [3, 3], scope='Conv4')
 				print(net.get_shape())
-				net = slim.conv2d(net, 256, [3, 3], scope='conv5')
+				net = slim.conv2d(net, 256, [3, 3], scope='Conv5')
 				print(net.get_shape())
-				net = slim.max_pool2d(net, [3, 3], 2, scope='pool5')
+				net = slim.max_pool2d(net, [3, 3], 2, scope='Pool5')
 				print(net.get_shape())
 				
 				# Use conv2d instead of fully_connected layers.
@@ -132,29 +133,30 @@ class Alexnet(object):
 														weights_initializer=trunc_normal(0.005),
 														biases_initializer=tf.constant_initializer(0.1)):
 					net = slim.conv2d(net, 4096, [k, k], padding='VALID',
-														scope='fc6')
+														scope='FC6')
 					print(net.get_shape())
 					net = slim.dropout(net, self.dropout_keep_prob, is_training=self.is_training,
-														 scope='dropout6')
+														 scope='Dropout6')
 					print(net.get_shape())
-					net = slim.conv2d(net, 4096, [1, 1], scope='fc7')
+					net = slim.conv2d(net, 4096, [1, 1], scope='FC7')
 					print(net.get_shape())
 					net = slim.dropout(net, self.dropout_keep_prob, is_training=self.is_training,
-														 scope='dropout7')
+														 scope='Dropout7')
 					print(net.get_shape())
 					net = slim.conv2d(net, self.num_classes, [1, 1],
 														activation_fn=None,
 														normalizer_fn=None,
 														biases_initializer=tf.zeros_initializer,
-														scope='fc8')
+														scope='FC8')
 					print(net.get_shape())
 
 				# Convert end_points_collection into a end_point dict.
 				end_points = slim.utils.convert_collection_to_dict(end_points_collection)
-				if spatial_squeeze:
+				if self.spatial_squeeze:
 					net = tf.squeeze(net, [1, 2], name='fc8/squeezed')
 					end_points[sc.name + '/fc8'] = net
-				return net, end_points
+				
+				return net
 				
 	def inference_3d(self, inputs):
 		
@@ -246,5 +248,5 @@ class Alexnet(object):
 			net = array_ops.squeeze(net, name='fc8/squeezed')
 			end_points[sc.name + '/fc8'] = net
 		
-		return net, end_points
+		return net
 	

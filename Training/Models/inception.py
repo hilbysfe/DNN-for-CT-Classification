@@ -120,7 +120,7 @@ class Inception(object):
 			raise ValueError('depth_multiplier is not greater than zero.')
 		depth = lambda d: max(int(d * depth_multiplier), min_depth)
 
-		with variable_scope.variable_scope(self.scope, 'InceptionV3', [inputs]):
+		with variable_scope.variable_scope('InceptionV3', [inputs]):
 			with arg_scope(
 					[layers.conv2d, layers_lib.max_pool2d, layers_lib.avg_pool2d],
 					stride=1,
@@ -565,12 +565,11 @@ class Inception(object):
 		if self.depth_multiplier <= 0:
 			raise ValueError('depth_multiplier is not greater than zero.')
 		depth = lambda d: max(int(d * self.depth_multiplier), self.min_depth)
-
-		with variable_scope.variable_scope(
-				scope, 'InceptionV3', [inputs, self.num_classes], reuse=self.reuse) as scope:
+		
+		with variable_scope.variable_scope('InceptionV3', [inputs, self.num_classes], reuse=self.reuse) as scope:
 			with arg_scope(
 					[layers_lib.batch_norm, layers_lib.dropout], is_training=self.is_training):
-				net, end_points = inception_v3_base(
+				net, end_points = self.inception_v3_base(
 						inputs,
 						scope=self.scope,
 						min_depth=self.min_depth,
@@ -593,7 +592,7 @@ class Inception(object):
 
 						# Shape of feature map before the final layer.
 						k = net.get_shape()[1].value
-						kernel_size = _reduced_kernel_size_for_small_input(aux_logits, [k, k])
+						kernel_size = self._reduced_kernel_size_for_small_input(aux_logits, [k, k])
 						aux_logits = layers.conv2d(
 								aux_logits,
 								depth(768),
@@ -616,7 +615,7 @@ class Inception(object):
 				# Final pooling and prediction
 				with variable_scope.variable_scope('Logits'):
 					k = net.get_shape()[1].value
-					kernel_size = _reduced_kernel_size_for_small_input(net, [k,k])
+					kernel_size = self._reduced_kernel_size_for_small_input(net, [k,k])
 					net = layers_lib.avg_pool2d(
 							net,
 							kernel_size,
@@ -638,11 +637,12 @@ class Inception(object):
 					# 1000
 				end_points['Logits'] = logits
 				end_points['Predictions'] = self.prediction_fn(logits, scope='Predictions')
-		return logits, end_points
+		
+		return logits
 
 
 
-	def _reduced_kernel_size_for_small_input(input_tensor, kernel_size):
+	def _reduced_kernel_size_for_small_input(self, input_tensor, kernel_size):
 		"""Define kernel size which is automatically reduced for small input.
 		If the shape of the input images is unknown at graph construction time this
 		function assumes that the input images are is large enough.
@@ -670,7 +670,7 @@ class Inception(object):
 		return kernel_size_out
 
 
-	def inception_v3_arg_scope(weight_decay=0.00004,
+	def inception_v3_arg_scope(self, weight_decay=0.00004,
 														 stddev=0.1,
 														 batch_norm_var_collection='moving_vars'):
 		"""Defines the default InceptionV3 arg scope.

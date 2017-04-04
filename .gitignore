@@ -14,3 +14,5 @@
 3DCNN/C3D/logs/
 Training/cifar10/
 Training/logs/
+Training/Statistics/
+Training/Utils/Statistics/
