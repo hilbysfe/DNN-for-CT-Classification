@@ -8,6 +8,7 @@ import tensorflow as tf
 import numpy as np
 from sklearn.metrics import auc
 import math
+import shutil
 
 import cifar10_utils
 
@@ -19,24 +20,41 @@ from Models.c3d import C3D
 from Models.alexnet import alexnet_v2_arg_scope
 from Models.ctnet import CTNET
 
-LEARNING_RATE_DEFAULT = 0.01
+LEARNING_RATE_DEFAULT = 0.05
 BATCH_SIZE_DEFAULT = 32
 MAX_EPOCHS_DEFAULT = 70
 EVAL_FREQ_DEFAULT = 1
 CHECKPOINT_FREQ_DEFAULT = 5000
 PRINT_FREQ_DEFAULT = 5
-SIGMAS_DEFAULT = "0.5, 1, 1.5"
-KERNELS_DEFAULT = "3,3,3,3"
-MAPS_DEFAULT = "96,96"
+SIGMAS_DEFAULT = "1.7, 0.4, 0.4"
+KERNELS_DEFAULT = "11,3,3"
+MAPS_DEFAULT = "64,64,64"
 MAXPOOLS_DEFAULT = "3,3,3,3"
-L2 = 0.0
+L2 = 0.0005
 HDROP = 0.0
 CDROP = 0.0
 DATASET_NAME = 'Normalized_Resampled_128x128x30'
-
-MODEL_DEFAULT = 'CTNET'
+MODEL_DEFAULT = 'RFNN_2d'
 
 CHECKPOINT_DIR_DEFAULT = './checkpoints'
+
+def get_kernels():	
+	
+	kernel = tf.get_default_graph().get_tensor_by_name("ConvLayer1/weights:0")
+	alphas = tf.get_default_graph().get_tensor_by_name("L1_alphas:0")
+	# print(kernel.get_shape())
+	kernel_avg = tf.reduce_mean(kernel, axis=2)
+	x_min = tf.reduce_min(kernel_avg)
+	x_max = tf.reduce_max(kernel_avg)
+	kernel_0_to_1 = (kernel_avg - x_min) / (x_max - x_min)
+
+	# to tf.image_summary format [batch_size, height, width, channels]
+	kernel_transposed = tf.transpose(kernel_avg, [2, 0, 1])
+	# print(kernel_transposed.get_shape())
+	
+	return alphas, kernel_transposed
+	
+	
 
 def accuracy_function(logits, labels):	
 	softmax = tf.nn.softmax(logits)
@@ -70,7 +88,7 @@ def loss_function(logits, labels):
 
 def train_step(loss):
 	# global_step = tf.Variable(0, trainable=False)
-	# rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step, 50, 0.99, staircase=False)
+	# rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step, 300, 0.99, staircase=False)
 	# train_op = tf.train.GradientDescentOptimizer(rate).minimize(loss, global_step=global_step)
 	train_op = tf.train.AdamOptimizer(FLAGS.learning_rate).minimize(loss)
 	return train_op
@@ -103,7 +121,7 @@ def train():
 
 	# Input placeholders
 	with tf.name_scope('input'):
-		x = tf.placeholder(tf.float32, [None, 128, 128, 16], name='x-input')
+		x = tf.placeholder(tf.float32, [None, 256, 256, 16], name='x-input')
 		y_ = tf.placeholder(tf.float32, [None, 2], name='y-input')
 		is_training = tf.placeholder(tf.bool, name='is-training')
 
@@ -134,8 +152,7 @@ def train():
 				'alexnet_2d'	: lambda: Alexnet(
 									kernels_3d=False,
 									num_classes=2,
-									is_training=is_training,
-									scope=alexnet.alexnet_v2_arg_scope()
+									is_training=is_training
 									),
 				'alexnet_3d' 	: lambda: Alexnet(
 									kernels_3d=True,
@@ -159,7 +176,8 @@ def train():
 									l2 = FLAGS.l2,
 									is_training = is_training,
 									dropout_rate_conv = FLAGS.cdrop,
-									dropout_rate_hidden = FLAGS.hdrop
+									dropout_rate_hidden = FLAGS.hdrop,
+									conv3d = False
 									)
 			}[FLAGS.model_name]
 	
@@ -169,6 +187,7 @@ def train():
 	
 	loss = loss_function(logits, y_)
 	accuracy, prediction, scores = accuracy_function(logits, y_)
+
 	
 	# Call optimizer
 	train_op = train_step(loss)
@@ -178,15 +197,19 @@ def train():
 	
 	# Merge all the summaries and write them out to log
 	merged = tf.summary.merge_all()
-	train_writer = tf.summary.FileWriter(FLAGS.log_dir + '/train',	sess.graph)
+	train_writer = tf.summary.FileWriter(FLAGS.log_dir + '/train', sess.graph)
 	test_writer = tf.summary.FileWriter(FLAGS.log_dir + '/test')
 	tf.global_variables_initializer().run()
+	
+	# Print initial kernels
+	alphas_tensor, kernels_tensor = get_kernels()	
+	alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])		
+	np.save('./Kernels/kernel_0.npy', kernels_array)
+	np.save('./Kernels/alphas_0.npy', alphas)
 	
 	# Train
 	max_acc = 0
 	training_steps = int(dataset.Training.num_examples/FLAGS.batch_size)
-	# print(training_steps)
-	#print(validation_steps)
 	
 	max_acc = 0
 	for i in range(int(FLAGS.max_epochs*training_steps)):
@@ -194,33 +217,14 @@ def train():
 		_ = sess.run([train_op], feed_dict=feed_dict(0))
 		if i % (FLAGS.eval_freq*training_steps) == 0 or i==int(FLAGS.max_epochs*training_steps):				
 			# ------------ VALIDATON -------------
-			# tot_acc = 0.0
-			# tot_loss = 0.0
-			# steps = 4 #int(math.floor(dataset.Validation.num_examples/FLAGS.batch_size))
-			# for step in range(steps):
-				# acc_s, loss_s = sess.run([accuracy, loss], feed_dict=feed_dict(1))
-				# tot_acc += (acc_s / steps)
-				# tot_loss += (loss_s / steps)
-						
-			# # Create a new Summary object with your measure
-			# summary = tf.Summary()
-			# summary.value.add(tag="Accuracy", simple_value=tot_acc)
-			# summary.value.add(tag="Loss", simple_value=tot_loss)
 
-			summary, tot_acc = sess.run([merged, accuracy], feed_dict=feed_dict(1))
-			
-			# Add it to the Tensorboard summary writer
+			summary, tot_acc = sess.run([merged, accuracy], feed_dict=feed_dict(1))			
 			test_writer.add_summary(summary, i)
 			
 			if tot_acc > max_acc:
-				#checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'best_model.ckpt')
-				#saver.save(sess, checkpoint_path)
 				max_acc = tot_acc
 			print('Validation accuracy at step %s: %s' % (i, tot_acc))
 					
-#			if i == FLAGS.max_steps:
-#				np.savetxt("confusion_matrix.csv", conf.astype(int), delimiter=",")
-								
 		if i % FLAGS.print_freq == 0:
 			# ------------ PRINT -------------
 			summary = sess.run([merged], feed_dict=feed_dict(0))
@@ -233,6 +237,12 @@ def train():
 	test_writer.close()
 	print('Max accuracy : %s' % (max_acc))
 	
+	# Print final kernels
+	alphas_tensor, kernels_tensor = get_kernels()	
+	alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])		
+	np.save('./Kernels/kernel_final.npy', kernels_array)
+	np.save('./Kernels/alphas_final.npy', alphas)
+	
 	# --------- ROC Analysis ----------
 	tresholds = 200
 	fpr_mean = np.zeros((tresholds))
@@ -240,20 +250,11 @@ def train():
 	tr = np.linspace(0,1,tresholds)
 	auc_list = []
 	iters = 20
+	test_acc = 0
 	for k in range(iters):
-		# steps = 4 #int(math.floor(dataset.Test.num_examples/FLAGS.batch_size))
-		# y_score = np.zeros((int(dataset.Test.num_examples/steps)*steps,2))
-		# labels_test = np.zeros((steps*int(dataset.Test.num_examples/steps),2))
-		# for step in range(steps):
-			# offset = step*int(dataset.Test.num_examples/steps)
+
+		y_score, labels_test, acc = sess.run([scores, y_, accuracy], feed_dict=feed_dict(2))
 		
-			# y_score_s, labels_test_s = sess.run([scores, y_], feed_dict=feed_dict(2))		
-		y_score, labels_test = sess.run([scores, y_], feed_dict=feed_dict(2))
-			
-			# y_score[offset:offset+int(dataset.Test.num_examples/steps),:] = y_score_s
-			# labels_test[offset:offset+int(dataset.Test.num_examples/steps),:] = labels_test_s
-			
-		# print(y_score)
 		# Compute ROC curve and ROC area for each class
 		fpr = np.zeros((tresholds))
 		tpr = np.zeros((tresholds))
@@ -272,45 +273,56 @@ def train():
 		auc_list.append(auc_k)
 		tpr_mean = np.add(tpr_mean, np.divide(tpr, iters))
 		fpr_mean = np.add(fpr_mean, np.divide(fpr, iters))
-	# print(fpr)
-	# print(tpr)
+		
+		test_acc += acc/iters
+		
 	roc_auc = np.mean(np.array(auc_list))
 	std_auc = np.std(np.array(auc_list))
 	
-	if not os.path.isdir('./Statistics/' + FLAGS.model_name + '/'):
-		os.mkdir('./Statistics/' + FLAGS.model_name + '/')
-	if not os.path.isdir('./Statistics/' + FLAGS.model_name + '/' + FLAGS.dataset_name + '/'):
-		os.mkdir('./Statistics/' + FLAGS.model_name + '/' + FLAGS.dataset_name + '/')
+	print('Acc/AUC/std : %s/%s/%s' % (test_acc, roc_auc, std_auc))
 	
-	np.save('./Statistics/' + FLAGS.model_name + '/' + FLAGS.dataset_name + '/'\
-			+ str(FLAGS.learning_rate) + '_' + str(FLAGS.batch_size) \
-			+ '_' + FLAGS.kernels.replace(",","_")  \
-			+ FLAGS.maps.replace(",","_") + '_maxpool' + FLAGS.maxpool_kernels.replace(",","_") \
-			+ '_' + str(FLAGS.max_epochs) + 'epoch' + '_cdrop' + str(FLAGS.cdrop) + '_hdrop' + str(FLAGS.hdrop) \
-			+ '_l2' + str(FLAGS.l2) \
-			+ '_tpr.npy', tpr_mean)
-	np.save('./Statistics/' + FLAGS.model_name + '/' + FLAGS.dataset_name + '/'\
-			+ str(FLAGS.learning_rate) + '_' + str(FLAGS.batch_size) \
-			+ '_' + FLAGS.kernels.replace(",","_")  \
-			+ FLAGS.maps.replace(",","_") + '_maxpool' + FLAGS.maxpool_kernels.replace(",","_") \
-			+ '_' + str(FLAGS.max_epochs) + 'epoch' + '_cdrop' + str(FLAGS.cdrop) + '_hdrop' + str(FLAGS.hdrop) \
-			+ '_l2' + str(FLAGS.l2) \
-			+ '_fpr.npy', fpr_mean)
-	np.save('./Statistics/' + FLAGS.model_name + '/' + FLAGS.dataset_name + '/'\
-			+ str(FLAGS.learning_rate) + '_' + str(FLAGS.batch_size) \
-			+ '_' + FLAGS.kernels.replace(",","_") \
-			+ FLAGS.maps.replace(",","_") + '_maxpool' + FLAGS.maxpool_kernels.replace(",","_") \
-			+ '_' + str(FLAGS.max_epochs) + 'epoch' + '_cdrop' + str(FLAGS.cdrop) + '_hdrop' + str(FLAGS.hdrop) \
-			+ '_l2' + str(FLAGS.l2) \
-			+ '_auc.npy', roc_auc)		
-	np.save('./Statistics/' + FLAGS.model_name + '/' + FLAGS.dataset_name + '/'\
-			+ str(FLAGS.learning_rate) + '_' + str(FLAGS.batch_size) \
-			+ '_' + FLAGS.kernels.replace(",","_") \
-			+ FLAGS.maps.replace(",","_") + '_maxpool' + FLAGS.maxpool_kernels.replace(",","_") \
-			+ '_' + str(FLAGS.max_epochs) + 'epoch' + '_cdrop' + str(FLAGS.cdrop) + '_hdrop' + str(FLAGS.hdrop) \
-			+ '_l2' + str(FLAGS.l2) \
-			+ '_std.npy', std_auc)	
-	print('AUC/std : %s/%s' % (roc_auc, std_auc))
+	# if not os.path.isdir('./Statistics/' + FLAGS.model_name + '/3Dfinal/'):
+		# os.mkdir('./Statistics/' + FLAGS.model_name + '/3Dfinal/')
+	# if not os.path.isdir('./Statistics/' + FLAGS.model_name + '/3Dfinal/' + FLAGS.dataset_name + '/'):
+		# os.mkdir('./Statistics/' + FLAGS.model_name + '/3Dfinal/' + FLAGS.dataset_name + '/')
+	
+	
+	# np.save('./Statistics/' + FLAGS.model_name + '/3Dfinal/' + FLAGS.dataset_name + '/'\
+			# + str(FLAGS.learning_rate) + '_' + str(FLAGS.batch_size) \
+			# + '_' + FLAGS.kernels.replace(",","_")  \
+			# + FLAGS.maps.replace(",","_") + '_maxpool' + FLAGS.maxpool_kernels.replace(",","_") \
+			# + '_' + str(FLAGS.max_epochs) + 'epoch' + '_cdrop' + str(FLAGS.cdrop) + '_hdrop' + str(FLAGS.hdrop) \
+			# + '_l2' + str(FLAGS.l2) \
+			# + '_tpr.npy', tpr_mean)
+	# np.save('./Statistics/' + FLAGS.model_name + '/3Dfinal/' + FLAGS.dataset_name + '/'\
+			# + str(FLAGS.learning_rate) + '_' + str(FLAGS.batch_size) \
+			# + '_' + FLAGS.kernels.replace(",","_")  \
+			# + FLAGS.maps.replace(",","_") + '_maxpool' + FLAGS.maxpool_kernels.replace(",","_") \
+			# + '_' + str(FLAGS.max_epochs) + 'epoch' + '_cdrop' + str(FLAGS.cdrop) + '_hdrop' + str(FLAGS.hdrop) \
+			# + '_l2' + str(FLAGS.l2) \
+			# + '_fpr.npy', fpr_mean)
+	# np.save('./Statistics/' + FLAGS.model_name + '/3Dfinal/' + FLAGS.dataset_name + '/'\
+			# + str(FLAGS.learning_rate) + '_' + str(FLAGS.batch_size) \
+			# + '_' + FLAGS.kernels.replace(",","_") \
+			# + FLAGS.maps.replace(",","_") + '_maxpool' + FLAGS.maxpool_kernels.replace(",","_") \
+			# + '_' + str(FLAGS.max_epochs) + 'epoch' + '_cdrop' + str(FLAGS.cdrop) + '_hdrop' + str(FLAGS.hdrop) \
+			# + '_l2' + str(FLAGS.l2) \
+			# + '_auc.npy', roc_auc)		
+	# np.save('./Statistics/' + FLAGS.model_name + '/3Dfinal/' + FLAGS.dataset_name + '/'\
+			# + str(FLAGS.learning_rate) + '_' + str(FLAGS.batch_size) \
+			# + '_' + FLAGS.kernels.replace(",","_") \
+			# + FLAGS.maps.replace(",","_") + '_maxpool' + FLAGS.maxpool_kernels.replace(",","_") \
+			# + '_' + str(FLAGS.max_epochs) + 'epoch' + '_cdrop' + str(FLAGS.cdrop) + '_hdrop' + str(FLAGS.hdrop) \
+			# + '_l2' + str(FLAGS.l2) \
+			# + '_std.npy', std_auc)	
+	# np.save('./Statistics/' + FLAGS.model_name + '/3Dfinal/' + FLAGS.dataset_name + '/'\
+			# + str(FLAGS.learning_rate) + '_' + str(FLAGS.batch_size) \
+			# + '_' + FLAGS.kernels.replace(",","_") \
+			# + FLAGS.maps.replace(",","_") + '_maxpool' + FLAGS.maxpool_kernels.replace(",","_") \
+			# + '_' + str(FLAGS.max_epochs) + 'epoch' + '_cdrop' + str(FLAGS.cdrop) + '_hdrop' + str(FLAGS.hdrop) \
+			# + '_l2' + str(FLAGS.l2) \
+			# + '_acc.npy', test_acc)	
+	
 
 def initialize_folders():
 	"""
@@ -318,7 +330,10 @@ def initialize_folders():
 	"""
 	if not tf.gfile.Exists(FLAGS.log_dir):
 		tf.gfile.MakeDirs(FLAGS.log_dir)
-
+	else:
+		shutil.rmtree(FLAGS.log_dir)
+		tf.gfile.MakeDirs(FLAGS.log_dir)
+		
 	# if not tf.gfile.Exists(FLAGS.checkpoint_dir):
 		# tf.gfile.MakeDirs(FLAGS.checkpoint_dir)
 
@@ -377,11 +392,13 @@ if __name__ == '__main__':
 						
 	FLAGS, unparsed = parser.parse_known_args()
 
-	FLAGS.log_dir = './logs/' + FLAGS.model_name + '/' + FLAGS.dataset_name + '/' \
-		+ '2D/128/4Layer/' + str(FLAGS.learning_rate) + \
-		'_' + str(FLAGS.batch_size) + '_' + FLAGS.kernels.replace(",","_")  + '_'\
-		 + FLAGS.maps.replace(",","_") + '_' + str(FLAGS.max_epochs) \
-		+ 'epoch' + '_cdrop' + str(FLAGS.cdrop) + '_l2-' + str(FLAGS.l2) + '_hdrop' + str(FLAGS.hdrop) 
+	FLAGS.log_dir = './logs/test/'
+		# + FLAGS.model_name + '/final/' + FLAGS.dataset_name + '/' \
+		# + '3D/128/' + str(FLAGS.learning_rate) + \
+		# '_' + str(FLAGS.batch_size) + '_' + FLAGS.kernels.replace(",","_")  + '_'\
+		 # + FLAGS.maps.replace(",","_") + '_' + str(FLAGS.max_epochs) \
+		# + 'epoch'  + '_mp' + FLAGS.maxpool_kernels.replace(",","_") + '_l2-' + str(FLAGS.l2) + '_hdrop' + str(FLAGS.hdrop)
+		
 		#  + '_cdrop' + str(FLAGS.cdrop) + '_l2-' + str(FLAGS.l2) + '_hdrop' + str(FLAGS.hdrop) 
 		# + '_mp' + FLAGS.maxpool_kernels.replace(",","_") \
 		

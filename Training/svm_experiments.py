@@ -64,7 +64,7 @@ def run_svm(dataset_path, svm_model, roc_steps, flag):
 	
 # run_svm('Normalized_Resampled_128x128x30', svm.SVC(kernel='linear', probability=True, random_state=np.random.RandomState(0)), 200, flag='_linear')
 # run_svm('Normalized_RigidAligned_128x128x30', svm.SVC(kernel='linear', probability=True, random_state=np.random.RandomState(0)), 200, flag='_linear')
-# run_svm('Normalized_Skullstripped_128x128x22', svm.SVC(kernel='linear', probability=True, random_state=np.random.RandomState(0)), 200, flag='_linear')
+run_svm('Normalized_Skullstripped_128x128x22', svm.SVC(kernel='linear', probability=True, random_state=np.random.RandomState(0)), 200, flag='_linear')
 
 # run_svm('Normalized_Resampled_128x128x30_augmented3', svm.SVC(kernel='linear', probability=True, random_state=np.random.RandomState(0)), 200, flag='_linear')
 # run_svm('Normalized_RigidAligned_128x128x30_augmented3', svm.SVC(kernel='linear', probability=True, random_state=np.random.RandomState(0)), 200, flag='_linear')

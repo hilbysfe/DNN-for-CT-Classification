@@ -59,10 +59,8 @@ def init_basis_hermite_2D(sigma,bases):
 	gauss1y = conv(impulse, g1, axis=0)
 	gauss2x = conv(impulse, g2, axis=1)
 	gauss0 = conv(gauss0x, g, axis=0)
-	hermiteBasis[0,:,:] = gauss0		# g
-	vmax = gauss0.max()
-	vmin = -vmax
-	#print vmax, vmin
+	
+	hermiteBasis[0,:,:] = gauss0					# g
 	hermiteBasis[1,:,:] = conv(gauss0y, g1, axis=1) # g_x
 	hermiteBasis[2,:,:] = conv(gauss0x, g1, axis=0) # g_y
 	
@@ -188,12 +186,6 @@ def init_basis_hermite_3D(sigma,bases):
 	hermiteBasis[34,:,:,:] = gauss4xzzy_
 	
 	return tf.constant(floatX(hermiteBasis[0:bases,:,:,:]))
-	
-def init_bias(units, name):
-	return tf.get_variable(
-		name,
-		shape=units,
-		initializer=tf.constant_initializer(0.0))
 
 def init_alphas(nrFilters,channels,nrBasis,name):
 	return tf.get_variable(
@@ -201,41 +193,37 @@ def init_alphas(nrFilters,channels,nrBasis,name):
 		shape=[nrFilters,channels,nrBasis],
 		initializer=tf.random_uniform_initializer(-1.0, 1.0))
 	
-def init_weights(shape, name):
-	return tf.get_variable(
-		name,
-		shape=shape,
-		initializer=tf.random_normal_initializer(0.01))
-	
 
 
 
 
 class RFNN(object):
 
-	def __init__(self, n_classes = 10, bases_3d = False, sigmas=[0.5, 1, 1.5], dropout_rate_conv=.2, dropout_rate_hidden=0.7, is_training = True):
+	def __init__(self, sigmas, n_classes=2, bases_3d = False, dropout_rate_conv=.2, dropout_rate_hidden=0.7, is_training = True):
 	
 		self.n_classes				= n_classes
 		self.dropout_rate_conv		= dropout_rate_conv
 		self.dropout_rate_hidden	= dropout_rate_hidden
 		self.is_training			= is_training
 		
-		self.normalizer				= tf.nn.lrn
 		self.act					= tf.nn.relu
+		self.regularizer 			= tf.contrib.layers.l2_regularizer(0.0005)
 		
-		self.hermit					= init_basis_hermite_3D if bases_3d else init_basis_hermite_2D
 		
+		self.hermit					= init_basis_hermite_3D if bases_3d else init_basis_hermite_2D		
 		self.inference				= self.inference_3d if bases_3d else self.inference_2d
+		
+		
 		#-------------------------
 		# Init Basis and Alphas
 		#-------------------------
 
 		bases_L1 = 10
 		sigma_L1 = sigmas[0]
-		# bases_L2 = 15
-		# sigma_L2 = sigmas[1]
-		# bases_L3 = 15
-		# sigma_L3 = sigmas[2]
+		bases_L2 = 6
+		sigma_L2 = sigmas[1]
+		bases_L3 = 6
+		sigma_L3 = sigmas[2]
 		
 		# bases_L4 = 10
 		# sigma_L4 = sigmas[3]
@@ -248,16 +236,16 @@ class RFNN(object):
 		# sigma_L7 = sigmas[6]
 		
 		self.basis_L1 = self.hermit(sigma_L1,bases_L1)
-		# self.basis_L2 = self.hermit(sigma_L2,bases_L2)
-		# self.basis_L3 = self.hermit(sigma_L3,bases_L3)		
+		self.basis_L2 = self.hermit(sigma_L2,bases_L2)
+		self.basis_L3 = self.hermit(sigma_L3,bases_L3)		
 		# self.basis_L4 = self.hermit(sigma_L4,bases_L4)
 		# self.basis_L5 = self.hermit(sigma_L5,bases_L5)
 		# self.basis_L6 = self.hermit(sigma_L6,bases_L6)
 		# self.basis_L7 = self.hermit(sigma_L7,bases_L7)
 
-		self.alphas_L1 = init_alphas(64,1,bases_L1, name="L1_alphas")
-		# self.alphas_L2 = init_alphas(160,192,bases_L2, name="L2_alphas")
-		# self.alphas_L3 = init_alphas(96,160,bases_L3, name="L3_alphas")
+		self.alphas_L1 = init_alphas(64,3,bases_L1, name="L1_alphas")
+		self.alphas_L2 = init_alphas(64,64,bases_L2, name="L2_alphas")
+		self.alphas_L3 = init_alphas(64,64,bases_L3, name="L3_alphas")
 		
 		# self.alphas_L4 = init_alphas(192,96,bases_L4, name="L4_alphas")
 		# self.alphas_L5 = init_alphas(160,192,bases_L5, name="L5_alphas")
@@ -265,53 +253,6 @@ class RFNN(object):
 		
 		# self.alphas_L7 = init_alphas(64,96,bases_L7, name="L7_alphas")
 
-		
-		
-	def _conv_layer_2d(self, input, kernel, stride, padding, name, bnorm=True):
-		with tf.variable_scope(name) as scope:						
-			net = tf.nn.conv2d(input, kernel, strides=stride, padding=padding)
-			if bnorm:
-				net = batch_norm_wrapper(net, self.is_training, True)
-			net = self.act(net, name=scope.name)			
-			self._activation_summary(net)
-			
-		with tf.variable_scope(name + '/visualization'):
-			# scale weights to [0 1], type is still float
-			kernel_avg = tf.reduce_mean(kernel, axis=2)
-			x_min = tf.reduce_min(kernel_avg)
-			x_max = tf.reduce_max(kernel_avg)
-			kernel_0_to_1 = (kernel_avg - x_min) / (x_max - x_min)
-						
-			# to tf.image_summary format [batch_size, height, width, channels]
-			kernel_transposed = tf.transpose(kernel_0_to_1, [2, 0, 1])
-			kernel_transposed = tf.expand_dims(kernel_transposed, axis=3)
-			batch = kernel_transposed.get_shape()[0].value
-						
-			tf.summary.image('/filters', kernel_transposed, max_outputs=batch)
-			
-		return net
-		
-	def _conv_layer_3d(self, input, kernel, stride, padding, name, bnorm=True):
-		with tf.variable_scope(name) as scope:						
-			net = tf.nn.conv3d(input, kernel, strides=stride, padding=padding)
-			if bnorm:
-				net = batch_norm_wrapper(net, self.is_training, True)
-			net = self.act(net, name=scope.name)			
-			self._activation_summary(net)
-			
-		with tf.variable_scope(name + '/visualization'):
-			# scale weights to [0 1], type is still float
-			x_min = tf.reduce_min(kernel)
-			x_max = tf.reduce_max(kernel)
-			kernel_0_to_1 = (kernel - x_min) / (x_max - x_min)
-
-			# to tf.image_summary format [batch_size, height, width, channels]
-			kernel_transposed = tf.transpose (kernel_0_to_1, [4, 0, 1, 2, 3])
-
-			tf.summary.image(name + '/filters', kernel_transposed)
-			
-		return net
-		
 
 	#---------------------------
 	# Model Definition
@@ -319,131 +260,85 @@ class RFNN(object):
 
 	# ---- Use this for 2D models ----
 	def inference_2d(self, X):
-		print(X.get_shape())
 		ch = X.get_shape()[3].value
 		
 		# --- Define weights ---
-		w = tf.reduce_sum(
+		w_L1 = tf.reduce_sum(
 			tf.transpose(self.alphas_L1[:,:,:,None,None]) *
 			tf.transpose(self.basis_L1[None,None,:,:,:])
-			,axis = 2)		
-		w_L1 = tf.tile(w, [1, 1, ch, 1])
-		# w_L2 = tf.reduce_sum(
-			# tf.transpose(self.alphas_L2[:,:,:,None,None]) * 
-			# tf.transpose(self.basis_L2[None,None,:,:,:])
-			# ,axis = 2)
-		# w_L3 = tf.reduce_sum(
-			# tf.transpose(self.alphas_L3[:,:,:,None,None]) * 
-			# tf.transpose(self.basis_L3[None,None,:,:,:])
-			# ,axis = 2)
-		# w_L4 = tf.reduce_sum(
-			# tf.transpose(self.alphas_L4[:,:,:,None,None]) * 
-			# tf.transpose(self.basis_L4[None,None,:,:,:])
-			# ,axis = 2)
-		# w_L5 = tf.reduce_sum(
-			# tf.transpose(self.alphas_L5[:,:,:,None,None]) * 
-			# tf.transpose(self.basis_L5[None,None,:,:,:])
-			# ,axis = 2)
-		# w_L6 = tf.reduce_sum(
-			# tf.transpose(self.alphas_L6[:,:,:,None,None]) * 
-			# tf.transpose(self.basis_L6[None,None,:,:,:])
-			# ,axis = 2)
-		# w_L7 = tf.reduce_sum(
-			# tf.transpose(self.alphas_L7[:,:,:,None,None]) * 
-			# tf.transpose(self.basis_L7[None,None,:,:,:])
-			# ,axis = 2)	
+			,axis = 2, name='ConvLayer1/weights')		
+		# w_L1 = tf.tile(w, [1, 1, ch, 1], name='ConvLayer1/weights')
+		print(w_L1.get_shape())
+		w_L2 = tf.reduce_sum(
+			tf.transpose(self.alphas_L2[:,:,:,None,None]) * 
+			tf.transpose(self.basis_L2[None,None,:,:,:])
+			,axis = 2)
+		print(w_L2.get_shape())
+		w_L3 = tf.reduce_sum(
+			tf.transpose(self.alphas_L3[:,:,:,None,None]) * 
+			tf.transpose(self.basis_L3[None,None,:,:,:])
+			,axis = 2)
+		print(w_L3.get_shape())
+			
+		# --- Define forward pass ---
+		print(X.get_shape())
 		
 		# ==== Layer 1 ====				
-		l1 = self._conv_layer_2d(
+		net = self._conv_layer_2d(
 				input=X,
 				kernel=w_L1,
 				stride=[1,1,1,1],
 				padding='SAME',
-				name='ConvLayer1a')
-		# l1 = self._conv_layer_2d(
-				# input=l1,
-				# kernel=w_L2,
-				# stride=[1,1,1,1],
-				# padding='SAME',
-				# name='ConvLayer1b')
-		# l1 = self._conv_layer_2d(
-				# input=l1,
-				# kernel=w_L3,
-				# stride=[1,1,1,1],
-				# padding='SAME',
-				# name='ConvLayer1c')				
-		# print(l1.get_shape())
+				name='ConvLayer1')
 		
-		l1 = tf.nn.max_pool(l1, ksize=[1,3,3,1], strides=[1,2,2,1], padding="VALID")
-		# print(l1.get_shape())
+		net = tf.nn.max_pool(net, ksize=[1,3,3,1], strides=[1,2,2,1], padding="VALID")
+		print(net.get_shape())
 		
-		l1 = batch_norm_wrapper(l1, self.is_training, True)
+		# ==== Layer 2a ====			
+		net = self._conv_layer_2d(
+				input=net,
+				kernel=w_L2,
+				stride=[1,1,1,1],
+				padding='SAME',
+				name='ConvLayer2a')
 		
-		# keep_prob = tf.select(self.is_training, 1-self.dropout_rate_conv, 1)
-		# l1 = tf.nn.dropout(l1, keep_prob)
-
-		# ==== Layer 2 ====			
-		# l2 = self._conv_layer_2d(
-				# input=l1,
-				# kernel=w_L4,
-				# stride=[1,1,1,1],
-				# padding='SAME',
-				# name='ConvLayer2a')
-		# l2 = self._conv_layer_2d(
-				# input=l2,
-				# kernel=w_L5,
-				# stride=[1,1,1,1],
-				# padding='SAME',
-				# name='ConvLayer2b')
-		# l2 = self._conv_layer_2d(
-				# input=l2,
-				# kernel=w_L6,
-				# stride=[1,1,1,1],
-				# padding='SAME',
-				# name='ConvLayer2c')				
-		# print(l2.get_shape())
+		# ==== Layer 2b ====		
+		net = self._conv_layer_2d(
+				input=net,
+				kernel=w_L3,
+				stride=[1,1,1,1],
+				padding='SAME',
+				name='ConvLayer2b')
 		
-		# l2 = tf.nn.max_pool(l2, ksize=[1,3,3,1], strides=[1,2,2,1], padding="VALID")
-		# print(l2.get_shape())
-					
-		# keep_prob = tf.select(self.is_training, 1-self.dropout_rate_conv, 1)
-		# l2 = tf.nn.dropout(l2, 1-self.dropout_rate_conv)
-
-		# ==== Layer 3 ====		
-		# l3 = self._conv_layer_2d(
-				# input=l2,
-				# kernel=w_L7,
-				# stride=[1,1,1,1],
-				# padding='SAME',
-				# name='ConvLayer3')
-		# print(l3.get_shape())
-		
-		# l3 = tf.nn.max_pool(l3, ksize=[1,3,3,1], strides=[1,2,2,1], padding="VALID")
-		# print(l3.get_shape())
+		net = tf.nn.max_pool(net, ksize=[1,3,3,1], strides=[1,2,2,1], padding="VALID")
+		print(net.get_shape())
 						
-		# ==== Layer 4 ====		
+		# ==== Flatten ====		
 		with tf.variable_scope('Flatten'):
-			fshape = l1.get_shape()
+			fshape = net.get_shape()
 			dim = fshape[1].value*fshape[2].value*fshape[3].value
-			l4 = tf.reshape(l1, [-1, dim])
-		print(l4.get_shape())		
+			net = tf.reshape(net, [-1, dim])
+		print(net.get_shape())		
 
-		# keep_prob = tf.select(self.is_training, 1-self.dropout_rate_conv, 1)
-		# pyx = tf.nn.dropout(l4, 1-self.dropout_rate_hidden)
-		
-		self.w_L4 = init_weights((dim, self.n_classes), name="L8_weights")
-		
-		with tf.variable_scope('FullLayer'):
-			pyx = tf.matmul(l4, self.w_L4)
-			pyx = batch_norm_wrapper(pyx, self.is_training, False)
-		
-		# with tf.variable_scope('AVG_Pooling'):
-			# pyx = tf.nn.avg_pool(l3, ksize=[1,14,14,1], strides=[1,1,1,1], padding="VALID")
-			# pyx = batch_norm_wrapper(pyx, self.is_training, False)
-		
-		# print(pyx.get_shape())		
+		# ==== FC1 ====		
+		net = self._full_layer(
+			input = net,
+			shape=(dim, 96),
+			name = 'FullLayer1')			
+		print(net.get_shape())		
+
+		# ==== Softmax ====		
+		pyx = self._softmax_layer(
+					input = net,
+					shape=(96, self.n_classes),
+					name = 'SoftmaxLayer')
+		print(pyx.get_shape())
 		
 		return pyx
+		
+		
+		
+		
 		
 	# ---- Use this for 3D models ----
 	def inference_3d(self, X):
@@ -519,6 +414,106 @@ class RFNN(object):
 		
 		return pyx	
 
+		
+		
+	def _conv_layer_2d(self, input, kernel, stride, padding, name, bnorm=True):
+		with tf.variable_scope(name) as scope:						
+			net = tf.nn.conv2d(input, kernel, strides=stride, padding=padding)
+			if bnorm:
+				net = batch_norm_wrapper(net, self.is_training, True)
+			net = self.act(net, name=scope.name)	
+			
+			self._activation_summary(net)
+			
+		with tf.variable_scope(name + '/visualization'):
+			# scale weights to [0 1], type is still float
+			kernel_avg = tf.reduce_mean(kernel, axis=2)
+			x_min = tf.reduce_min(kernel_avg)
+			x_max = tf.reduce_max(kernel_avg)
+			kernel_0_to_1 = (kernel_avg - x_min) / (x_max - x_min)
+						
+			# to tf.image_summary format [batch_size, height, width, channels]
+			kernel_transposed = tf.transpose(kernel_0_to_1, [2, 0, 1])
+			kernel_transposed = tf.expand_dims(kernel_transposed, axis=3)
+			batch = kernel_transposed.get_shape()[0].value
+						
+			tf.summary.image('/filters', kernel_transposed, max_outputs=batch)
+			
+		return net
+		
+	def _conv_layer_3d(self, input, kernel, stride, padding, name, bnorm=True):
+		with tf.variable_scope(name) as scope:						
+			net = tf.nn.conv3d(input, kernel, strides=stride, padding=padding)
+			if bnorm:
+				net = batch_norm_wrapper(net, self.is_training, True)
+			net = self.act(net, name=scope.name)			
+			self._activation_summary(net)
+			
+		with tf.variable_scope(name + '/visualization'):
+			# scale weights to [0 1], type is still float
+			x_min = tf.reduce_min(kernel)
+			x_max = tf.reduce_max(kernel)
+			kernel_0_to_1 = (kernel - x_min) / (x_max - x_min)
+
+			# to tf.image_summary format [batch_size, height, width, channels]
+			kernel_transposed = tf.transpose (kernel_0_to_1, [4, 0, 1, 2, 3])
+
+			tf.summary.image(name + '/filters', kernel_transposed)
+			
+		return net
+		
+	def _full_layer(self, input, shape, name, bnorm=False):
+		with tf.variable_scope(name) as scope:
+			weights = tf.get_variable(
+				'weights', 
+				shape=shape,
+				initializer= tf.truncated_normal_initializer(stddev=np.sqrt(2/shape[-1]),dtype=tf.float32),
+				regularizer= self.regularizer)
+			# No bias when BN
+			if not bnorm:
+				biases = tf.get_variable(
+					'biases',
+					[shape[-1]],
+					initializer=tf.constant_initializer(0.0),
+					dtype=tf.float32)
+			
+			wx = tf.matmul(input, weights)
+			if bnorm:
+				wx = batch_norm_wrapper(wx, self.is_training, False)
+			else:
+				wx = tf.nn.bias_add(wx, biases)
+				
+			local = self.act(wx, name="Activation")
+			
+			self._activation_summary(local)
+			
+		return local
+	
+	def _softmax_layer(self, input, shape, name, bnorm=False):
+		with tf.variable_scope(name) as scope:
+			weights = tf.get_variable(
+				'weights', 
+				shape=shape,
+				initializer = tf.truncated_normal_initializer(stddev=0.04,dtype=tf.float32),
+				regularizer=None)
+			# No bias when BN				
+			if not bnorm:
+				biases = tf.get_variable(
+					'biases',
+					[shape[-1]],
+					initializer=tf.constant_initializer(0.0),
+					dtype=tf.float32)
+				
+			wx = tf.matmul(input, weights, name="Activation")
+			if bnorm:
+				wx = batch_norm_wrapper(wx, self.is_training, False)
+			else:
+				wx = tf.nn.bias_add(wx, biases)
+				
+			self._activation_summary(wx)
+			
+		return wx
+		
 	
 		
 	def _activation_summary(self, x):

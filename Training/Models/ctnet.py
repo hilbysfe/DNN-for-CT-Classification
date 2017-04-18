@@ -45,13 +45,12 @@ class CTNET(object):
 		self.dropout_rate_conv		= dropout_rate_conv
 		self.dropout_rate_hidden	= dropout_rate_hidden
 		
-		self.normalizer				= tf.nn.lrn
 		self.act					= tf.nn.relu
 		self.kernels				= kernels
 		self.maps					= maps
 		self.mp_kernels				= maxpool_kernels
 		
-		self.initializer			= tf.truncated_normal_initializer(stddev=1e-4,dtype=tf.float32) #tf.contrib.layers.xavier_initializer()
+		self.initializer			= tf.truncated_normal_initializer(stddev=1e-4,dtype=tf.float32)
 		if l2 > 0.0:
 			self.regularizer 		= tf.contrib.layers.l2_regularizer(l2)
 		else:
@@ -75,14 +74,14 @@ class CTNET(object):
 					initializer=tf.constant_initializer(0.0),
 					dtype=tf.float32)
 			
-			conv = tf.nn.conv2d(input, kernel, strides=stride, padding=padding)
+			conv = tf.nn.conv2d(input, kernel, strides=stride, padding=padding, name='Pre-Activation')
 			
 			if bnorm:
 				conv = batch_norm_wrapper(conv, self.is_training, True)
 			else:
 				conv = tf.nn.bias_add(conv, biases)
 				
-			conv_out = self.act(conv, name=scope.name)
+			conv_out = self.act(conv, name='Activation')
 			self._activation_summary(conv_out)
 			
 		with tf.variable_scope(name + '/visualization'):
@@ -128,12 +127,12 @@ class CTNET(object):
 			
 		return conv_out
 		
-	def _full_layer(self, input, shape, name, bnorm=True):
+	def _full_layer(self, input, shape, name, bnorm=False):
 		with tf.variable_scope(name) as scope:
 			weights = tf.get_variable(
 				'weights', 
 				shape=shape,
-				initializer=tf.truncated_normal_initializer(stddev=np.sqrt(2/shape[-1]),dtype=tf.float32),
+				initializer= tf.truncated_normal_initializer(stddev=np.sqrt(2/shape[-1]),dtype=tf.float32),
 				regularizer=self.regularizer)
 			# No bias when BN
 			if not bnorm:
@@ -155,13 +154,13 @@ class CTNET(object):
 			
 		return local
 	
-	def _softmax_layer(self, input, shape, name, bnorm=True):
+	def _softmax_layer(self, input, shape, name, bnorm=False):
 		with tf.variable_scope(name) as scope:
 			weights = tf.get_variable(
 				'weights', 
 				shape=shape,
-				initializer=tf.truncated_normal_initializer(stddev=0.04,dtype=tf.float32),
-				regularizer=self.regularizer)
+				initializer = tf.truncated_normal_initializer(stddev=0.04,dtype=tf.float32),
+				regularizer=None)
 			# No bias when BN				
 			if not bnorm:
 				biases = tf.get_variable(
@@ -196,9 +195,9 @@ class CTNET(object):
 				stride=[1,1,1,1],
 				padding='SAME',
 				name='ConvLayer1')
-
-		# net = tf.nn.max_pool(net, ksize=[1,self.mp_kernels[0],self.mp_kernels[0],1], strides=[1,2,2,1], padding="SAME")
-		# print(net.get_shape())
+		with tf.variable_scope('MaxPool1'):
+			net = tf.nn.max_pool(net, ksize=[1,self.mp_kernels[0],self.mp_kernels[0],1], strides=[1,2,2,1], padding="VALID")
+			print(net.get_shape())
 
 		if self.dropout_rate_conv > 0.0:
 			keep_prob = tf.select(self.is_training, 1-self.dropout_rate_conv, 1)
@@ -213,8 +212,8 @@ class CTNET(object):
 					padding='SAME',
 					name='ConvLayer2')
 					
-			net = tf.nn.max_pool(net, ksize=[1,self.mp_kernels[1],self.mp_kernels[1],1], strides=[1,2,2,1], padding="SAME")
-			print(net.get_shape())
+			# net = tf.nn.max_pool(net, ksize=[1,self.mp_kernels[1],self.mp_kernels[1],1], strides=[1,2,2,1], padding="VALID")
+			# print(net.get_shape())
 			
 			# if self.dropout_rate_conv > 0.0:
 				# keep_prob = tf.select(self.is_training, 1-self.dropout_rate_conv, 1)
@@ -228,30 +227,13 @@ class CTNET(object):
 					stride=[1,1,1,1],
 					padding='SAME',
 					name='ConvLayer3')
-			
-			# net = tf.nn.max_pool(net, ksize=[1,self.mp_kernels[2],self.mp_kernels[2],1], strides=[1,2,2,1], padding="SAME")
-			# print(net.get_shape())
+			with tf.variable_scope('MaxPool3'):
+				net = tf.nn.max_pool(net, ksize=[1,self.mp_kernels[2],self.mp_kernels[2],1], strides=[1,2,2,1], padding="VALID")
+				print(net.get_shape())
 					
 			if self.dropout_rate_conv > 0.0:
 				keep_prob = tf.select(self.is_training, 1-self.dropout_rate_conv, 1)
 				net = tf.nn.dropout(net, keep_prob)
-			
-		# ==== Layer 4 ====			
-		if len(self.kernels) > 3:
-			net = self._conv_layer_2d(
-					input=net,
-					shape=[self.kernels[3], self.kernels[3], self.maps[2], self.maps[3]],
-					stride=[1,1,1,1],
-					padding='SAME',
-					name='ConvLayer4')
-			
-			net = tf.nn.max_pool(net, ksize=[1,self.mp_kernels[3],self.mp_kernels[3],1], strides=[1,2,2,1], padding="SAME")
-			print(net.get_shape())
-					
-			if self.dropout_rate_conv > 0.0:
-				keep_prob = tf.select(self.is_training, 1-self.dropout_rate_conv, 1)
-				net = tf.nn.dropout(net, keep_prob)
-		
 		
 							
 		# ==== Layer 4 ====		
@@ -261,13 +243,12 @@ class CTNET(object):
 			net = tf.reshape(net, [-1, dim])
 		print(net.get_shape())		
 		
-		# net = self._full_layer(
-			# input = net,
-			# shape=(dim, 96),
-			# name = 'FullLayer1',
-			# bnorm = False)
+		net = self._full_layer(
+			input = net,
+			shape=(dim, 96),
+			name = 'FullLayer1')
 			
-		# print(net.get_shape())		
+		print(net.get_shape())		
 
 		if self.dropout_rate_hidden > 0.0:
 			keep_prob = tf.select(self.is_training, 1-self.dropout_rate_hidden, 1)
@@ -275,14 +256,9 @@ class CTNET(object):
 						
 		pyx = self._softmax_layer(
 					input = net,
-					shape=(dim, self.n_classes),
-					name = 'SoftmaxLayer',
-					bnorm = False)
-		
-		# with tf.variable_scope('AVG_Pooling'):
-			# pyx = tf.nn.avg_pool(l3, ksize=[1,14,14,1], strides=[1,1,1,1], padding="VALID")
-			# pyx = batch_norm_wrapper(pyx, self.is_training, False)
-		
+					shape=(96, self.n_classes),
+					name = 'SoftmaxLayer')
+				
 		print(pyx.get_shape())		
 		
 		return pyx
@@ -294,38 +270,44 @@ class CTNET(object):
 		# ==== Layer 1 ====				
 		net = self._conv_layer_3d(
 				input=X,
-				shape=[self.kernels[0], self.kernels[0], self.kernels[0], 1, 32],
+				shape=[self.kernels[0], self.kernels[0], self.kernels[1], 1, self.maps[0]],
 				stride=[1,1,1,1,1],
 				padding='SAME',
 				name='ConvLayer1')
-				
-		net = tf.nn.max_pool3d(net, ksize=[1,3,3,3,1], strides=[1,2,2,2,1], padding="SAME")
-		print(net.get_shape())
+		with tf.variable_scope('MaxPool1'):
+			net = tf.nn.max_pool3d(net, ksize=[1,self.mp_kernels[0],self.mp_kernels[0],self.mp_kernels[0],1], strides=[1,2,2,2,1], padding="VALID")
+			print(net.get_shape())
+
+		if self.dropout_rate_conv > 0.0:
+			keep_prob = tf.select(self.is_training, 1-self.dropout_rate_conv, 1)
+			net = tf.nn.dropout(net, keep_prob)
 		
+		# ==== Layer 2 ====			
 		if len(self.kernels) > 1:
 			net = self._conv_layer_3d(
 					input=net,
-					shape=[self.kernels[1], self.kernels[1], 3, 32, 32],
+					shape=[self.kernels[2], self.kernels[2], self.kernels[3], self.maps[0], self.maps[1]],
 					stride=[1,1,1,1,1],
 					padding='SAME',
 					name='ConvLayer2')
-					
-			net = tf.nn.max_pool3d(net, ksize=[1,3,3,3,1], strides=[1,2,2,2,1], padding="SAME")
-			print(net.get_shape())
+
 		
+		# ==== Layer 3 ====			
 		if len(self.kernels) > 2:
 			net = self._conv_layer_3d(
 					input=net,
-					shape=[self.kernels[2], self.kernels[2], 3, 32, 32],
+					shape=[self.kernels[4], self.kernels[4], self.kernels[5], self.maps[1], self.maps[2]],
 					stride=[1,1,1,1,1],
 					padding='SAME',
 					name='ConvLayer3')
+			with tf.variable_scope('MaxPool3'):
+				net = tf.nn.max_pool3d(net, ksize=[1,self.mp_kernels[2],self.mp_kernels[2],self.mp_kernels[2],1], strides=[1,2,2,2,1], padding="VALID")
+				print(net.get_shape())
 					
-			net = tf.nn.max_pool3d(net, ksize=[1,3,3,3,1], strides=[1,2,2,2,1], padding="SAME")
-			print(net.get_shape())
-				
-		# keep_prob = tf.select(self.is_training, 1-self.dropout_rate_conv, 1)
-		# net = tf.nn.dropout(net, keep_prob)
+			if self.dropout_rate_conv > 0.0:
+				keep_prob = tf.select(self.is_training, 1-self.dropout_rate_conv, 1)
+				net = tf.nn.dropout(net, keep_prob)
+			
 							
 		# ==== Layer 4 ====		
 		with tf.variable_scope('Flatten'):
@@ -333,21 +315,24 @@ class CTNET(object):
 			dim = fshape[1].value*fshape[2].value*fshape[3].value*fshape[4].value
 			net = tf.reshape(net, [-1, dim])
 		print(net.get_shape())		
-
-		# keep_prob = tf.select(self.is_training, 1-self.dropout_rate_hidden, 1)
-		# net = tf.nn.dropout(net, keep_prob)
 		
+		net = self._full_layer(
+			input = net,
+			shape=(dim, 96),
+			name = 'FullLayer1')
+			
+		print(net.get_shape())		
+
+		if self.dropout_rate_hidden > 0.0:
+			keep_prob = tf.select(self.is_training, 1-self.dropout_rate_hidden, 1)
+			net = tf.nn.dropout(net, keep_prob)
+						
 		pyx = self._softmax_layer(
 					input = net,
-					shape=(dim, self.n_classes),
+					shape=(96, self.n_classes),
 					name = 'SoftmaxLayer')
-			# pyx = batch_norm_wrapper(pyx, self.is_training, False)
-		
-		# with tf.variable_scope('AVG_Pooling'):
-			# pyx = tf.nn.avg_pool(l3, ksize=[1,14,14,1], strides=[1,1,1,1], padding="VALID")
-			# pyx = batch_norm_wrapper(pyx, self.is_training, False)
-		
-		# print(pyx.get_shape())		
+				
+		print(pyx.get_shape())		
 		
 		return pyx
 		

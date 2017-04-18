@@ -204,9 +204,7 @@ def normalize_images(dataset_path):
 
 		sitk.WriteImage(img_new, new_image_dir + filename)
 		
-normalize_images('Resampled_128x128x30')
-normalize_images('RigidAligned_128x128x30')		
-normalize_images('Skullstripped_128x128x22')	
+normalize_images('Resampled_256x256x30')
 	
 	
 	

@@ -177,7 +177,7 @@ class SubSet(object):
 		return image_batch, label_batch
 
 
-	def getImageArray(self, image_path, multiAttenuation):
+	def getImageArray(self, image_path, multiAttenuation=False):
 		"""
 		Returns 
 		Args:

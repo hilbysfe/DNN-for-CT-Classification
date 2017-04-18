@@ -4,93 +4,108 @@ from __future__ import print_function
 
 import argparse
 import os
-
 import tensorflow as tf
 import numpy as np
-
-from convnet import ConvNet
-from siamese import Siamese
+from sklearn.metrics import auc
+import math
 
 import cifar10_utils
-import cifar10_siamese_utils
 
+from Utils import utils
+from Models.rfnn import RFNN
+from Models.alexnet import Alexnet
+from Models.inception import Inception
+from Models.c3d import C3D
+from Models.alexnet import alexnet_v2_arg_scope
+from Models.ctnet import CTNET
 
-LEARNING_RATE_DEFAULT = 1e-4
+LEARNING_RATE_DEFAULT = 0.0005
 BATCH_SIZE_DEFAULT = 128
-MAX_STEPS_DEFAULT = 15000
-EVAL_FREQ_DEFAULT = 1000
+MAX_EPOCHS_DEFAULT = 70
+EVAL_FREQ_DEFAULT = 1
 CHECKPOINT_FREQ_DEFAULT = 5000
-PRINT_FREQ_DEFAULT = 10
-OPTIMIZER_DEFAULT = 'ADAM'
+PRINT_FREQ_DEFAULT = 195
+SIGMAS_DEFAULT = "3.5, 1.5, 1.5"
+KERNELS_DEFAULT = "11,3,3"
+MAPS_DEFAULT = "64,64,64"
+MAXPOOLS_DEFAULT = "3,3,3,3"
+L2 = 0.0005
+HDROP = 0.0
+CDROP = 0.0
+DATASET_NAME = 'Normalized_Resampled_128x128x30'
+MODEL_DEFAULT = 'RFNN_2d'
 
-DATA_DIR_DEFAULT = './cifar10/cifar-10-batches-py'
-LOG_DIR_DEFAULT = './logs/cifar10'
 CHECKPOINT_DIR_DEFAULT = './checkpoints'
 
-def train_step(loss):
-	"""
-	Defines the ops to conduct an optimization step. You can set a learning
-	rate scheduler or pick your favorite optimizer here. This set of operations
-	should be applicable to both ConvNet() and Siamese() objects.
+LEARNING_RATE_DECAY_FACTOR = 0.1
 
-	Args:
-		loss: scalar float Tensor, full loss = cross_entropy + reg_loss
-
-	Returns:
-		train_op: Ops for optimization.
-	"""
-	########################
-	#	PUT YOUR CODE HERE	#
-	########################
+def get_kernels():	
 	
-	train_op = tf.train.AdamOptimizer(FLAGS.learning_rate).minimize(loss)
-	
-	########################
-	# END OF YOUR CODE		#
-	########################
+	kernel = tf.get_default_graph().get_tensor_by_name("ConvLayer1/weights:0")
+	alphas = tf.get_default_graph().get_tensor_by_name("L1_alphas:0")
+	# alphas = tf.get_default_graph().get_tensor_by_name("ConvLayer2/weights:0")
+	# print(kernel.get_shape())
+	kernel_avg = tf.reduce_mean(kernel, axis=2)
+	x_min = tf.reduce_min(kernel_avg)
+	x_max = tf.reduce_max(kernel_avg)
+	kernel_0_to_1 = (kernel_avg - x_min) / (x_max - x_min)
 
+	# to tf.image_summary format [batch_size, height, width, channels]
+	kernel_transposed = tf.transpose(kernel_avg, [2, 0, 1])
+	# print(kernel_transposed.get_shape())
+	return alphas, kernel_transposed
+	
+	
+
+def accuracy_function(logits, labels):	
+	softmax = tf.nn.softmax(logits)
+	with tf.name_scope('correct_prediction'):
+		correct_prediction = tf.equal(tf.argmax(softmax, 1), tf.argmax(labels, 1))
+	with tf.name_scope('Accuracy'):
+		accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+	tf.summary.scalar('Accuracy', accuracy)
+
+	return accuracy, correct_prediction, softmax
+
+def loss_function(logits, labels):	
+	with tf.variable_scope('Losses') as scope:		
+		with tf.name_scope('Cross_Entropy_Loss'):
+			cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits, labels, name='cross_entropy_per_example')
+			cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
+			
+			tf.add_to_collection('losses', cross_entropy_mean)		
+			tf.summary.scalar('cross_entropy', cross_entropy_mean)
+		with tf.name_scope('Regularization_Loss'):
+			reg_loss = tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES), name='reg_loss')
+			
+			tf.add_to_collection('losses', reg_loss)
+			tf.summary.scalar('reg_loss', reg_loss)
+		with tf.name_scope('Total_Loss'):
+			loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
+			
+			tf.summary.scalar('total_loss', loss)
+
+	return loss	
+
+def train_step(loss, global_step):
+	# num_batches_per_epoch = NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN / FLAGS.batch_size
+	# decay_steps = int(num_batches_per_epoch * NUM_EPOCHS_PER_DECAY)
+
+	# # Decay the learning rate exponentially based on the number of steps.
+	# lr = tf.train.exponential_decay(FLAGS.learning_rate,
+                                  # global_step,
+                                  # decay_steps,
+                                  # LEARNING_RATE_DECAY_FACTOR,
+                                  # staircase=True)
+	# tf.summary.scalar('learning_rate', lr)
+	train_op = tf.train.AdamOptimizer().minimize(loss)
 	return train_op
 
-	
-
 def train():
-	"""
-	Performs training and evaluation of ConvNet model.
-
-	First define your graph using class ConvNet and its methods. Then define
-	necessary operations such as trainer (train_step in this case), savers
-	and summarizers. Finally, initialize your model within a tf.Session and
-	do the training.
-
-	---------------------------
-	How to evaluate your model:
-	---------------------------
-	Evaluation on test set should be conducted over full batch, i.e. 10k images,
-	while it is alright to do it over minibatch for train set.
-
-	---------------------------------
-	How often to evaluate your model:
-	---------------------------------
-	- on training set every print_freq iterations
-	- on test set every eval_freq iterations
-
-	------------------------
-	Additional requirements:
-	------------------------
-	Also you are supposed to take snapshots of your model state (i.e. graph,
-	weights and etc.) every checkpoint_freq iterations. For this, you should
-	study TensorFlow's tf.train.Saver class. For more information, please
-	checkout:
-	[https://www.tensorflow.org/versions/r0.11/how_tos/variables/index.html]
-	"""
-
 	# Set the random seeds for reproducibility. DO NOT CHANGE.
 	tf.set_random_seed(42)
-	np.random.seed(42)
-
-	########################
-	# PUT YOUR CODE HERE	#
-	########################
+	global_step = tf.contrib.framework.get_or_create_global_step()
+	# np.random.seed(42)
 		
 	def feed_dict(train):
 		if train:
@@ -100,7 +115,8 @@ def train():
 		return {x: xs, y_: ys, is_training: train}	
 	
 	# Load data
-	cifar10_dataset = cifar10_utils.get_cifar10(FLAGS.data_dir)
+	cifar10_dataset = cifar10_utils.get_cifar10('./cifar10/cifar-10-batches-py')
+	
 	
 	# Define session
 	sess = tf.InteractiveSession()
@@ -110,452 +126,129 @@ def train():
 		x = tf.placeholder(tf.float32, [None, 32, 32, 3], name='x-input')
 		y_ = tf.placeholder(tf.float32, [None, 10], name='y-input')
 		is_training = tf.placeholder(tf.bool, name='is-training')
-		
-	# Define and initialize network	
-	net = ConvNet(10, is_training)
+
+	
+	# Model definition
+	if 'RFNN' in FLAGS.model_name:
+		sigmas = [float(x) for x in FLAGS.sigmas.split(',')]
+	if 'CTNET' in FLAGS.model_name:
+		kernels = [float(x) for x in FLAGS.kernels.split(',')]
+	if 'CTNET' in FLAGS.model_name:
+		maps = [float(x) for x in FLAGS.maps.split(',')]
+	if 'CTNET' in FLAGS.model_name:
+		maxpools = [float(x) for x in FLAGS.maxpool_kernels.split(',')]
+	model = {
+				'RFNN_2d' 		: lambda: RFNN(
+									n_classes = 10,
+									is_training = is_training,
+									sigmas=sigmas,
+									bases_3d = False
+									),
+				'RFNN_3d' 		: lambda: RFNN(
+									n_classes = 2,
+									is_training = is_training,
+									sigmas=sigmas,
+									bases_3d = True
+									),
+				'alexnet_2d'	: lambda: Alexnet(
+									kernels_3d=False,
+									num_classes=2,
+									is_training=is_training
+									),
+				'alexnet_3d' 	: lambda: Alexnet(
+									kernels_3d=True,
+									num_classes=2,
+									is_training=is_training
+									),
+				'c3d'			: lambda: C3D(
+									num_classes=2,
+									is_training=is_training,
+									dropout_keep_prob=0.5
+									),
+				'Inception'		: lambda: Inception(
+									num_classes=2,
+									is_training=is_training
+									),
+				'CTNET'			: lambda: CTNET(
+									n_classes=10,
+									kernels = kernels,
+									maps = maps,
+									maxpool_kernels = maxpools,
+									l2 = FLAGS.l2,
+									is_training = is_training,
+									dropout_rate_conv = FLAGS.cdrop,
+									dropout_rate_hidden = FLAGS.hdrop,
+									conv3d = False
+									)
+			}[FLAGS.model_name]
+	
 	
 	# Calculate predictions
-	logits = net.inference(x)	
-	loss = net.loss(logits, y_)
-	accuracy = net.accuracy(logits, y_)
-	# confusion = net.confusion(logits, y_)
-		
+	logits = model().inference(x)	
+	
+	loss = loss_function(logits, y_)
+	accuracy, prediction, scores = accuracy_function(logits, y_)
+
+	
 	# Call optimizer
-	train_op = train_step(loss)
-	
-	# Create a saver.
-	saver = tf.train.Saver(tf.all_variables())
-	
+	train_op = train_step(loss, global_step)
+		
 	# Merge all the summaries and write them out to log
-	merged = tf.merge_all_summaries()
-	train_writer = tf.train.SummaryWriter(FLAGS.log_dir + '/train',	sess.graph)
-	test_writer = tf.train.SummaryWriter(FLAGS.log_dir + '/test')
-	tf.initialize_all_variables().run()
+	merged = tf.summary.merge_all()
+	train_writer = tf.summary.FileWriter(FLAGS.log_dir + '/train',	sess.graph)
+	test_writer = tf.summary.FileWriter(FLAGS.log_dir + '/test')
+	
+	tf.global_variables_initializer().run()
+	
+	# Print initial kernels
+	alphas_tensor, kernels_tensor = get_kernels()	
+	alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])		
+	np.save('./Kernels/kernel_0.npy', kernels_array)
+	np.save('./Kernels/alphas_0.npy', alphas)
 	
 	# Train
 	max_acc = 0
-	for i in range(1, 1+FLAGS.max_steps):
+	training_steps = int(cifar10_dataset.train.num_examples/FLAGS.batch_size)
+	
+	max_acc = 0
+	for i in range(int(FLAGS.max_epochs*training_steps)):
 		# ------------ TRAIN -------------
 		_ = sess.run([train_op], feed_dict=feed_dict(True))
-		if i % FLAGS.eval_freq == 0 or i == 1:				
-			# ------------ TEST -------------
-			summary, acc = sess.run([merged, accuracy], feed_dict=feed_dict(False))
+		if i % (FLAGS.eval_freq*training_steps) == 0:				
+			# ------------ VALIDATON -------------
+			summary, tot_acc = sess.run([merged, accuracy], feed_dict=feed_dict(False))			
 			test_writer.add_summary(summary, i)
-			if acc > max_acc:
-				#checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'best_model.ckpt')
-				#saver.save(sess, checkpoint_path)
-				max_acc = acc
-			print('Accuracy at step %s: %s' % (i, acc))
-					
-#			if i == FLAGS.max_steps:
-#				np.savetxt("confusion_matrix.csv", conf.astype(int), delimiter=",")
-						
+			
+			if tot_acc > max_acc:
+				max_acc = tot_acc
+			print('Validation accuracy at step %s: %s' % (i, tot_acc))
 		
-#			print('Adding run metadata for', i)
-		elif i % FLAGS.print_freq == 0:
+		if i % FLAGS.print_freq == 0:
 			# ------------ PRINT -------------
 			summary = sess.run([merged], feed_dict=feed_dict(True))
 			train_writer.add_summary(summary[0], i)
-		
-		if i % FLAGS.checkpoint_freq == 0: # or i == FLAGS.max_steps:
-			checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'model.ckpt')
-			saver.save(sess, checkpoint_path, global_step=i)
+
+	print('Max accuracy : %s' % (max_acc))
 	train_writer.close()
 	test_writer.close()
-	print('Max accuracy : %s' % (max_acc))
-
-	########################
-	# END OF YOUR CODE		#
-	########################
-
-
-
-def train_siamese():
-	"""
-	Performs training and evaluation of Siamese model.
-
-	First define your graph using class Siamese and its methods. Then define
-	necessary operations such as trainer (train_step in this case), savers
-	and summarizers. Finally, initialize your model within a tf.Session and
-	do the training.
-
-	---------------------------
-	How to evaluate your model:
-	---------------------------
-	On train set, it is fine to monitor loss over minibatches. On the other
-	hand, in order to evaluate on test set you will need to create a fixed
-	validation set using the data sampling function you implement for siamese
-	architecture. What you need to do is to iterate over all minibatches in
-	the validation set and calculate the average loss over all minibatches.
-
-	---------------------------------
-	How often to evaluate your model:
-	---------------------------------
-	- on training set every print_freq iterations
-	- on test set every eval_freq iterations
-
-	------------------------
-	Additional requirements:
-	------------------------
-	Also you are supposed to take snapshots of your model state (i.e. graph,
-	weights and etc.) every checkpoint_freq iterations. For this, you should
-	study TensorFlow's tf.train.Saver class. For more information, please
-	checkout:
-	[https://www.tensorflow.org/versions/r0.11/how_tos/variables/index.html]
-	"""
-
-	# Set the random seeds for reproducibility. DO NOT CHANGE.
-	tf.set_random_seed(42)
-	np.random.seed(42)
-
-	########################
-	# PUT YOUR CODE HERE	#
-	########################
-	def feed_dict_train():
-		_left, _right, ys = cifar10_siamese_dataset.train.next_batch(
-				FLAGS.batch_size)
-		train = True
-		_margin = float(0.2)
+	
+	# Print final kernels
+	alphas_tensor, kernels_tensor = get_kernels()	
+	alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])		
+	np.save('./Kernels/kernel_final.npy', kernels_array)
+	np.save('./Kernels/alphas_final.npy', alphas)
+	
 		
-		return {left: _left, right: _right, y_: ys,
-						is_training: train, margin: _margin}
-
-	# Load data
-	cifar10_siamese_dataset = cifar10_siamese_utils.get_cifar10(
-			FLAGS.data_dir, validation_size=1000, one_hot=False)
-	val_dset = cifar10_siamese_utils.create_dataset(
-			cifar10_siamese_dataset.validation)
-	test_dset = cifar10_siamese_utils.create_dataset(
-			cifar10_siamese_dataset.test)
-
-	# Define session
-	# sess = tf.InteractiveSession()
-
-	siamese_model = Siamese()
-
-	with tf.Graph().as_default():
-
-		# Input placeholders
-		with tf.name_scope('input'):
-			left = tf.placeholder(
-					tf.float32,
-					[None, 32, 32, 3],
-					name='left-input')
-			right = tf.placeholder(
-					tf.float32,
-					[None, 32, 32, 3],
-					name='right-input')
-			y_ = tf.placeholder(
-					tf.float32,
-					[None],
-					name='y-input')
-			is_training = tf.placeholder(
-					tf.bool,
-					name='training-input')
-			margin = tf.placeholder(
-					tf.float32,
-					name='margin-input')
-
-		with tf.name_scope("inference"):
-			# with tf.name_scope("Channel_1"):
-			channel_1 = siamese_model.inference(left, False)
-			# with tf.name_scope("Channel_2"):
-			channel_2 = siamese_model.inference(right, True)
-
-		with tf.name_scope('contrastive_loss'):
-			loss = siamese_model.loss(channel_1, channel_2, y_, margin)
-
-		# Call optimizer
-		with tf.name_scope('train_op'):
-			train_op = train_step(loss)
-
-		merged = tf.merge_all_summaries()
-
-		init = tf.initialize_all_variables()
-		sess = tf.Session()
-
-		# summary writers
-		summary_writer = tf.train.SummaryWriter(
-				FLAGS.log_dir +
-				'/train',
-				sess.graph)
-		summary_writer_val = tf.train.SummaryWriter(
-				FLAGS.log_dir +
-				'/val',
-				sess.graph)
-
-		sess.run(init)
-
-		saver = tf.train.Saver()
-
-		best_test_loss, best_val_loss = 1e3, 1e3
-		for i in range(FLAGS.max_steps):
-
-			_ = sess.run([train_op], feed_dict=feed_dict_train())
-			if i % int(FLAGS.print_freq) == 0:
-
-				# if not val_dset:
-				val_loss = 0
-				for _left, _right, ys in val_dset:
-
-					feed_dict_val = {
-							left: _left,
-							right: _right,
-							y_: ys,
-							is_training: False,
-							margin: float(0.2)}
-
-					val_summary, batch_loss = sess.run(
-							[merged, loss], feed_dict=feed_dict_val)
-					val_loss += batch_loss
-
-				val_loss /= len(val_dset)
-
-				# summ_train, loss_train = sess.run(
-				#		 [summary, loss], feed_dict=feed_dict_val)
-				summary_writer.add_summary(val_summary, i)
-
-				print(
-						'{0:40s} {1:10d}'.format(
-								'validation loss is: {0:.3g} @iteration:'.format(
-										float(val_loss)),
-								int(i)))
-
-			if (i % int(FLAGS.eval_freq) == 0 and i != 0) or i == int(
-							FLAGS.max_steps)-1:
-
-				##########################
-				#	 Perform validation	 #
-				##########################
-
-				# if not val_dset:
-				test_loss = 0
-				for _left, _right, ys in test_dset:
-
-					feed_dict_test = {
-							left: _left,
-							right: _right,
-							y_: ys,
-							is_training: False,
-							margin: float(0.2)}
-
-					test_summary, batch_loss = sess.run(
-							[merged, loss], feed_dict=feed_dict_test)
-					test_loss += batch_loss
-
-				test_loss /= len(test_dset)
-
-				summary_writer_val.add_summary(test_summary, i)
-
-				print(
-						'{0:40s} {1:10d}'.format(
-								'average test loss: {0:.4g} @iteration:'.format(test_loss),
-								int(i)))
-
-			# write checkpoints
-			if(i % int(FLAGS.checkpoint_freq) == 0) or (i == int(FLAGS.max_steps)-1):
-
-				print(
-						'{0:40s} {1:10d}'.format(
-								'saving @iteration: {0:21s}'.format(' '),
-								int(i)))
-			# if i % FLAGS.checkpoint_freq == 0:	# or i == FLAGS.max_steps:
-				checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'model.ckpt')
-				saver.save(sess, checkpoint_path, global_step=i)
-
-#		print(
-#			 'Best val loss: {0:.3g}, Best test loss: {1:.3g}'.format(
-#						best_train_loss,
-#						best_test_loss))
-	########################
-	# END OF YOUR CODE		#
-	########################
-
-
-def feature_extraction():
-	"""
-	This method restores a TensorFlow checkpoint file (.ckpt) and rebuilds inference
-	model with restored parameters. From then on you can basically use that model in
-	any way you want, for instance, feature extraction, finetuning or as a submodule
-	of a larger architecture. However, this method should extract features from a
-	specified layer and store them in data files such as '.h5', '.npy'/'.npz'
-	depending on your preference. You will use those files later in the assignment.
-
-	Args:
-		[optional]
-	Returns:
-		None
-	"""
-
-	########################
-	# PUT YOUR CODE HERE	#
-	########################
-	
-	# ==================== CNN ======================
-	
-	# Load data
-#	cifar10_dataset = cifar10_utils.get_cifar10(FLAGS.data_dir)
-	
-#	xs_train, ys_train = cifar10_dataset.train.next_batch(20000)
-	#xs_test, ys_test = cifar10_dataset.test.images, cifar10_dataset.test.labels
-	
-	# Define session
-#	sess = tf.InteractiveSession()
-	
-	# Input placeholders
-#	with tf.name_scope('input'):
-#		x = tf.placeholder(tf.float32, [None, 32, 32, 3], name='x-input')
-#		y_ = tf.placeholder(tf.float32, [None, 10], name='y-input')
-#		is_training = tf.placeholder(tf.bool, name='is-training')
-		
-	# Define and initialize network	
-#	net = ConvNet(10)
-	
-	# Calculate predictions
-#	logits = net.inference(x)	
-#	loss = net.loss(logits, y_)
-#	accuracy = net.accuracy(logits, y_)		
-	
-	# Get feature activation
-#	flatten = tf.get_default_graph().get_tensor_by_name("ConvNet/Flatten/Activation:0")
-#	fc1 = tf.get_default_graph().get_tensor_by_name("ConvNet/FullLayer1/Activation:0")
-#	fc2 = tf.get_default_graph().get_tensor_by_name("ConvNet/FullLayer2/Activation:0")
-
-	# Create a saver.
-#	saver = tf.train.Saver(tf.all_variables())
-	
-	# Init variables
-#	tf.initialize_all_variables().run()	
-	
-	# Restore variables from checkpoint
-#	checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'best_model.ckpt')
-#	saver.restore(sess, checkpoint_path)	
-#	print("Model loaded.")	
-	
-	# Run inference
-#	merged = tf.merge_all_summaries()	
-	
-#	_, acc, flatten_np_train, fc1_np_train, fc2_np_train = sess.run([merged, accuracy, flatten, fc1, fc2], {x:xs_train, y_:ys_train})
-#	_, acc, flatten_np_test, fc1_np_test, fc2_np_test = sess.run([merged, accuracy, flatten, fc1, fc2], {x:xs_test, y_:ys_test})		
-	
-#	labels_train = np.zeros(ys_train.shape[0])
-#	i=0
-#	for label in ys_train:
-#		labels_train[i] = np.where(label==1)[0]
-#		i=i+1
-	
-#	labels_test = np.zeros(ys_test.shape[0])
-#	i=0
-#	for label in ys_test:
-#		labels_test[i] = np.where(label==1)[0]
-#		i=i+1	
-	
-	# Save features and labels
-#	np.save("./features/flatten_train.npy", flatten_np_train)
-#	np.save("./features/fc1_train.npy", fc1_np_train)
-#	np.save("./features/fc2_train.npy", fc2_np_train)
-#	np.save("./features/labels_train.npy", labels_train)
-
-#	np.save("./features/flatten_test.npy", flatten_np_test)
-#	np.save("./features/fc1_test.npy", fc1_np_test)
-#	np.save("./features/fc2_test.npy", fc2_np_test)
-#	np.save("./features/labels_test.npy", labels_test)
-	
-	# =============== Siamese =================
-	
-	print("Siamese feature_extraction.")	
-	
-	# Load data
-	cifar10_siamese_dataset = cifar10_siamese_utils.get_cifar10(
-			FLAGS.data_dir, validation_size=1000, one_hot=False)
-
-	test_dataset = cifar10_siamese_utils.create_dataset(cifar10_siamese_dataset.test, num_tuples=1, batch_size=2000)
-
-	# Define session
-	sess = tf.InteractiveSession()
-
-	siamese_model = Siamese()
-
-	# Input placeholders
-	with tf.name_scope('input'):
-		left = tf.placeholder(
-				tf.float32,
-				[None, 32, 32, 3],
-				name='left-input')
-		right = tf.placeholder(
-				tf.float32,
-				[None, 32, 32, 3],
-				name='right-input')
-		y_ = tf.placeholder(
-				tf.float32,
-				[None],
-				name='y-input')
-		is_training = tf.placeholder(
-				tf.bool,
-				name='training-input')
-		margin = tf.placeholder(
-				tf.float32,
-				name='margin-input')
-
-	with tf.name_scope("inference"):
-		# with tf.name_scope("Channel_1"):
-		channel_1 = siamese_model.inference(left, False)
-		# with tf.name_scope("Channel_2"):
-		channel_2 = siamese_model.inference(right, True)
-
-	with tf.name_scope('contrastive_loss'):
-		loss = siamese_model.loss(channel_1, channel_2, y_, margin)
-
-#	for n in tf.get_default_graph().as_graph_def().node:
-#		if "L2_Normalization" in n.name:
-#		print(n.name) 
-
-	l2norm = tf.get_default_graph().get_tensor_by_name("inference/ConvNet/FullyConnected/L2_Normalization/Div:0")
-	
-	print("l2norm found.")
-	
-	# Create a saver.
-	saver = tf.train.Saver(tf.all_variables())
-		
-	# Init variables
-	tf.initialize_all_variables().run()	
-	
-	# Restore variables from checkpoint
-	checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'model.ckpt')
-	saver.restore(sess, checkpoint_path)	
-	print("Model loaded.")	
-	
-
-	feed_dict_test = {
-		left: test_dataset[0][0],
-		right: test_dataset[0][1],
-		y_: test_dataset[0][2],
-		is_training: False,
-		margin: float(0.2)}
-			
-	_, l2norm_np = sess.run([loss, l2norm], feed_dict=feed_dict_test)
-
-	
-	np.save("./features/l2norm_2000.npy", l2norm_np)
-	np.save("./features/labels_2000.npy", test_dataset[0][2])
-	
-	########################
-	# END OF YOUR CODE		#
-	########################
 
 def initialize_folders():
 	"""
 	Initializes all folders in FLAGS variable.
 	"""
-
 	if not tf.gfile.Exists(FLAGS.log_dir):
 		tf.gfile.MakeDirs(FLAGS.log_dir)
 
-	if not tf.gfile.Exists(FLAGS.data_dir):
-		tf.gfile.MakeDirs(FLAGS.data_dir)
-
-	if not tf.gfile.Exists(FLAGS.checkpoint_dir):
-		tf.gfile.MakeDirs(FLAGS.checkpoint_dir)
+	# if not tf.gfile.Exists(FLAGS.checkpoint_dir):
+		# tf.gfile.MakeDirs(FLAGS.checkpoint_dir)
 
 def print_flags():
 	"""
@@ -565,26 +258,20 @@ def print_flags():
 		print(key + ' : ' + str(value))
 
 def main(_):
+	
 	print_flags()
 
 	initialize_folders()
-	if FLAGS.is_train == True:
-		if FLAGS.train_model == 'linear':
-			train()
-		elif FLAGS.train_model == 'siamese':
-			train_siamese()
-		else:
-			raise ValueError("--train_model argument can be linear or siamese")
-	else:
-		feature_extraction()
-
+	train()
+	
 if __name__ == '__main__':
+	
 	# Command line arguments
 	parser = argparse.ArgumentParser()
 
 	parser.add_argument('--learning_rate', type = float, default = LEARNING_RATE_DEFAULT,
-						help='Learning rate')
-	parser.add_argument('--max_steps', type = int, default = MAX_STEPS_DEFAULT,
+						help='Learning rate')	
+	parser.add_argument('--max_epochs', type = int, default = MAX_EPOCHS_DEFAULT,
 						help='Number of steps to run trainer.')
 	parser.add_argument('--batch_size', type = int, default = BATCH_SIZE_DEFAULT,
 						help='Batch size to run trainer.')
@@ -594,17 +281,38 @@ if __name__ == '__main__':
 						help='Frequency of evaluation on the test set')
 	parser.add_argument('--checkpoint_freq', type = int, default = CHECKPOINT_FREQ_DEFAULT,
 						help='Frequency with which the model state is saved.')
-	parser.add_argument('--data_dir', type = str, default = DATA_DIR_DEFAULT,
-						help='Directory for storing input data')
-	parser.add_argument('--log_dir', type = str, default = LOG_DIR_DEFAULT,
-						help='Summaries log directory')
 	parser.add_argument('--checkpoint_dir', type = str, default = CHECKPOINT_DIR_DEFAULT,
 						help='Checkpoint directory')
-	parser.add_argument('--is_train', type = str, default = True,
-						help='Training or feature extraction')
-	parser.add_argument('--train_model', type = str, default = 'linear',
-						help='Type of model. Possible options: linear and siamese')
-
+	parser.add_argument('--model_name', type = str, default = MODEL_DEFAULT,
+						help='Model name')
+	parser.add_argument('--sigmas', type = str, default = SIGMAS_DEFAULT,
+						help='Sigmas for RFNN')
+	parser.add_argument('--kernels', type = str, default = KERNELS_DEFAULT,
+						help='Kernel sizes of convolution')									
+	parser.add_argument('--maps', type = str, default = MAPS_DEFAULT,
+						help='Amount of kernel maps of convolution')	
+	parser.add_argument('--maxpool_kernels', type = str, default = MAXPOOLS_DEFAULT,
+						help='Kernelsize of maxpool layers')			
+	parser.add_argument('--hdrop', type = float, default = HDROP,
+						help='Hiddenlayer dropout')	
+	parser.add_argument('--cdrop', type = float, default = CDROP,
+						help='Convlayer dropout')		
+	parser.add_argument('--l2', type = float, default = L2,
+						help='Convlayer L2')		
+	parser.add_argument('--dataset_name', type = str, default = DATASET_NAME,
+						help='Name of the dataset')									
+						
+						
 	FLAGS, unparsed = parser.parse_known_args()
 
+	FLAGS.log_dir = './logs/test/'
+		# + FLAGS.model_name + '/final/' + FLAGS.dataset_name + '/' \
+		# + '3D/128/' + str(FLAGS.learning_rate) + \
+		# '_' + str(FLAGS.batch_size) + '_' + FLAGS.kernels.replace(",","_")  + '_'\
+		 # + FLAGS.maps.replace(",","_") + '_' + str(FLAGS.max_epochs) \
+		# + 'epoch'  + '_mp' + FLAGS.maxpool_kernels.replace(",","_") + '_l2-' + str(FLAGS.l2) + '_hdrop' + str(FLAGS.hdrop)
+		
+		#  + '_cdrop' + str(FLAGS.cdrop) + '_l2-' + str(FLAGS.l2) + '_hdrop' + str(FLAGS.hdrop) 
+		# + '_mp' + FLAGS.maxpool_kernels.replace(",","_") \
+		
 	tf.app.run()
