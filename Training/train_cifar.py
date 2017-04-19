@@ -10,6 +10,7 @@ from sklearn.metrics import auc
 import math
 
 import cifar10_utils
+import shutil
 
 from Utils import utils
 from Models.rfnn import RFNN
@@ -19,7 +20,7 @@ from Models.c3d import C3D
 from Models.alexnet import alexnet_v2_arg_scope
 from Models.ctnet import CTNET
 
-LEARNING_RATE_DEFAULT = 0.0005
+LEARNING_RATE_DEFAULT = 0.005
 BATCH_SIZE_DEFAULT = 128
 MAX_EPOCHS_DEFAULT = 70
 EVAL_FREQ_DEFAULT = 1
@@ -35,9 +36,9 @@ CDROP = 0.0
 DATASET_NAME = 'Normalized_Resampled_128x128x30'
 MODEL_DEFAULT = 'RFNN_2d'
 
-CHECKPOINT_DIR_DEFAULT = './checkpoints'
+LOG_DIR_DEFAULT = './logs/'
 
-LEARNING_RATE_DECAY_FACTOR = 0.1
+LEARNING_RATE_DECAY_FACTOR = 0.5
 
 def get_kernels():	
 	
@@ -88,17 +89,16 @@ def loss_function(logits, labels):
 	return loss	
 
 def train_step(loss, global_step):
-	# num_batches_per_epoch = NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN / FLAGS.batch_size
-	# decay_steps = int(num_batches_per_epoch * NUM_EPOCHS_PER_DECAY)
+	decay_steps = 390*10
 
-	# # Decay the learning rate exponentially based on the number of steps.
-	# lr = tf.train.exponential_decay(FLAGS.learning_rate,
-                                  # global_step,
-                                  # decay_steps,
-                                  # LEARNING_RATE_DECAY_FACTOR,
-                                  # staircase=True)
-	# tf.summary.scalar('learning_rate', lr)
-	train_op = tf.train.AdamOptimizer().minimize(loss)
+	# Decay the learning rate exponentially based on the number of steps.
+	lr = tf.train.exponential_decay(FLAGS.learning_rate,
+                                  global_step,
+                                  decay_steps,
+                                  LEARNING_RATE_DECAY_FACTOR,
+                                  staircase=True)
+	tf.summary.scalar('learning_rate', lr)
+	train_op = tf.train.AdamOptimizer(lr).minimize(loss, global_step=global_step)
 	return train_op
 
 def train():
@@ -143,31 +143,6 @@ def train():
 									is_training = is_training,
 									sigmas=sigmas,
 									bases_3d = False
-									),
-				'RFNN_3d' 		: lambda: RFNN(
-									n_classes = 2,
-									is_training = is_training,
-									sigmas=sigmas,
-									bases_3d = True
-									),
-				'alexnet_2d'	: lambda: Alexnet(
-									kernels_3d=False,
-									num_classes=2,
-									is_training=is_training
-									),
-				'alexnet_3d' 	: lambda: Alexnet(
-									kernels_3d=True,
-									num_classes=2,
-									is_training=is_training
-									),
-				'c3d'			: lambda: C3D(
-									num_classes=2,
-									is_training=is_training,
-									dropout_keep_prob=0.5
-									),
-				'Inception'		: lambda: Inception(
-									num_classes=2,
-									is_training=is_training
 									),
 				'CTNET'			: lambda: CTNET(
 									n_classes=10,
@@ -246,6 +221,9 @@ def initialize_folders():
 	"""
 	if not tf.gfile.Exists(FLAGS.log_dir):
 		tf.gfile.MakeDirs(FLAGS.log_dir)
+	else:
+		shutil.rmtree(FLAGS.log_dir)
+		tf.gfile.MakeDirs(FLAGS.log_dir)
 
 	# if not tf.gfile.Exists(FLAGS.checkpoint_dir):
 		# tf.gfile.MakeDirs(FLAGS.checkpoint_dir)
@@ -281,8 +259,8 @@ if __name__ == '__main__':
 						help='Frequency of evaluation on the test set')
 	parser.add_argument('--checkpoint_freq', type = int, default = CHECKPOINT_FREQ_DEFAULT,
 						help='Frequency with which the model state is saved.')
-	parser.add_argument('--checkpoint_dir', type = str, default = CHECKPOINT_DIR_DEFAULT,
-						help='Checkpoint directory')
+	parser.add_argument('--log_dir', type = str, default = LOG_DIR_DEFAULT,
+						help='Logging directory')
 	parser.add_argument('--model_name', type = str, default = MODEL_DEFAULT,
 						help='Model name')
 	parser.add_argument('--sigmas', type = str, default = SIGMAS_DEFAULT,
@@ -305,7 +283,7 @@ if __name__ == '__main__':
 						
 	FLAGS, unparsed = parser.parse_known_args()
 
-	FLAGS.log_dir = './logs/test/'
+	# FLAGS.log_dir = './logs/test/'
 		# + FLAGS.model_name + '/final/' + FLAGS.dataset_name + '/' \
 		# + '3D/128/' + str(FLAGS.learning_rate) + \
 		# '_' + str(FLAGS.batch_size) + '_' + FLAGS.kernels.replace(",","_")  + '_'\

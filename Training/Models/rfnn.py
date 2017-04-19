@@ -245,7 +245,7 @@ class RFNN(object):
 
 		self.alphas_L1 = init_alphas(64,3,bases_L1, name="L1_alphas")
 		self.alphas_L2 = init_alphas(64,64,bases_L2, name="L2_alphas")
-		self.alphas_L3 = init_alphas(64,64,bases_L3, name="L3_alphas")
+		self.alphas_L3 = init_alphas(self.n_classes,64,bases_L3, name="L3_alphas")
 		
 		# self.alphas_L4 = init_alphas(192,96,bases_L4, name="L4_alphas")
 		# self.alphas_L5 = init_alphas(160,192,bases_L5, name="L5_alphas")
@@ -312,27 +312,32 @@ class RFNN(object):
 		
 		net = tf.nn.max_pool(net, ksize=[1,3,3,1], strides=[1,2,2,1], padding="VALID")
 		print(net.get_shape())
-						
+		
+		# ==== AVG Pooling ====		
+		k = net.get_shape()[1].value
+		net = tf.nn.avg_pool(net, ksize=[1,k,k,1], strides=[1,1,1,1], padding="VALID")
+		print(net.get_shape())
+		
 		# ==== Flatten ====		
 		with tf.variable_scope('Flatten'):
 			fshape = net.get_shape()
 			dim = fshape[1].value*fshape[2].value*fshape[3].value
-			net = tf.reshape(net, [-1, dim])
-		print(net.get_shape())		
+			pyx = tf.reshape(net, [-1, dim])
+		print(pyx.get_shape())	
 
-		# ==== FC1 ====		
-		net = self._full_layer(
-			input = net,
-			shape=(dim, 96),
-			name = 'FullLayer1')			
-		print(net.get_shape())		
+		# # ==== FC1 ====		
+		# net = self._full_layer(
+			# input = net,
+			# shape=(dim, 96),
+			# name = 'FullLayer1')			
+		# print(net.get_shape())		
 
-		# ==== Softmax ====		
-		pyx = self._softmax_layer(
-					input = net,
-					shape=(96, self.n_classes),
-					name = 'SoftmaxLayer')
-		print(pyx.get_shape())
+		# # ==== Softmax ====		
+		# pyx = self._softmax_layer(
+					# input = net,
+					# shape=(64, self.n_classes),
+					# name = 'SoftmaxLayer')
+		# print(pyx.get_shape())
 		
 		return pyx
 		
