@@ -25,8 +25,8 @@ BATCH_SIZE_DEFAULT = 32
 MAX_EPOCHS_DEFAULT = 70
 EVAL_FREQ_DEFAULT = 1
 CHECKPOINT_FREQ_DEFAULT = 5000
-PRINT_FREQ_DEFAULT = 5
-SIGMAS_DEFAULT = "1.7, 0.4, 0.4"
+PRINT_FREQ_DEFAULT = 2
+SIGMAS_DEFAULT = "1.5,1.0,0.5"
 KERNELS_DEFAULT = "11,3,3"
 MAPS_DEFAULT = "64,64,64"
 MAXPOOLS_DEFAULT = "3,3,3,3"
@@ -37,6 +37,7 @@ DATASET_NAME = 'Normalized_Resampled_128x128x30'
 MODEL_DEFAULT = 'RFNN_2d'
 
 CHECKPOINT_DIR_DEFAULT = './checkpoints'
+LOG_DIR_DEFAULT = './logs/'
 
 def get_kernels():	
 	
@@ -86,16 +87,24 @@ def loss_function(logits, labels):
 
 	return loss	
 
-def train_step(loss):
-	# global_step = tf.Variable(0, trainable=False)
-	# rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step, 300, 0.99, staircase=False)
-	# train_op = tf.train.GradientDescentOptimizer(rate).minimize(loss, global_step=global_step)
+def train_step(loss, global_step):
+	# decay_steps = 5*20
+	# LEARNING_RATE_DECAY_FACTOR = 0.5
+
+	# # Decay the learning rate exponentially based on the number of steps.
+	# lr = tf.train.exponential_decay(FLAGS.learning_rate,
+                                  # global_step,
+                                  # decay_steps,
+                                  # LEARNING_RATE_DECAY_FACTOR,
+                                  # staircase=True)
+	# tf.summary.scalar('learning_rate', lr)
 	train_op = tf.train.AdamOptimizer(FLAGS.learning_rate).minimize(loss)
 	return train_op
 
 def train():
 	# Set the random seeds for reproducibility. DO NOT CHANGE.
 	tf.set_random_seed(42)
+	global_step = tf.contrib.framework.get_or_create_global_step()
 	# np.random.seed(42)
 		
 	def feed_dict(flag):
@@ -121,7 +130,7 @@ def train():
 
 	# Input placeholders
 	with tf.name_scope('input'):
-		x = tf.placeholder(tf.float32, [None, 256, 256, 16], name='x-input')
+		x = tf.placeholder(tf.float32, [None, 128, 128, 16], name='x-input')
 		y_ = tf.placeholder(tf.float32, [None, 2], name='y-input')
 		is_training = tf.placeholder(tf.bool, name='is-training')
 
@@ -130,43 +139,18 @@ def train():
 	# Model definition
 	if 'RFNN' in FLAGS.model_name:
 		sigmas = [float(x) for x in FLAGS.sigmas.split(',')]
+	kernels = [int(x) for x in FLAGS.kernels.split(',')]
 	if 'CTNET' in FLAGS.model_name:
-		kernels = [float(x) for x in FLAGS.kernels.split(',')]
+		maps = [int(x) for x in FLAGS.maps.split(',')]
 	if 'CTNET' in FLAGS.model_name:
-		maps = [float(x) for x in FLAGS.maps.split(',')]
-	if 'CTNET' in FLAGS.model_name:
-		maxpools = [float(x) for x in FLAGS.maxpool_kernels.split(',')]
+		maxpools = [int(x) for x in FLAGS.maxpool_kernels.split(',')]
 	model = {
 				'RFNN_2d' 		: lambda: RFNN(
 									n_classes = 2,
+									kernels=kernels,
 									is_training = is_training,
 									sigmas=sigmas,
 									bases_3d = False
-									),
-				'RFNN_3d' 		: lambda: RFNN(
-									n_classes = 2,
-									is_training = is_training,
-									sigmas=sigmas,
-									bases_3d = True
-									),
-				'alexnet_2d'	: lambda: Alexnet(
-									kernels_3d=False,
-									num_classes=2,
-									is_training=is_training
-									),
-				'alexnet_3d' 	: lambda: Alexnet(
-									kernels_3d=True,
-									num_classes=2,
-									is_training=is_training
-									),
-				'c3d'			: lambda: C3D(
-									num_classes=2,
-									is_training=is_training,
-									dropout_keep_prob=0.5
-									),
-				'Inception'		: lambda: Inception(
-									num_classes=2,
-									is_training=is_training
 									),
 				'CTNET'			: lambda: CTNET(
 									n_classes=2,
@@ -190,7 +174,7 @@ def train():
 
 	
 	# Call optimizer
-	train_op = train_step(loss)
+	train_op = train_step(loss, global_step)
 	
 	# Create a saver.
 #	saver = tf.train.Saver(tf.all_variables())
@@ -202,10 +186,10 @@ def train():
 	tf.global_variables_initializer().run()
 	
 	# Print initial kernels
-	alphas_tensor, kernels_tensor = get_kernels()	
-	alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])		
-	np.save('./Kernels/kernel_0.npy', kernels_array)
-	np.save('./Kernels/alphas_0.npy', alphas)
+	# alphas_tensor, kernels_tensor = get_kernels()	
+	# alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])		
+	# np.save('./Kernels/kernel_0.npy', kernels_array)
+	# np.save('./Kernels/alphas_0.npy', alphas)
 	
 	# Train
 	max_acc = 0
@@ -225,7 +209,7 @@ def train():
 				max_acc = tot_acc
 			print('Validation accuracy at step %s: %s' % (i, tot_acc))
 					
-		if i % FLAGS.print_freq == 0:
+		if i % (FLAGS.print_freq*training_steps) == 0:
 			# ------------ PRINT -------------
 			summary = sess.run([merged], feed_dict=feed_dict(0))
 			train_writer.add_summary(summary[0], i)
@@ -238,10 +222,10 @@ def train():
 	print('Max accuracy : %s' % (max_acc))
 	
 	# Print final kernels
-	alphas_tensor, kernels_tensor = get_kernels()	
-	alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])		
-	np.save('./Kernels/kernel_final.npy', kernels_array)
-	np.save('./Kernels/alphas_final.npy', alphas)
+	# alphas_tensor, kernels_tensor = get_kernels()	
+	# alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])		
+	# np.save('./Kernels/kernel_final.npy', kernels_array)
+	# np.save('./Kernels/alphas_final.npy', alphas)
 	
 	# --------- ROC Analysis ----------
 	tresholds = 200
@@ -368,8 +352,8 @@ if __name__ == '__main__':
 						help='Frequency of evaluation on the test set')
 	parser.add_argument('--checkpoint_freq', type = int, default = CHECKPOINT_FREQ_DEFAULT,
 						help='Frequency with which the model state is saved.')
-	parser.add_argument('--checkpoint_dir', type = str, default = CHECKPOINT_DIR_DEFAULT,
-						help='Checkpoint directory')
+	parser.add_argument('--log_dir', type = str, default = LOG_DIR_DEFAULT,
+						help='Logging directory')
 	parser.add_argument('--model_name', type = str, default = MODEL_DEFAULT,
 						help='Model name')
 	parser.add_argument('--sigmas', type = str, default = SIGMAS_DEFAULT,
@@ -392,7 +376,7 @@ if __name__ == '__main__':
 						
 	FLAGS, unparsed = parser.parse_known_args()
 
-	FLAGS.log_dir = './logs/test/'
+	# FLAGS.log_dir = './logs/test/'
 		# + FLAGS.model_name + '/final/' + FLAGS.dataset_name + '/' \
 		# + '3D/128/' + str(FLAGS.learning_rate) + \
 		# '_' + str(FLAGS.batch_size) + '_' + FLAGS.kernels.replace(",","_")  + '_'\

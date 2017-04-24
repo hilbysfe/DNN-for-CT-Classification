@@ -23,9 +23,9 @@ from Models.ctnet import CTNET
 LEARNING_RATE_DEFAULT = 0.005
 BATCH_SIZE_DEFAULT = 128
 MAX_EPOCHS_DEFAULT = 70
-EVAL_FREQ_DEFAULT = 1
+EVAL_FREQ_DEFAULT = 3
 CHECKPOINT_FREQ_DEFAULT = 5000
-PRINT_FREQ_DEFAULT = 195
+PRINT_FREQ_DEFAULT = 3
 SIGMAS_DEFAULT = "3.5, 1.5, 1.5"
 KERNELS_DEFAULT = "11,3,3"
 MAPS_DEFAULT = "64,64,64"
@@ -35,28 +35,27 @@ HDROP = 0.0
 CDROP = 0.0
 DATASET_NAME = 'Normalized_Resampled_128x128x30'
 MODEL_DEFAULT = 'RFNN_2d'
-
 LOG_DIR_DEFAULT = './logs/'
 
-LEARNING_RATE_DECAY_FACTOR = 0.5
 
 def get_kernels():	
 	
-	kernel = tf.get_default_graph().get_tensor_by_name("ConvLayer1/weights:0")
+	kernel0 = tf.get_default_graph().get_tensor_by_name("ConvLayer1/weights_0:0")
+	kernel1 = tf.get_default_graph().get_tensor_by_name("ConvLayer1/weights_1:0")
+	kernel2 = tf.get_default_graph().get_tensor_by_name("ConvLayer1/weights_2:0")
+	
 	alphas = tf.get_default_graph().get_tensor_by_name("L1_alphas:0")
 	# alphas = tf.get_default_graph().get_tensor_by_name("ConvLayer2/weights:0")
-	# print(kernel.get_shape())
-	kernel_avg = tf.reduce_mean(kernel, axis=2)
-	x_min = tf.reduce_min(kernel_avg)
-	x_max = tf.reduce_max(kernel_avg)
-	kernel_0_to_1 = (kernel_avg - x_min) / (x_max - x_min)
-
+	kernel_avg0 = tf.reduce_mean(kernel0, axis=2)
+	kernel_avg1 = tf.reduce_mean(kernel1, axis=2)
+	kernel_avg2 = tf.reduce_mean(kernel2, axis=2)
+	
 	# to tf.image_summary format [batch_size, height, width, channels]
-	kernel_transposed = tf.transpose(kernel_avg, [2, 0, 1])
-	# print(kernel_transposed.get_shape())
-	return alphas, kernel_transposed
-	
-	
+	kernel_transposed0 = tf.transpose(kernel_avg0, [2, 0, 1])
+	kernel_transposed1 = tf.transpose(kernel_avg1, [2, 0, 1])
+	kernel_transposed2 = tf.transpose(kernel_avg2, [2, 0, 1])
+		
+	return alphas, tf.pack([kernel_transposed0, kernel_transposed1, kernel_transposed2])
 
 def accuracy_function(logits, labels):	
 	softmax = tf.nn.softmax(logits)
@@ -89,7 +88,8 @@ def loss_function(logits, labels):
 	return loss	
 
 def train_step(loss, global_step):
-	decay_steps = 390*10
+	decay_steps = 390*50
+	LEARNING_RATE_DECAY_FACTOR = 0.5
 
 	# Decay the learning rate exponentially based on the number of steps.
 	lr = tf.train.exponential_decay(FLAGS.learning_rate,
@@ -131,15 +131,15 @@ def train():
 	# Model definition
 	if 'RFNN' in FLAGS.model_name:
 		sigmas = [float(x) for x in FLAGS.sigmas.split(',')]
+	kernels = [int(x) for x in FLAGS.kernels.split(',')]
 	if 'CTNET' in FLAGS.model_name:
-		kernels = [float(x) for x in FLAGS.kernels.split(',')]
+		maps = [int(x) for x in FLAGS.maps.split(',')]
 	if 'CTNET' in FLAGS.model_name:
-		maps = [float(x) for x in FLAGS.maps.split(',')]
-	if 'CTNET' in FLAGS.model_name:
-		maxpools = [float(x) for x in FLAGS.maxpool_kernels.split(',')]
+		maxpools = [int(x) for x in FLAGS.maxpool_kernels.split(',')]
 	model = {
 				'RFNN_2d' 		: lambda: RFNN(
 									n_classes = 10,
+									kernels=kernels,
 									is_training = is_training,
 									sigmas=sigmas,
 									bases_3d = False
@@ -185,7 +185,6 @@ def train():
 	max_acc = 0
 	training_steps = int(cifar10_dataset.train.num_examples/FLAGS.batch_size)
 	
-	max_acc = 0
 	for i in range(int(FLAGS.max_epochs*training_steps)):
 		# ------------ TRAIN -------------
 		_ = sess.run([train_op], feed_dict=feed_dict(True))
@@ -198,10 +197,10 @@ def train():
 				max_acc = tot_acc
 			print('Validation accuracy at step %s: %s' % (i, tot_acc))
 		
-		if i % FLAGS.print_freq == 0:
+		if i % (FLAGS.print_freq*training_steps) == 0:
 			# ------------ PRINT -------------
-			summary = sess.run([merged], feed_dict=feed_dict(True))
-			train_writer.add_summary(summary[0], i)
+			summary = sess.run(merged, feed_dict=feed_dict(True))
+			train_writer.add_summary(summary, i)
 
 	print('Max accuracy : %s' % (max_acc))
 	train_writer.close()

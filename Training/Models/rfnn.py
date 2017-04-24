@@ -38,48 +38,47 @@ def batch_norm_wrapper(inputs, is_training, is_conv, decay = 0.999):
 def floatX(X):
 	return np.asarray(X, dtype=np.float32)
 
-def init_basis_hermite_2D(sigma,bases):
-	filterExtent = 3*sigma
-	x = np.arange(-filterExtent, filterExtent+1, dtype=np.float)
-	imSize = filterExtent*2+1
-	impulse = np.zeros( (np.int(imSize), np.int(imSize)) )
+
+def init_basis_hermite_2D(kernel, sigmas, bases):
+    nrBasis = 15
+    hermiteBasis = np.empty( (np.int(np.shape(sigmas)[0]), np.int(nrBasis), np.int(kernel), np.int(kernel)) )
+    
+    for i, sigma in enumerate(sigmas):
+        x = np.arange(-np.int((kernel-1)/2), np.int((kernel-1)/2)+1, dtype=np.float)
+        impulse = np.zeros( (kernel, kernel) )
+        impulse[np.int((kernel-1)/2),np.int((kernel-1)/2)] = 1.0
+        
+        g = 1.0/(np.sqrt(2*np.pi)*sigma)*np.exp(np.square(x)/(-2*np.square(sigma)))
+        g = g/g.sum()
+        g1 = sigma * -(x/ np.square(sigma)) * g
+        g2 = np.square(sigma) * ( (np.square(x)-np.power(sigma,2)) / np.power(sigma,4)) * g
+        g3 = np.power(sigma,3) * -( (np.power(x,3) - 3 * x * np.square(sigma)) / np.power(sigma,6)) * g
+        g4 = np.power(sigma,4) * ( ( (np.power(x,4) - 6 *  np.square(x) * np.square(sigma) + 3 * np.power(sigma,4)) / np.power(sigma,8) ) ) * g
+        gauss0x = conv(impulse, g, axis=1)
+        gauss0y = conv(impulse, g, axis=0)
+        gauss1x = conv(impulse, g1, axis=1)
+        gauss1y = conv(impulse, g1, axis=0)
+        gauss2x = conv(impulse, g2, axis=1)
+        gauss0 = conv(gauss0x, g, axis=0)
+        
+        hermiteBasis[i,0,:,:] = gauss0                    # g
+        hermiteBasis[i,1,:,:] = conv(gauss0y, g1, axis=1) # g_x
+        hermiteBasis[i,2,:,:] = conv(gauss0x, g1, axis=0) # g_y
+        hermiteBasis[i,3,:,:] = conv(gauss0y, g2, axis=1) # g_xx
+        hermiteBasis[i,4,:,:] = conv(gauss0x, g2, axis=0) # g_yy
+        hermiteBasis[i,5,:,:] = conv(gauss1x, g1, axis=0) # g_xy
+        hermiteBasis[i,6,:,:] = conv(gauss0y, g3, axis=1) # g_xxx
+        hermiteBasis[i,7,:,:] = conv(gauss0x, g3, axis=0) # g_yyy
+        hermiteBasis[i,8,:,:] = conv(gauss1y, g2, axis=1) # g_xxy
+        hermiteBasis[i,9,:,:] = conv(gauss1x, g2, axis=0) # g_yyx
+        hermiteBasis[i,10,:,:] = conv(gauss0y, g4, axis=1) # g_xxxx
+        hermiteBasis[i,11,:,:] = conv(gauss0x, g4, axis=0) # g_yyyy
+        hermiteBasis[i,12,:,:] = conv(gauss1y, g3, axis=1) # g_xxxy
+        hermiteBasis[i,13,:,:] = conv(gauss1x, g3, axis=0) # g_yyyx
+        hermiteBasis[i,14,:,:] = conv(gauss2x, g2, axis=0) # g_yyxx
+
+    return tf.constant(floatX(hermiteBasis[:,0:bases,:,:]))
 	
-	impulse[np.int(imSize/2), np.int(imSize/2)] = 1.0
-	nrBasis = 15
-	hermiteBasis = np.empty( (np.int(nrBasis), np.int(imSize), np.int(imSize)) )
-	g = 1.0/(np.sqrt(2*np.pi)*sigma)*np.exp(np.square(x)/(-2*np.square(sigma)))
-	g = g/g.sum()
-	g1 = sigma * -(x/ np.square(sigma)) * g
-	g2 = np.square(sigma) * ( (np.square(x)-np.power(sigma,2)) / np.power(sigma,4)) * g
-	g3 = np.power(sigma,3) * -( (np.power(x,3) - 3 * x * np.square(sigma)) / np.power(sigma,6)) * g
-	g4 = np.power(sigma,4) * ( ( (np.power(x,4) - 6 *  np.square(x) * np.square(sigma) + 3 * np.power(sigma,4)) / np.power(sigma,8) ) ) * g
-	gauss0x = conv(impulse, g, axis=1)
-	gauss0y = conv(impulse, g, axis=0)
-	gauss1x = conv(impulse, g1, axis=1)
-	gauss1y = conv(impulse, g1, axis=0)
-	gauss2x = conv(impulse, g2, axis=1)
-	gauss0 = conv(gauss0x, g, axis=0)
-	
-	hermiteBasis[0,:,:] = gauss0					# g
-	hermiteBasis[1,:,:] = conv(gauss0y, g1, axis=1) # g_x
-	hermiteBasis[2,:,:] = conv(gauss0x, g1, axis=0) # g_y
-	
-	hermiteBasis[3,:,:] = conv(gauss0y, g2, axis=1) # g_xx
-	hermiteBasis[4,:,:] = conv(gauss0x, g2, axis=0) # g_yy
-	hermiteBasis[5,:,:] = conv(gauss1x, g1, axis=0) # g_xy
-	
-	hermiteBasis[6,:,:] = conv(gauss0y, g3, axis=1) # g_xxx
-	hermiteBasis[7,:,:] = conv(gauss0x, g3, axis=0) # g_yyy
-	hermiteBasis[8,:,:] = conv(gauss1y, g2, axis=1) # g_xxy
-	hermiteBasis[9,:,:] = conv(gauss1x, g2, axis=0) # g_yyx
-	
-	hermiteBasis[10,:,:] = conv(gauss0y, g4, axis=1) # g_xxxx
-	hermiteBasis[11,:,:] = conv(gauss0x, g4, axis=0) # g_yyyy
-	hermiteBasis[12,:,:] = conv(gauss1y, g3, axis=1) # g_xxxy
-	hermiteBasis[13,:,:] = conv(gauss1x, g3, axis=0) # g_yyyx
-	hermiteBasis[14,:,:] = conv(gauss2x, g2, axis=0) # g_yyxx
-	
-	return tf.constant(floatX(hermiteBasis[0:bases,:,:]))
 
 def init_basis_hermite_3D(sigma,bases):
 	filterExtent = 3*sigma
@@ -199,7 +198,7 @@ def init_alphas(nrFilters,channels,nrBasis,name):
 
 class RFNN(object):
 
-	def __init__(self, sigmas, n_classes=2, bases_3d = False, dropout_rate_conv=.2, dropout_rate_hidden=0.7, is_training = True):
+	def __init__(self, sigmas, kernels, n_classes=2, bases_3d = False, dropout_rate_conv=.2, dropout_rate_hidden=0.7, is_training = True):
 	
 		self.n_classes				= n_classes
 		self.dropout_rate_conv		= dropout_rate_conv
@@ -213,6 +212,7 @@ class RFNN(object):
 		self.hermit					= init_basis_hermite_3D if bases_3d else init_basis_hermite_2D		
 		self.inference				= self.inference_3d if bases_3d else self.inference_2d
 		
+		self.sigmas					= sigmas
 		
 		#-------------------------
 		# Init Basis and Alphas
@@ -235,15 +235,15 @@ class RFNN(object):
 		# bases_L7 = 10
 		# sigma_L7 = sigmas[6]
 		
-		self.basis_L1 = self.hermit(sigma_L1,bases_L1)
-		self.basis_L2 = self.hermit(sigma_L2,bases_L2)
-		self.basis_L3 = self.hermit(sigma_L3,bases_L3)		
+		self.basis_L1 = self.hermit(kernels[0], sigmas, bases_L1)
+		self.basis_L2 = self.hermit(kernels[1], sigmas, bases_L2)
+		self.basis_L3 = self.hermit(kernels[2], sigmas, bases_L3)		
 		# self.basis_L4 = self.hermit(sigma_L4,bases_L4)
 		# self.basis_L5 = self.hermit(sigma_L5,bases_L5)
 		# self.basis_L6 = self.hermit(sigma_L6,bases_L6)
 		# self.basis_L7 = self.hermit(sigma_L7,bases_L7)
 
-		self.alphas_L1 = init_alphas(64,3,bases_L1, name="L1_alphas")
+		self.alphas_L1 = init_alphas(64,16,bases_L1, name="L1_alphas")
 		self.alphas_L2 = init_alphas(64,64,bases_L2, name="L2_alphas")
 		self.alphas_L3 = init_alphas(self.n_classes,64,bases_L3, name="L3_alphas")
 		
@@ -262,55 +262,107 @@ class RFNN(object):
 	def inference_2d(self, X):
 		ch = X.get_shape()[3].value
 		
+		w_L1 = []
+		w_L2 = []
+		w_L3 = []
 		# --- Define weights ---
-		w_L1 = tf.reduce_sum(
-			tf.transpose(self.alphas_L1[:,:,:,None,None]) *
-			tf.transpose(self.basis_L1[None,None,:,:,:])
-			,axis = 2, name='ConvLayer1/weights')		
-		# w_L1 = tf.tile(w, [1, 1, ch, 1], name='ConvLayer1/weights')
-		print(w_L1.get_shape())
-		w_L2 = tf.reduce_sum(
-			tf.transpose(self.alphas_L2[:,:,:,None,None]) * 
-			tf.transpose(self.basis_L2[None,None,:,:,:])
-			,axis = 2)
-		print(w_L2.get_shape())
-		w_L3 = tf.reduce_sum(
-			tf.transpose(self.alphas_L3[:,:,:,None,None]) * 
-			tf.transpose(self.basis_L3[None,None,:,:,:])
-			,axis = 2)
-		print(w_L3.get_shape())
-			
+		for i in range(np.shape(self.sigmas)[0]):
+			w_L1.append(
+				tf.reduce_sum(
+					tf.transpose(self.alphas_L1[:,:,:,None,None]) *
+					tf.transpose(self.basis_L1[None,None,i,:,:,:])
+						,axis = 2, name='ConvLayer1/weights_'+str(i)
+				)		
+			)
+			w_L2.append(
+				tf.reduce_sum(
+					tf.transpose(self.alphas_L2[:,:,:,None,None]) *
+					tf.transpose(self.basis_L2[None,None,i,:,:,:])
+						,axis = 2, name='ConvLayer2a/weights_'+str(i)
+				)
+			)
+			w_L3.append(
+				tf.reduce_sum(
+					tf.transpose(self.alphas_L3[:,:,:,None,None]) *
+					tf.transpose(self.basis_L3[None,None,i,:,:,:])
+						,axis = 2, name='ConvLayer2b/weights_'+str(i)
+				)		
+			)
+		# w_L1 = tf.reshape(w_L1, 
+				# [w_L1.get_shape()[0].value, w_L1.get_shape()[1].value, self.alphas_L1.get_shape()[1].value,
+				# np.shape(self.sigmas)[0]*self.alphas_L1.get_shape()[0].value])
+		
 		# --- Define forward pass ---
 		print(X.get_shape())
 		
 		# ==== Layer 1 ====				
-		net = self._conv_layer_2d(
-				input=X,
-				kernel=w_L1,
-				stride=[1,1,1,1],
-				padding='SAME',
-				name='ConvLayer1')
+		layer1 = [ self._conv_layer_2d(
+					input=X,
+					kernel=w_L1[i],
+					stride=[1,1,1,1],
+					padding='SAME',
+					name='ConvLayer1')
+				for i in range(np.shape(self.sigmas)[0]) ]	
 		
-		net = tf.nn.max_pool(net, ksize=[1,3,3,1], strides=[1,2,2,1], padding="VALID")
+		# maxpool along scale and rotation
+		# net = tf.pack(layer1)
+		# layer1 = tf.pack( [ tf.reduce_max(layer1[:,:,:,:,i], reduction_indices=[0])
+							# for i in range(self.alphas_L1.get_shape()[0].value) ]
+						# )
+
+		# net = tf.reshape(layer1, [-1, layer1.get_shape()[2].value,
+								  # layer1.get_shape()[3].value, layer1.get_shape()[0].value])
+			
+			
+		net = [ tf.nn.max_pool(layer1[i], ksize=[1,3,3,1], strides=[1,2,2,1], padding="VALID") for i in range(np.shape(self.sigmas)[0]) ]
+		# print(net.get_shape())
+		net = tf.pack(net)
+		net = tf.pack(tf.reduce_max(net, reduction_indices=[0]))
 		print(net.get_shape())
+
 		
 		# ==== Layer 2a ====			
-		net = self._conv_layer_2d(
-				input=net,
-				kernel=w_L2,
-				stride=[1,1,1,1],
-				padding='SAME',
-				name='ConvLayer2a')
+		layer2 = [ self._conv_layer_2d(
+					input=net,
+					kernel=w_L2[i],
+					stride=[1,1,1,1],
+					padding='SAME',
+					name='ConvLayer2a')
+				for i in range(np.shape(self.sigmas)[0]) ]	
+		
+		# maxpool along scale and rotation
+		layer2 = tf.pack(layer2)
+		# layer2 = tf.pack( [ tf.reduce_max(layer2[:,:,:,:,i], reduction_indices=[0])
+							# for i in range(self.alphas_L2.get_shape()[0].value) ]
+						# )
+		# net = tf.reshape(layer2, [-1, layer2.get_shape()[2].value,
+								  # layer2.get_shape()[3].value, layer2.get_shape()[0].value])
+		
+		net = tf.pack(tf.reduce_max(layer2, reduction_indices=[0]))
+		print(net.get_shape())
 		
 		# ==== Layer 2b ====		
-		net = self._conv_layer_2d(
-				input=net,
-				kernel=w_L3,
-				stride=[1,1,1,1],
-				padding='SAME',
-				name='ConvLayer2b')
+		layer3 = [ self._conv_layer_2d(
+					input=net,
+					kernel=w_L3[i],
+					stride=[1,1,1,1],
+					padding='SAME',
+					name='ConvLayer2b')
+				for i in range(np.shape(self.sigmas)[0]) ]	
 		
-		net = tf.nn.max_pool(net, ksize=[1,3,3,1], strides=[1,2,2,1], padding="VALID")
+		# maxpool along scale and rotation
+		layer3 = tf.pack(layer3)
+		# layer3 = tf.pack( [ tf.reduce_max(layer3[:,:,:,:,i], reduction_indices=[0])
+							# for i in range(self.alphas_L3.get_shape()[0].value) ]
+						# )
+		# net = tf.reshape(layer3, [-1, layer3.get_shape()[2].value,
+								  # layer3.get_shape()[3].value, layer3.get_shape()[0].value])
+			
+		
+		net = [ tf.nn.max_pool(layer3[i], ksize=[1,3,3,1], strides=[1,2,2,1], padding="VALID") for i in range(np.shape(self.sigmas)[0]) ]
+		# print(net.get_shape())
+		net = tf.pack(net)
+		net = tf.pack(tf.reduce_max(net, reduction_indices=[0]))
 		print(net.get_shape())
 		
 		# ==== AVG Pooling ====		

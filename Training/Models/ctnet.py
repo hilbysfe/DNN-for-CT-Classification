@@ -223,7 +223,7 @@ class CTNET(object):
 		if len(self.kernels) > 2:
 			net = self._conv_layer_2d(
 					input=net,
-					shape=[self.kernels[2], self.kernels[2], self.maps[1], self.maps[2]],
+					shape=[self.kernels[2], self.kernels[2], self.maps[1], self.n_classes],
 					stride=[1,1,1,1],
 					padding='SAME',
 					name='ConvLayer3')
@@ -236,30 +236,35 @@ class CTNET(object):
 				net = tf.nn.dropout(net, keep_prob)
 		
 							
-		# ==== Layer 4 ====		
+		# ==== AVG Pooling ====		
+		k = net.get_shape()[1].value
+		net = tf.nn.avg_pool(net, ksize=[1,k,k,1], strides=[1,1,1,1], padding="VALID")
+		print(net.get_shape())
+		
+		# ==== Flatten ====		
 		with tf.variable_scope('Flatten'):
 			fshape = net.get_shape()
 			dim = fshape[1].value*fshape[2].value*fshape[3].value
-			net = tf.reshape(net, [-1, dim])
-		print(net.get_shape())		
+			pyx = tf.reshape(net, [-1, dim])
+		print(pyx.get_shape())	
 		
-		net = self._full_layer(
-			input = net,
-			shape=(dim, 96),
-			name = 'FullLayer1')
+		# net = self._full_layer(
+			# input = net,
+			# shape=(dim, 96),
+			# name = 'FullLayer1')
 			
-		print(net.get_shape())		
+		# print(net.get_shape())		
 
-		if self.dropout_rate_hidden > 0.0:
-			keep_prob = tf.select(self.is_training, 1-self.dropout_rate_hidden, 1)
-			net = tf.nn.dropout(net, keep_prob)
+		# if self.dropout_rate_hidden > 0.0:
+			# keep_prob = tf.select(self.is_training, 1-self.dropout_rate_hidden, 1)
+			# net = tf.nn.dropout(net, keep_prob)
 						
-		pyx = self._softmax_layer(
-					input = net,
-					shape=(96, self.n_classes),
-					name = 'SoftmaxLayer')
+		# pyx = self._softmax_layer(
+					# input = net,
+					# shape=(96, self.n_classes),
+					# name = 'SoftmaxLayer')
 				
-		print(pyx.get_shape())		
+		# print(pyx.get_shape())		
 		
 		return pyx
 		
