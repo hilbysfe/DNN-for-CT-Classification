@@ -98,10 +98,10 @@ def preprocess_cifar10_data(X_train_raw, Y_train_raw, X_test_raw, Y_test_raw):
   X_test = np.array([np.divide(x,255.0) for x in X_test])
   
   # Substract the mean
-  # mean_image = np.mean(X_train, axis=0)
-  # std_image = np.std(X_train, axis=0)
-  # X_train = np.array([np.divide(x - mean_image, std_image) for x in X_train])
-  # X_test = np.array([np.divide(x - mean_image, std_image) for x in X_test])
+  mean_image = np.mean(X_train, axis=0)
+  std_image = np.std(X_train, axis=0)
+  X_train = np.array([np.divide(x - mean_image, std_image) for x in X_train])
+  X_test = np.array([np.divide(x - mean_image, std_image) for x in X_test])
 
   return X_train, Y_train, X_test, Y_test
 

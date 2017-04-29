@@ -176,10 +176,10 @@ def train():
 	tf.global_variables_initializer().run()
 	
 	# Print initial kernels
-	alphas_tensor, kernels_tensor = get_kernels()	
-	alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])		
-	np.save('./Kernels/kernel_0.npy', kernels_array)
-	np.save('./Kernels/alphas_0.npy', alphas)
+	# alphas_tensor, kernels_tensor = get_kernels()	
+	# alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])		
+	# np.save('./Kernels/kernel_0.npy', kernels_array)
+	# np.save('./Kernels/alphas_0.npy', alphas)
 	
 	# Train
 	max_acc = 0
@@ -207,10 +207,10 @@ def train():
 	test_writer.close()
 	
 	# Print final kernels
-	alphas_tensor, kernels_tensor = get_kernels()	
-	alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])		
-	np.save('./Kernels/kernel_final.npy', kernels_array)
-	np.save('./Kernels/alphas_final.npy', alphas)
+	# alphas_tensor, kernels_tensor = get_kernels()	
+	# alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])		
+	# np.save('./Kernels/kernel_final.npy', kernels_array)
+	# np.save('./Kernels/alphas_final.npy', alphas)
 	
 		
 

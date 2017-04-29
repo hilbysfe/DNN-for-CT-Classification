@@ -28,7 +28,7 @@ def _rfnn_conv_layer(input, ksize, fsize, nrbasis, sigmas, stride, padding, name
 		conv_out = tf.nn.relu(conv, name='Activation')
 		_activation_summary(conv_out)
 	
-	return conv_out
+	return conv_out, kernel
 	
 def _conv_layer(input, shape, strides, padding, name):
 	with tf.variable_scope(name) as scope:
@@ -48,8 +48,22 @@ def _conv_layer(input, shape, strides, padding, name):
 			
 		conv_out = tf.nn.relu(conv, name='Activation')
 		_activation_summary(conv_out)
-	
-	return conv_out
+		
+	# with tf.variable_scope(name + '/visualization'):
+			# # scale weights to [0 1], type is still float
+			# kernel_avg = tf.reduce_mean(kernel, axis=2)
+			# x_min = tf.reduce_min(kernel_avg)
+			# x_max = tf.reduce_max(kernel_avg)
+			# kernel_0_to_1 = (kernel_avg - x_min) / (x_max - x_min)
+			
+			# # to tf.image_summary format [batch_size, height, width, channels]
+			# kernel_transposed = tf.transpose(kernel_0_to_1, [2, 0, 1])
+			# kernel_transposed = tf.expand_dims(kernel_transposed, axis=3)
+			# batch = kernel_transposed.get_shape()[0].value
+						
+			# tf.summary.image('/filters', kernel_transposed, max_outputs=batch)			
+			
+	return conv_out, kernel
 		
 def _full_layer(input, shape, name, activation=tf.nn.relu):
 	with tf.variable_scope(name) as scope:
@@ -106,6 +120,16 @@ def _deconv_layer(input, shape, name, ksize=11, stride=1, padding='SAME'):
 		_activation_summary(deconv)
 	
 	return deconv
+	
+def _deconv_layer2(input, shape, name, ksize=11, stride=1, padding='SAME'):
+	W = encoder[layer_i]
+	b = tf.Variable(tf.zeros([W.get_shape().as_list()[2]]))
+	output = lrelu(tf.add(
+		tf.nn.conv2d_transpose(
+			current_input, W,
+			tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
+			strides=[1, 2, 2, 1], padding='SAME'), b))
+	current_input = output
 
 		
 def floatX(X):
@@ -151,16 +175,14 @@ def init_basis_hermite_2D(kernel, sigmas, bases):
 
 	return tf.constant(floatX(hermiteBasis[:,0:bases,:,:]))
 
-
-class VariationalAutoencoder(object):
-	""" Variation Autoencoder (VAE) with an sklearn-like interface implemented using TensorFlow.
+def corrupt(x):
+    return tf.multiply(x, tf.cast(tf.random_uniform(shape=tf.shape(x),
+                                               minval=0,
+                                               maxval=2,
+                                               dtype=tf.int32), tf.float32))
 	
-	This implementation uses probabilistic encoders and decoders using Gaussian 
-	distributions and  realized by multi-layer perceptrons. The VAE can be learned
-	end-to-end.
+class Autoencoder(object):
 	
-	See "Auto-Encoding Variational Bayes" by Kingma and Welling for more details.
-	"""
 	def __init__(self, network_architecture, learning_rate=0.001, batch_size=100):
 		self.network_architecture = network_architecture
 		self.learning_rate = learning_rate
@@ -182,145 +204,114 @@ class VariationalAutoencoder(object):
 		# Launch the session
 		self.sess = tf.InteractiveSession()
 		self.sess.run(init)
-	
+		
 	def _create_network(self):
-		# Initialize autoencoder network weights and biases
 		print(self.x.get_shape())
-		shapes = [self.x.get_shape()]
+		shapes = []
+		encoder = []
 		with tf.variable_scope('Recognition_network'):
-			# ==== Recognition ====
-			net = self.x
+			# ==== Encoder ====
+			net = corrupt(self.x)
 			for i, (kernel, map) in enumerate(zip(self.network_architecture['Conv_kernels'],self.network_architecture['Conv_maps'])):
-				net = _conv_layer(
+				shapes.append(net.get_shape())	
+				net,k = _conv_layer(
 						input=net, 
 						shape=[kernel, kernel, net.get_shape()[3], map], 
 						strides=[1,2,2,1], 
 						padding='SAME', 
-						name='ConvLayer_'+str(i))
-				shapes.append(net.get_shape())				
+						name='ConvLayer_'+str(i))						
+				# net,k = _rfnn_conv_layer(
+						# input=net,
+						# ksize,
+						# fsize,
+						# nrbasis,
+						# sigmas,
+						# stride,
+						# padding,
+						# name='ConvLayer_'+str(i))
+				encoder.append(k)
 				print(net.get_shape())
 			
-			# ==== Flatten ====
-			fshape = net.get_shape()
-			dim = fshape[1].value*fshape[2].value*fshape[3].value
-			net = tf.reshape(net, [-1, dim])
-			print(net.get_shape())			
-
-			# ==== Fully Connected 2a ====
-			self.z_mean = _full_layer(
-							input=net,
-							shape=[dim, self.network_architecture['Latent']],
-							name='Z_mean')
-			_activation_summary(self.z_mean)
-			print(self.z_mean.get_shape())
-			# ==== Fully Connected 2b ====				
-			self.z_log_sigma_sq = _full_layer(
-							input=net,
-							shape=[dim, self.network_architecture['Latent']],
-							name='Z_sigma')
-			_activation_summary(self.z_log_sigma_sq)
-			print(self.z_log_sigma_sq.get_shape())
+		self.z = net
 		
-		with tf.variable_scope('Latent_distribution'):
-			# Draw one sample z from Gaussian distribution
-			eps = tf.random_normal((self.batch_size, self.network_architecture['Latent']), 0, 1, 
-								   dtype=tf.float32)
-			# z = mu + sigma*epsilon
-			self.z = tf.add(self.z_mean, 
-							tf.mul(tf.sqrt(tf.exp(self.z_log_sigma_sq)), eps), name='Z')
-			_activation_summary(self.z)
-			print(self.z.get_shape())
+		for layer_i, shape in enumerate(reversed(shapes)):
+			with tf.variable_scope('Generator_network/ConvLayer_'+str(layer_i)):
+				# W = tf.get_variable(
+							# 'weights',
+							# shape=encoder[-(layer_i+1)].get_shape(),
+							# initializer=tf.contrib.layers.xavier_initializer(),
+							# regularizer=None)
+				W = encoder[-(layer_i+1)]
+				b = tf.Variable(tf.zeros([W.get_shape().as_list()[2]]))
+				output = tf.nn.relu(tf.add(
+					tf.nn.conv2d_transpose(
+						net, W, shape,
+						strides=[1, 2, 2, 1], padding='SAME'), b))
+				net = output
+				print(net.get_shape())
+		
+		# with tf.variable_scope('Generator_network'):
+			# # ==== Decoder ====
+			# for i, kernel in enumerate(reversed(self.network_architecture['Conv_kernels'])):
+				# net = _deconv_layer(
+						# input=net, 
+						# ksize=kernel,
+						# shape=shapes[-(i+2)], 
+						# stride=2, 
+						# padding='SAME', 
+						# name='DeconvLayer_'+str(i))
+				# print(net.get_shape())			
+			
+			# # ==== Reconstruction ====					
+		self.x_reconstr = net
+		_activation_summary(self.x_reconstr)
 
-		with tf.variable_scope('Generator_network'):
-			# ==== Fully Connected 1 ====
-			net = _full_layer(
-						input=self.z,
-						shape=[self.network_architecture['Latent'], dim],
-						name='ReconLayer1')
-			print(net.get_shape())
-			
-			# ==== Reshape ====
-			fshape = shapes[-1]
-			net = tf.reshape(net, fshape)
-			print(net.get_shape())
-			
-			for i, kernel in enumerate(reversed(self.network_architecture['Conv_kernels'])):
-				net = _deconv_layer(
-						input=net, 
-						ksize=kernel,
-						shape=shapes[-(i+2)], 
-						stride=2, 
-						padding='SAME', 
-						name='DeconvLayer_'+str(i))
-				print(net.get_shape())			
-			
-			# ==== Reconstruction ====					
-			self.x_reconstr_mean = tf.nn.sigmoid(tf.reshape(net, [-1, self.network_architecture['Output']]), name='Reconstruction_mean')
-			_activation_summary(self.x_reconstr_mean)
-			print(self.x_reconstr_mean.get_shape())
-
+	def w_psp(self, a):
+		ashape = a.get_shape()
+		a_vector = tf.reshape(a, [-1, ashape[1].value*ashape[2].value*ashape[3].value])
+		
+	
+	def w_lsp(self, a):
+		ashape = a.get_shape()
+		a_vector = tf.reshape(a, [-1, ashape[1].value*ashape[2].value*ashape[3].value])
+	
 			
 	def _create_loss_optimizer(self):
-		# Adding 1e-10 to avoid evaluation of log(0.0)
-		fshape = self.x.get_shape()
-		flatten = tf.reshape(self.x, [-1, fshape[1].value*fshape[2].value*fshape[3].value])
-		reconstr_loss = \
-			-tf.reduce_sum(flatten * tf.log(1e-10 + self.x_reconstr_mean)
-						   + (1-flatten) * tf.log(1e-10 + 1 - self.x_reconstr_mean),	1)
-		# tf.summary.scalar('Reconstruction Loss', tf.reduce_mean(reconstr_loss))
+		self.reconstr_loss = tf.reduce_mean(tf.square(self.x_reconstr - self.x))
 		
-		latent_loss = -0.5 * tf.reduce_sum(1 + self.z_log_sigma_sq 
-										   - tf.square(self.z_mean) 
-										   - tf.exp(self.z_log_sigma_sq), 1)
-		# tf.summary.scalar('KL Divergence', tf.reduce_mean(latent_loss))
+		# self.sparsity = w_psp(self.z) + w_lsp(self.z)
 		
-		self.latent_loss = tf.reduce_mean(latent_loss)
-		self.reconstr_loss = tf.reduce_mean(reconstr_loss)
-		self.cost = tf.reduce_mean(reconstr_loss + latent_loss)   # average over batch
+		self.cost = self.reconstr_loss
 		
 		self.optimizer = \
 			tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
 		
 	def partial_fit(self, X):
-		"""Train model based on mini-batch of input data.
-		
-		Return cost of mini-batch.
-		"""
-		mean, opt, total, latent, recon = self.sess.run((self.x, self.optimizer, self.cost, self.latent_loss, self.reconstr_loss), 
+		opt, total = self.sess.run((self.optimizer, self.cost), 
 								  feed_dict={self.x: X})		
-		# print(np.mean(X))
 		
-		return total, latent, recon
+		return total
 	
-	def transform(self, X):
-		"""Transform data by mapping it into the latent space."""
-		# Note: This maps to mean of distribution, we could alternatively
-		# sample from Gaussian distribution
-		return self.sess.run(self.z_mean, feed_dict={self.x: X})
-	
-	def generate(self, z_mu=None):
-		""" Generate data by sampling from latent space.
 		
-		If z_mu is not None, data for this point in latent space is
-		generated. Otherwise, z_mu is drawn from prior in latent 
-		space.		
-		"""
-		if z_mu is None:
-			z_mu = np.random.normal(size=self.network_architecture["n_z"])
-		# Note: This maps to mean of distribution, we could alternatively
-		# sample from Gaussian distribution
-		return self.sess.run(self.x_reconstr_mean, 
-							 feed_dict={self.z: z_mu})
-	
 	def reconstruct(self, X):
-		""" Use VAE to reconstruct given data. """
-		return self.sess.run(self.x_reconstr_mean, 
+		return self.sess.run(self.x_reconstr, 
 							 feed_dict={self.x: X})
 							 
 	def logs(self, X):
 		merged = tf.summary.merge_all()
 		
 		return self.sess.run(merged, feed_dict={self.x: X})
+		
+	
+	def get_kernels(self):			
+		kernel = tf.get_default_graph().get_tensor_by_name("Recognition_network/ConvLayer_0/weights:0")
+		
+		# kernel_avg = tf.reduce_mean(kernel, axis=2)
+		
+		# to tf.image_summary format [batch_size, height, width, channels]
+		kernel_transposed = tf.transpose(kernel, [3, 0, 1, 2])
+			
+		return self.sess.run(kernel_transposed)
 
 def _activation_summary(x):
 	tensor_name = x.op.name

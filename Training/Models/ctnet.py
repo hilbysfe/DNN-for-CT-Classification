@@ -192,12 +192,12 @@ class CTNET(object):
 		net = self._conv_layer_2d(
 				input=X,
 				shape=[self.kernels[0], self.kernels[0], ch, self.maps[0]],
-				stride=[1,1,1,1],
+				stride=[1,2,2,1],
 				padding='SAME',
 				name='ConvLayer1')
-		with tf.variable_scope('MaxPool1'):
-			net = tf.nn.max_pool(net, ksize=[1,self.mp_kernels[0],self.mp_kernels[0],1], strides=[1,2,2,1], padding="VALID")
-			print(net.get_shape())
+		# with tf.variable_scope('MaxPool1'):
+			# net = tf.nn.max_pool(net, ksize=[1,self.mp_kernels[0],self.mp_kernels[0],1], strides=[1,2,2,1], padding="SAME")
+		print(net.get_shape())
 
 		if self.dropout_rate_conv > 0.0:
 			keep_prob = tf.select(self.is_training, 1-self.dropout_rate_conv, 1)
@@ -208,12 +208,12 @@ class CTNET(object):
 			net = self._conv_layer_2d(
 					input=net,
 					shape=[self.kernels[1], self.kernels[1], self.maps[0], self.maps[1]],
-					stride=[1,1,1,1],
+					stride=[1,2,2,1],
 					padding='SAME',
 					name='ConvLayer2')
 					
 			# net = tf.nn.max_pool(net, ksize=[1,self.mp_kernels[1],self.mp_kernels[1],1], strides=[1,2,2,1], padding="VALID")
-			# print(net.get_shape())
+			print(net.get_shape())
 			
 			# if self.dropout_rate_conv > 0.0:
 				# keep_prob = tf.select(self.is_training, 1-self.dropout_rate_conv, 1)
@@ -227,9 +227,9 @@ class CTNET(object):
 					stride=[1,1,1,1],
 					padding='SAME',
 					name='ConvLayer3')
-			with tf.variable_scope('MaxPool3'):
-				net = tf.nn.max_pool(net, ksize=[1,self.mp_kernels[2],self.mp_kernels[2],1], strides=[1,2,2,1], padding="VALID")
-				print(net.get_shape())
+			# with tf.variable_scope('MaxPool3'):
+				# net = tf.nn.max_pool(net, ksize=[1,self.mp_kernels[2],self.mp_kernels[2],1], strides=[1,2,2,1], padding="VALID")
+			print(net.get_shape())
 					
 			if self.dropout_rate_conv > 0.0:
 				keep_prob = tf.select(self.is_training, 1-self.dropout_rate_conv, 1)
