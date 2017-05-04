@@ -11,6 +11,8 @@ import shutil
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from sklearn.manifold import TSNE
+from sklearn.multiclass import OneVsRestClassifier
+import sklearn.svm as svm
 
 from Models.ae import Autoencoder
 
@@ -24,23 +26,21 @@ def train():
 	batch_size = 128
 
 	# Load data
-	mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
-	n_samples = mnist.train.num_examples
-	# cifar10_dataset = cifar10_utils.get_cifar10('./cifar10/cifar-10-batches-py')
-	# n_samples = cifar10_dataset.train.num_examples
+	# mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
+	# n_samples = mnist.train.num_examples
+	cifar10_dataset = cifar10_utils.get_cifar10('./cifar10/cifar-10-batches-py')
+	n_samples = cifar10_dataset.train.num_examples
 
 	network_architecture = \
 		{
-			'Input':[batch_size,28,28,1],
-			'Conv_kernels':[11,3,3],
-			'Conv_maps':[64,64,64]
+			'Conv_kernels':[11],
+			'Conv_maps':[64]
 		}  	
 
 	ae = Autoencoder(network_architecture, 
-								 learning_rate=0.001, 
-								 batch_size=batch_size)
+								 learning_rate=0.001)
 	
-	training_epochs=150
+	training_epochs=50
 	display_step=5
 		
 	train_writer = tf.summary.FileWriter(LOG_DIR + '/train', ae.sess.graph)
@@ -53,8 +53,8 @@ def train():
 		total_batch = int(n_samples / batch_size)
 		# Loop over all batches
 		for i in range(total_batch):
-			batch_xs = mnist.train.next_batch(batch_size)[0].reshape([batch_size,28,28,1])
-			# batch_xs, _ = cifar10_dataset.train.next_batch(batch_size)
+			# batch_xs = mnist.train.next_batch(batch_size)[0].reshape([batch_size,28,28,1])
+			batch_xs, _ = cifar10_dataset.train.next_batch(batch_size)
 				
 			# Fit training using batch data
 			cost = ae.partial_fit(batch_xs)
@@ -82,8 +82,9 @@ def train():
 			
 	train_writer.close()	
 	
-	x_sample = mnist.test.next_batch(batch_size)[0].reshape([batch_size,28,28,1])
-	# x_sample = cifar10_dataset.test.next_batch(batch_size)[0]
+	# -------- Show some reconstructions -----------
+	# x_sample = mnist.test.next_batch(batch_size)[0].reshape([batch_size,28,28,1])
+	x_sample = cifar10_dataset.test.next_batch(batch_size)[0]
 	x_reconstruct = ae.reconstruct(x_sample)
 
 	plt.figure(figsize=(8, 12))
@@ -99,23 +100,25 @@ def train():
 	plt.tight_layout()	
 	plt.show()
 	
+	# -------- Show kernels -----------
 	gs = gridspec.GridSpec(8,8)
 	gs.update(wspace=0.05, hspace=0.05)
 	kernels = ae.get_kernels()
 	plt.figure(figsize=(8,8))
-	for i in range(4):
+	for i in range(8):
 		for j in range(8):
 			plt.subplot(gs[8*i + j])
-			plt.imshow(kernels[8*i + j,:,:,0])
+			plt.imshow(kernels[8*i + j,:,:,:])
 			plt.axis('off')
 	plt.show()
 	
+	# -------- Show TSNE -----------
 	labels_test = np.zeros(batch_size*10)
-	features = np.zeros((10*batch_size,1024))
+	features = np.zeros((10*batch_size,16384))
 	for j in range(10):
-		# xs, labels = cifar10_dataset.test.next_batch(batch_size)
-		xs, labels = mnist.test.next_batch(batch_size)
-		xs = xs.reshape([batch_size,28,28,1])
+		xs, labels = cifar10_dataset.test.next_batch(batch_size)
+		# xs, labels = mnist.test.next_batch(batch_size)
+		# xs = xs.reshape([batch_size,28,28,1])
 				
 		i=0
 		for label in labels:
@@ -141,6 +144,7 @@ def train():
 	y9=Y[labels_test==9]
 	y0=Y[labels_test==0]
 
+	# classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
 	classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 	colors = ['blue', 'red', 'green', 'yellow', 'cyan', 'purple', 'darkorange', 'lime', 'lightcoral', 'magenta', ]
 
@@ -164,6 +168,46 @@ def train():
 				fontsize=9)
 	plt.show();
 	
+	# -------- Train SVM on hidden representation -----------
+	trs = 1000
+	tes = 1000
+	# X_train, labels_train = mnist.train.next_batch(trs)
+	# X_val, labels_val = mnist.test.next_batch(tes)
+	
+	X_train, labels_train = cifar10_dataset.train.next_batch(trs)
+	X_val, labels_val = cifar10_dataset.test.next_batch(tes)
+
+	X_train = X_train.reshape(trs, -1)	
+	X_val = X_val.reshape(tes, -1)
+	
+	labels_train = [label.tolist().index(1) for label in labels_train]
+	labels_val = [label.tolist().index(1) for label in labels_val]
+	
+	classifier = OneVsRestClassifier(
+					svm.SVC(kernel='linear', probability=True, random_state=np.random.RandomState(0))).fit(X_train, labels_train)
+	
+	Y_val = classifier.predict(X_val)
+	
+	acc = np.sum(Y_val==labels_val)/tes
+	print('Multi-class Accuracy of raw data: %s' %(acc))
+	
+	X_train, labels_train = cifar10_dataset.train.next_batch(trs)
+	X_train = ae.sess.run(ae.z, feed_dict={ae.x: X_train})
+	X_val, labels_val = cifar10_dataset.test.next_batch(tes)
+	X_val = ae.sess.run(ae.z, feed_dict={ae.x: X_val})
+	
+	X_train = X_train.reshape(trs, -1)	
+	X_val = X_val.reshape(tes, -1)
+	
+	labels_train = [label.tolist().index(1) for label in labels_train]
+	labels_val = [label.tolist().index(1) for label in labels_val]
+	
+	classifier = OneVsRestClassifier(
+					svm.SVC(kernel='linear', probability=True, random_state=np.random.RandomState(0))).fit(X_train, labels_train)
+	
+	Y_val = classifier.predict(X_val)
+	acc = np.sum(Y_val==labels_val)/tes	
+	print('Multi-class Accuracy of learnt representation: %s' %(acc))
 	
 	
 def main(_):

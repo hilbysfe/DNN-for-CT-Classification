@@ -84,42 +84,42 @@ def _full_layer(input, shape, name, activation=tf.nn.relu):
 		_activation_summary(local)
 		
 	return local
-	
-def get_deconv_filter(f_shape):
-	width = f_shape[0]
-	heigh = f_shape[0]
-	f = np.ceil(width/2.0)
-	c = (2 * f - 1 - f % 2) / (2.0 * f)
-	bilinear = np.zeros([f_shape[0], f_shape[1]])
-	for x in range(width):
-		for y in range(heigh):
-			value = (1 - abs(x / f - c)) * (1 - abs(y / f - c))
-			bilinear[x, y] = value
-	weights = np.zeros(f_shape)
-	for i in range(f_shape[2]):
-		weights[:, :, i, i] = bilinear
-
-	init = tf.constant_initializer(value=weights, dtype=tf.float32)
-			
-	return tf.get_variable('deconv_weights', initializer=init, shape=weights.shape)
 
 	
-def _deconv_layer(input, shape, name, ksize=11, stride=1, padding='SAME'):
-	strides = [1, stride, stride, 1]
+def _deconv_layer(input, kshape, oshape, strides, padding, name):
 	with tf.variable_scope(name):
-		in_features = input.get_shape()[3].value
-
-		output_shape = tf.stack(shape)
-		f_shape = [ksize, ksize, shape[3], in_features]
-
-		num_input = ksize * ksize * in_features / stride
-
-		weights = get_deconv_filter(f_shape)
-		deconv = tf.nn.conv2d_transpose(input, weights, output_shape, strides, padding)
-
+		kernel = tf.get_variable(
+			'weights',
+			kshape,
+			initializer=tf.contrib.layers.xavier_initializer(),
+			dtype=tf.float32)
+		biases = tf.get_variable(
+			'biases',
+			[kshape[-2]],
+			initializer=tf.constant_initializer(0.0),
+			dtype=tf.float32)
+				
+		deconv = tf.nn.conv2d_transpose(input, kernel, oshape, strides, padding)
+		deconv = tf.nn.bias_add(deconv, biases)
+		
+		deconv = tf.nn.relu(deconv, name='Activation')
 		_activation_summary(deconv)
-	
-	return deconv
+		
+	# with tf.variable_scope(name + '/visualization'):
+			# # scale weights to [0 1], type is still float
+			# kernel_avg = tf.reduce_mean(kernel, axis=2)
+			# x_min = tf.reduce_min(kernel_avg)
+			# x_max = tf.reduce_max(kernel_avg)
+			# kernel_0_to_1 = (kernel_avg - x_min) / (x_max - x_min)
+			
+			# # to tf.image_summary format [batch_size, height, width, channels]
+			# kernel_transposed = tf.transpose(kernel_0_to_1, [2, 0, 1])
+			# kernel_transposed = tf.expand_dims(kernel_transposed, axis=3)
+			# batch = kernel_transposed.get_shape()[0].value
+						
+			# tf.summary.image('/filters', kernel_transposed, max_outputs=batch)			
+			
+	return deconv, kernel
 	
 def _deconv_layer2(input, shape, name, ksize=11, stride=1, padding='SAME'):
 	W = encoder[layer_i]
@@ -181,17 +181,66 @@ def corrupt(x):
                                                maxval=2,
                                                dtype=tf.int32), tf.float32))
 	
+def keep_top_k(x, k):	
+	values, indices = tf.nn.top_k(-x, k)
+	
+	a = np.zeros((x.get_shape()[0].value, x.get_shape()[1].value, x.get_shape()[2].value, len(x.get_shape().as_list())-1))
+	for i in range(x.get_shape()[0].value):
+		for j in range(x.get_shape()[1].value):
+			for h in range(x.get_shape()[2].value):
+				a[i,j,h,:] = [i,j,h]
+	a = tf.convert_to_tensor(a, dtype=tf.int32)
+	
+	full_indices = tf.concat(3, [a, tf.expand_dims(indices[:,:,:,0], 3)])
+	for i in range(1, k):
+		full_indices = tf.concat(3, [full_indices, 
+									 tf.concat(3, [a, tf.expand_dims(indices[:,:,:,i], 3)])]
+								)
+	full_indices2 = tf.reshape(full_indices, [-1, len(x.get_shape().as_list())])
+	
+	to_substract = tf.sparse_to_dense(full_indices2, x.get_shape(), tf.reshape(values, [-1]), default_value=0., validate_indices=False)
+	
+	return x + to_substract
+	
+def spatial_sparsity(x):
+	return keep_top_k(x, 1)
+	
+def lifetime_sparsity(x, lifetime):
+	return tf.transpose(keep_top_k(tf.transpose(x, [3, 1, 2, 0]), lifetime), [3, 0, 1, 2])	
+	
+def _WTA_layer(input, lifetime='None'):
+	net = spatial_sparsity(input)
+	
+	if lifetime != 'None':
+		net = lifetime_sparsity(net, lifetime)
+	
+	return net
+	
+def _structured_sparsity_layer(x):
+	# first across featuremap
+	examp_sparsity = tf.norm(x, ord=2, axis=3, keep_dims=True)
+	net = tf.divide(x, examp_sparsity+1e-9)
+	# then per featuremap
+	net = tf.reshape(net, [net.get_shape()[1].value, net.get_shape()[2].value, -1])
+	feat_sparsity = tf.norm(net, ord=2, axis=2, keep_dims=True)
+	net = tf.divide(net, feat_sparsity+1e-9)
+	# back to initial shape
+	net = tf.reshape(net, [-1, x.get_shape()[1].value, x.get_shape()[2].value, x.get_shape()[3].value])
+	
+	return net
+	
+	
 class Autoencoder(object):
 	
-	def __init__(self, network_architecture, learning_rate=0.001, batch_size=100):
+	def __init__(self, network_architecture, learning_rate=0.001, sp_lambda=1):
 		self.network_architecture = network_architecture
 		self.learning_rate = learning_rate
-		self.batch_size = batch_size
 		self.initializer = tf.contrib.layers.xavier_initializer()
+		self.sp_lambda = sp_lambda
 		
 		# tf Graph input
-		self.x = tf.placeholder(tf.float32, network_architecture['Input'])
-		
+		self.x = tf.placeholder(tf.float32, [None,32,32,3])
+				
 		# Create autoencoder network
 		self._create_network()
 		
@@ -209,11 +258,13 @@ class Autoencoder(object):
 		print(self.x.get_shape())
 		shapes = []
 		encoder = []
+		self.weights = []
 		with tf.variable_scope('Recognition_network'):
 			# ==== Encoder ====
-			net = corrupt(self.x)
+			# net = corrupt(self.x)
+			net = self.x
 			for i, (kernel, map) in enumerate(zip(self.network_architecture['Conv_kernels'],self.network_architecture['Conv_maps'])):
-				shapes.append(net.get_shape())	
+				encoder.append(net)
 				net,k = _conv_layer(
 						input=net, 
 						shape=[kernel, kernel, net.get_shape()[3], map], 
@@ -229,26 +280,29 @@ class Autoencoder(object):
 						# stride,
 						# padding,
 						# name='ConvLayer_'+str(i))
-				encoder.append(k)
+				self.weights.append(k)
 				print(net.get_shape())
-			
-		self.z = net
 		
-		for layer_i, shape in enumerate(reversed(shapes)):
-			with tf.variable_scope('Generator_network/ConvLayer_'+str(layer_i)):
-				# W = tf.get_variable(
-							# 'weights',
-							# shape=encoder[-(layer_i+1)].get_shape(),
-							# initializer=tf.contrib.layers.xavier_initializer(),
-							# regularizer=None)
-				W = encoder[-(layer_i+1)]
-				b = tf.Variable(tf.zeros([W.get_shape().as_list()[2]]))
-				output = tf.nn.relu(tf.add(
-					tf.nn.conv2d_transpose(
-						net, W, shape,
-						strides=[1, 2, 2, 1], padding='SAME'), b))
-				net = output
-				print(net.get_shape())
+		
+		with tf.variable_scope('Structured_sparsity'):
+			self.z = _structured_sparsity_layer(net)
+			net = self.z
+			print(net.get_shape())
+		
+		with tf.variable_scope('Generator_network'):
+			for i, kernel in enumerate(reversed(self.network_architecture['Conv_kernels'])):
+				batch = tf.shape(self.x)
+				oshape = tf.stack([batch[0], batch[1], batch[2], batch[3]])
+				with tf.variable_scope('/ConvLayer_'+str(i)):
+					net,k = _deconv_layer(
+							input=net, 
+							kshape=[kernel, kernel, encoder[-(i+1)].get_shape()[3].value, net.get_shape()[3].value], 
+							oshape=oshape,
+							strides=[1,2,2,1], 
+							padding='SAME', 
+							name='DeconvLayer_'+str(i))
+					
+					print(net.get_shape())
 		
 		# with tf.variable_scope('Generator_network'):
 			# # ==== Decoder ====
@@ -277,11 +331,14 @@ class Autoencoder(object):
 	
 			
 	def _create_loss_optimizer(self):
+		# --- Reconstruction loss ---
 		self.reconstr_loss = tf.reduce_mean(tf.square(self.x_reconstr - self.x))
 		
-		# self.sparsity = w_psp(self.z) + w_lsp(self.z)
+		# --- Sparsity loss ---
+		self.sparsity_loss = tf.norm(self.z, ord=1, axis=(2, 3))
+		self.sparsity_loss = tf.reduce_mean(self.sparsity_loss, axis=(0, 1))
 		
-		self.cost = self.reconstr_loss
+		self.cost = self.reconstr_loss + self.sp_lambda * self.sparsity_loss
 		
 		self.optimizer = \
 			tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
