@@ -8,6 +8,8 @@ import tensorflow as tf
 import numpy as np
 from sklearn.metrics import auc
 import math
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 
 import cifar10_utils
 import shutil
@@ -19,12 +21,12 @@ from Models.inception import Inception
 from Models.c3d import C3D
 from Models.alexnet import alexnet_v2_arg_scope
 from Models.ctnet import CTNET
+from Models.ae import Autoencoder
 
 LEARNING_RATE_DEFAULT = 0.005
 BATCH_SIZE_DEFAULT = 128
 MAX_EPOCHS_DEFAULT = 70
 EVAL_FREQ_DEFAULT = 3
-CHECKPOINT_FREQ_DEFAULT = 5000
 PRINT_FREQ_DEFAULT = 3
 SIGMAS_DEFAULT = "3.5, 1.5, 1.5"
 KERNELS_DEFAULT = "11,3,3"
@@ -36,26 +38,31 @@ CDROP = 0.0
 DATASET_NAME = 'Normalized_Resampled_128x128x30'
 MODEL_DEFAULT = 'RFNN_2d'
 LOG_DIR_DEFAULT = './logs/'
-
+PRETRAINING = False
+CHECKPOINT_PATH = './ae_models/model.ckpt'
 
 def get_kernels():	
 	
-	kernel0 = tf.get_default_graph().get_tensor_by_name("ConvLayer1/weights_0:0")
-	kernel1 = tf.get_default_graph().get_tensor_by_name("ConvLayer1/weights_1:0")
-	kernel2 = tf.get_default_graph().get_tensor_by_name("ConvLayer1/weights_2:0")
+	# kernel0 = tf.get_default_graph().get_tensor_by_name("ConvLayer1/weights:0")
+	kernel0 = tf.get_default_graph().get_tensor_by_name("AutoEncoder/Encoder/ConvLayer_0/weights:0")
+	print(kernel0.get_shape())
+	# kernel1 = tf.get_default_graph().get_tensor_by_name("ConvLayer1/weights_1:0")
+	# kernel2 = tf.get_default_graph().get_tensor_by_name("ConvLayer1/weights_2:0")
 	
-	alphas = tf.get_default_graph().get_tensor_by_name("L1_alphas:0")
+	# alphas = tf.get_default_graph().get_tensor_by_name("L1_alphas:0")
 	# alphas = tf.get_default_graph().get_tensor_by_name("ConvLayer2/weights:0")
 	kernel_avg0 = tf.reduce_mean(kernel0, axis=2)
-	kernel_avg1 = tf.reduce_mean(kernel1, axis=2)
-	kernel_avg2 = tf.reduce_mean(kernel2, axis=2)
+	# kernel_avg1 = tf.reduce_mean(kernel1, axis=2)
+	# kernel_avg2 = tf.reduce_mean(kernel2, axis=2)
 	
 	# to tf.image_summary format [batch_size, height, width, channels]
 	kernel_transposed0 = tf.transpose(kernel_avg0, [2, 0, 1])
-	kernel_transposed1 = tf.transpose(kernel_avg1, [2, 0, 1])
-	kernel_transposed2 = tf.transpose(kernel_avg2, [2, 0, 1])
+	# kernel_transposed1 = tf.transpose(kernel_avg1, [2, 0, 1])
+	# kernel_transposed2 = tf.transpose(kernel_avg2, [2, 0, 1])
 		
-	return alphas, tf.pack([kernel_transposed0, kernel_transposed1, kernel_transposed2])
+	# return alphas, tf.pack([kernel_transposed0, kernel_transposed1, kernel_transposed2])
+	
+	return kernel_transposed0
 
 def accuracy_function(logits, labels):	
 	softmax = tf.nn.softmax(logits)
@@ -70,7 +77,7 @@ def accuracy_function(logits, labels):
 def loss_function(logits, labels):	
 	with tf.variable_scope('Losses') as scope:		
 		with tf.name_scope('Cross_Entropy_Loss'):
-			cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits, labels, name='cross_entropy_per_example')
+			cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels, name='cross_entropy_per_example')
 			cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
 			
 			tf.add_to_collection('losses', cross_entropy_mean)		
@@ -88,19 +95,20 @@ def loss_function(logits, labels):
 	return loss	
 
 def train_step(loss, global_step):
-	decay_steps = 390*50
-	LEARNING_RATE_DECAY_FACTOR = 0.5
+	# decay_steps = 390*50
+	# LEARNING_RATE_DECAY_FACTOR = 0.5
 
 	# Decay the learning rate exponentially based on the number of steps.
-	lr = tf.train.exponential_decay(FLAGS.learning_rate,
-                                  global_step,
-                                  decay_steps,
-                                  LEARNING_RATE_DECAY_FACTOR,
-                                  staircase=True)
-	tf.summary.scalar('learning_rate', lr)
-	train_op = tf.train.AdamOptimizer(lr).minimize(loss, global_step=global_step)
+	# lr = tf.train.exponential_decay(FLAGS.learning_rate,
+                                  # global_step,
+                                  # decay_steps,
+                                  # LEARNING_RATE_DECAY_FACTOR,
+                                  # staircase=True)
+	# tf.summary.scalar('learning_rate', lr)
+	train_op = tf.train.AdamOptimizer(FLAGS.learning_rate).minimize(loss, global_step=global_step)
 	return train_op
-
+	
+	
 def train():
 	# Set the random seeds for reproducibility. DO NOT CHANGE.
 	tf.set_random_seed(42)
@@ -117,10 +125,6 @@ def train():
 	# Load data
 	cifar10_dataset = cifar10_utils.get_cifar10('./cifar10/cifar-10-batches-py')
 	
-	
-	# Define session
-	sess = tf.InteractiveSession()
-
 	# Input placeholders
 	with tf.name_scope('input'):
 		x = tf.placeholder(tf.float32, [None, 32, 32, 3], name='x-input')
@@ -132,14 +136,14 @@ def train():
 	if 'RFNN' in FLAGS.model_name:
 		sigmas = [float(x) for x in FLAGS.sigmas.split(',')]
 	kernels = [int(x) for x in FLAGS.kernels.split(',')]
-	if 'CTNET' in FLAGS.model_name:
-		maps = [int(x) for x in FLAGS.maps.split(',')]
+	maps = [int(x) for x in FLAGS.maps.split(',')]
 	if 'CTNET' in FLAGS.model_name:
 		maxpools = [int(x) for x in FLAGS.maxpool_kernels.split(',')]
 	model = {
 				'RFNN_2d' 		: lambda: RFNN(
 									n_classes = 10,
 									kernels=kernels,
+									maps = maps,
 									is_training = is_training,
 									sigmas=sigmas,
 									bases_3d = False
@@ -153,27 +157,36 @@ def train():
 									is_training = is_training,
 									dropout_rate_conv = FLAGS.cdrop,
 									dropout_rate_hidden = FLAGS.hdrop,
-									conv3d = False
+									conv3d = False,
+									pretraining = FLAGS.pretraining
 									)
 			}[FLAGS.model_name]
 	
-	
-	# Calculate predictions
-	logits = model().inference(x)	
-	
+	if FLAGS.pretraining:
+		network_architecture = \
+		{
+			'Conv_kernels':FLAGS.kernels,
+			'Conv_maps':FLAGS.maps
+		}  	
+		ae = Autoencoder(network_architecture)
+		
+		assign_ops, net = ae.load_weights(x, FLAGS.pretrained_weights_path)
+		
+		
+		# Calculate predictions
+		logits = model().inference(net)	
+	else:
+		# Calculate predictions
+		logits = model().inference(x)	
+		
 	loss = loss_function(logits, y_)
 	accuracy, prediction, scores = accuracy_function(logits, y_)
 
-	
 	# Call optimizer
 	train_op = train_step(loss, global_step)
 		
 	# Merge all the summaries and write them out to log
 	merged = tf.summary.merge_all()
-	train_writer = tf.summary.FileWriter(FLAGS.log_dir + '/train',	sess.graph)
-	test_writer = tf.summary.FileWriter(FLAGS.log_dir + '/test')
-	
-	tf.global_variables_initializer().run()
 	
 	# Print initial kernels
 	# alphas_tensor, kernels_tensor = get_kernels()	
@@ -185,26 +198,55 @@ def train():
 	max_acc = 0
 	training_steps = int(cifar10_dataset.train.num_examples/FLAGS.batch_size)
 	
-	for i in range(int(FLAGS.max_epochs*training_steps)):
-		# ------------ TRAIN -------------
-		_ = sess.run([train_op], feed_dict=feed_dict(True))
-		if i % (FLAGS.eval_freq*training_steps) == 0:				
-			# ------------ VALIDATON -------------
-			summary, tot_acc = sess.run([merged, accuracy], feed_dict=feed_dict(False))			
-			test_writer.add_summary(summary, i)
-			
-			if tot_acc > max_acc:
-				max_acc = tot_acc
-			print('Validation accuracy at step %s: %s' % (i, tot_acc))
+	# Define session
+	with tf.Session() as sess:
+		tf.global_variables_initializer().run()
 		
-		if i % (FLAGS.print_freq*training_steps) == 0:
-			# ------------ PRINT -------------
-			summary = sess.run(merged, feed_dict=feed_dict(True))
-			train_writer.add_summary(summary, i)
+		if FLAGS.pretraining:
+			for assign_op in assign_ops:
+				sess.run(assign_op)
+				
+		# -------- Show kernels -----------
+		# kernels = sess.run(get_kernels())
+		
+		# gs = gridspec.GridSpec(8,8)
+		# gs.update(wspace=0.05, hspace=0.05)		
+		# plt.figure(figsize=(8,8))
+		# for i in range(8):
+			# for j in range(8):
+				# plt.subplot(gs[8*i + j])
+				# plt.imshow(kernels[8*i + j,:,:], cmap='gray')
+				# plt.axis('off')
+		# plt.show()
+		
+		train_writer = tf.summary.FileWriter(FLAGS.log_dir + '/train',	sess.graph)
+		test_writer = tf.summary.FileWriter(FLAGS.log_dir + '/test')
+		# if pretraining with autoencoder
+		# if FLAGS.pretraining:
+			# saver = tf.train.Saver(tf.global_variables())
+			# saver.restore(sess, CHECKPOINT_PATH)	
+			# print('AE loaded.')
+	
+		for i in range(int(FLAGS.max_epochs*training_steps)):
+			# ------------ TRAIN -------------
+			_ = sess.run([train_op], feed_dict=feed_dict(True))
+			if i % (FLAGS.eval_freq*training_steps) == 0:				
+				# ------------ VALIDATON -------------
+				summary, tot_acc = sess.run([merged, accuracy], feed_dict=feed_dict(False))			
+				test_writer.add_summary(summary, i)
+				
+				if tot_acc > max_acc:
+					max_acc = tot_acc
+				print('Validation accuracy at step %s: %s' % (i, tot_acc))
+			
+			if i % (FLAGS.print_freq*training_steps) == 0:
+				# ------------ PRINT -------------
+				summary = sess.run(merged, feed_dict=feed_dict(True))
+				train_writer.add_summary(summary, i)
 
-	print('Max accuracy : %s' % (max_acc))
-	train_writer.close()
-	test_writer.close()
+		print('Max accuracy : %s' % (max_acc))
+		train_writer.close()
+		test_writer.close()
 	
 	# Print final kernels
 	# alphas_tensor, kernels_tensor = get_kernels()	
@@ -212,6 +254,19 @@ def train():
 	# np.save('./Kernels/kernel_final.npy', kernels_array)
 	# np.save('./Kernels/alphas_final.npy', alphas)
 	
+		
+		# -------- Show kernels -----------
+		# kernels = sess.run(get_kernels())
+		
+		# gs = gridspec.GridSpec(8,8)
+		# gs.update(wspace=0.05, hspace=0.05)		
+		# plt.figure(figsize=(8,8))
+		# for i in range(8):
+			# for j in range(8):
+				# plt.subplot(gs[8*i + j])
+				# plt.imshow(kernels[8*i + j,:,:], cmap='gray')
+				# plt.axis('off')
+		# plt.show()
 		
 
 def initialize_folders():
@@ -239,7 +294,22 @@ def main(_):
 	print_flags()
 
 	initialize_folders()
+	# Check if pre-training requested and has been done
+	if FLAGS.pretraining:
+		if FLAGS.pretrained_weights_path == "":
+			print("------------------ Pre-training with AutoEncoder --------------------")
+			os.system("python train_ae.py --weights_path ./pretrained_weights/weights.npy --max_epochs 100")
+			FLAGS.pretrained_weights_path = "./pretrained_weights/weights.npy"
+		else:
+			print("weights existing")
+	
 	train()
+	
+def str2bool(s):
+	if s == "True":
+		return True
+	else:
+		return False
 	
 if __name__ == '__main__':
 	
@@ -256,8 +326,6 @@ if __name__ == '__main__':
 						help='Frequency of evaluation on the train set')
 	parser.add_argument('--eval_freq', type = int, default = EVAL_FREQ_DEFAULT,
 						help='Frequency of evaluation on the test set')
-	parser.add_argument('--checkpoint_freq', type = int, default = CHECKPOINT_FREQ_DEFAULT,
-						help='Frequency with which the model state is saved.')
 	parser.add_argument('--log_dir', type = str, default = LOG_DIR_DEFAULT,
 						help='Logging directory')
 	parser.add_argument('--model_name', type = str, default = MODEL_DEFAULT,
@@ -277,19 +345,13 @@ if __name__ == '__main__':
 	parser.add_argument('--l2', type = float, default = L2,
 						help='Convlayer L2')		
 	parser.add_argument('--dataset_name', type = str, default = DATASET_NAME,
-						help='Name of the dataset')									
+						help='Name of the dataset')				
+	parser.add_argument('--pretraining', type = str2bool, default = PRETRAINING,
+						help='Specify pretraining with Autoencoder')		
+	parser.add_argument('--pretrained_weights_path', type = str, default = "",
+						help='Path to pretrained weights')								
 						
 						
 	FLAGS, unparsed = parser.parse_known_args()
 
-	# FLAGS.log_dir = './logs/test/'
-		# + FLAGS.model_name + '/final/' + FLAGS.dataset_name + '/' \
-		# + '3D/128/' + str(FLAGS.learning_rate) + \
-		# '_' + str(FLAGS.batch_size) + '_' + FLAGS.kernels.replace(",","_")  + '_'\
-		 # + FLAGS.maps.replace(",","_") + '_' + str(FLAGS.max_epochs) \
-		# + 'epoch'  + '_mp' + FLAGS.maxpool_kernels.replace(",","_") + '_l2-' + str(FLAGS.l2) + '_hdrop' + str(FLAGS.hdrop)
-		
-		#  + '_cdrop' + str(FLAGS.cdrop) + '_l2-' + str(FLAGS.l2) + '_hdrop' + str(FLAGS.hdrop) 
-		# + '_mp' + FLAGS.maxpool_kernels.replace(",","_") \
-		
 	tf.app.run()

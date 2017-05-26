@@ -179,10 +179,10 @@ class SubSet(object):
 
 	def getImageArray(self, image_path, multiAttenuation=False):
 		"""
-		Returns 
+		Returns:
+			Numpy array of the loaded image
 		Args:
 			image_path: Path of image to read from.
-			multiAttenuation: Boolean whether ranges of attenuation is required
 		"""
 
 		if not multiAttenuation:
