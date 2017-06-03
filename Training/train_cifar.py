@@ -170,9 +170,8 @@ def train():
 		}  	
 		ae = Autoencoder(network_architecture)
 		
-		assign_ops, net = ae.load_weights(x, FLAGS.pretrained_weights_path)
-		
-		
+		assign_ops, net = ae.load_weights(x, FLAGS.pretrained_weights_path, FLAGS.pretrained_biases_path, is_training)
+				
 		# Calculate predictions
 		logits = model().inference(net)	
 	else:

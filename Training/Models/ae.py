@@ -8,6 +8,7 @@ from Utils.cnn_utils import _deconv_layer_tied
 from Utils.rfnn_utils import init_basis_hermite_2D
 from Utils.rfnn_utils import init_basis_hermite_3D
 from Utils.rfnn_utils import _rfnn_conv_layer_2d
+from Utils.rfnn_utils import _rfnn_deconv_layer_2d
 
 			
 def floatX(X):
@@ -72,80 +73,131 @@ def _structured_sparsity_layer(x):
 	
 class Autoencoder(object):
 	
-	def __init__(self, network_architecture, sp_lambda=1):
+	def __init__(self, network_architecture, rfnn=False, sigmas=[], sp_lambda=1):
 		self.network_architecture = network_architecture
 		self.initializer = tf.contrib.layers.xavier_initializer()
 		self.sp_lambda = sp_lambda
+		self.rfnn = rfnn
+		
+		if self.rfnn:
+			self.sigmas = sigmas	
+			self.hermit	= init_basis_hermite_2D					
+			self.basis = [ self.hermit(network_architecture['Conv_kernels'][i], sigmas, network_architecture['Basis'][i])
+								for i in range(len(network_architecture['Conv_kernels'])) ]			
 
-	def load_weights(self, x, path):
-		weights = np.load(path)
+	def load_weights(self, x, path_weights, path_biases, is_training):
+		weights = np.load(path_weights)
+		biases = np.load(path_biases)
 		assign_ops = []
 		with tf.variable_scope('AutoEncoder'):
 			with tf.variable_scope('Encoder'):
 				net = x
-				for i, (kernel, map) in enumerate(zip(self.network_architecture['Conv_kernels'],self.network_architecture['Conv_maps'])):
-					net,k = _conv_layer_2d(
-							input=net,
-							shape=[kernel, kernel, net.get_shape()[3], map], 
-							strides=[1,2,2,1], 
-							padding='SAME', 
-							name='ConvLayer_'+str(i))
-					assign_ops.append(k.assign(weights[i]))
-					
+				for i, (kernel, map, strides) in enumerate(zip(self.network_architecture['Conv_kernels'],
+															   self.network_architecture['Conv_maps'],
+															   self.network_architecture['Conv_strides'])):
+					with tf.variable_scope('ConvLayer'+str(i+1)):
+						if self.rfnn:
+							alphas, bias, net, k = _rfnn_conv_layer_2d(
+									input=net,
+									basis=self.basis[i],
+									omaps=map, 
+									strides=strides, 
+									padding='SAME',
+									is_training=is_training,
+									bnorm=False)
+							assign_ops.append(alphas.assign(weights[i]))
+							assign_ops.append(bias.assign(biases[i]))
+						else:
+							net, k, bias = _conv_layer_2d(
+									input=net,
+									shape=[kernel, kernel, net.get_shape()[3], map], 
+									strides=strides, 
+									padding='SAME', 
+									is_training=is_training,
+									bnorm=False)
+							assign_ops.append(k.assign(weights[i]))
+							assign_ops.append(bias.assign(biases[i]))
+						
 		return assign_ops, net
-					
+
 	def inference(self, x):
 		with tf.variable_scope('AutoEncoder'):
 			print(x.get_shape())
 			encoder = []
-			self.weights = []
+			self.alphas = []
+			self.kernels = []
+			self.biases = []
 			with tf.variable_scope('Encoder'):
 				# ==== Encoder ====
 				# net = corrupt(x)
 				net = x
-				for i, (kernel, map) in enumerate(zip(self.network_architecture['Conv_kernels'],self.network_architecture['Conv_maps'])):
-					with tf.variable_scope('ConvLayer_'+str(i)):
+				for i, (kernel, map, strides) in enumerate(zip(self.network_architecture['Conv_kernels'],
+															   self.network_architecture['Conv_maps'],
+															   self.network_architecture['Conv_strides'])):
+					with tf.variable_scope('ConvLayer'+str(i+1)):
 						encoder.append(net)
-						net,k = _conv_layer_2d(
-								input=net, 
-								shape=[kernel, kernel, net.get_shape()[3], map], 
-								strides=[1,2,2,1], 
-								padding='SAME')						
-						# net,k = _rfnn_conv_layer(
-								# input=net,
-								# ksize,
-								# fsize,
-								# nrbasis,
-								# sigmas,
-								# stride,
-								# padding,
-								# name='ConvLayer_'+str(i))
-						self.weights.append(k)
-						self.layer1 = net
+						
+						if self.rfnn:
+							alphas, bias, net, k = _rfnn_conv_layer_2d(
+									input=net,
+									basis=self.basis[i],
+									omaps=map, 
+									strides=strides, 
+									padding='SAME',
+									is_training=True,
+									bnorm=False)
+							net = tf.stack(net)
+							net = tf.stack(tf.reduce_max(net, reduction_indices=[0]))
+							
+							self.alphas.append(alphas)
+							
+						else:
+							net, k, bias = _conv_layer_2d(
+									input=net, 
+									shape=[kernel, kernel, net.get_shape()[3], map], 
+									strides=strides, 
+									padding='SAME',
+									is_training=True,
+									bnorm=False)
+									
+							self.kernels.append(k)
+						self.biases.append(bias)
 						print(net.get_shape())		
-			
+			self.layer1 = net
 			# with tf.variable_scope('Structured_sparsity'):
 				# self.z = _structured_sparsity_layer(net)
 				# net = self.z
 				# print(net.get_shape())
 			
 			with tf.variable_scope('Decoder'):
-				for i, kernel in enumerate(reversed(self.network_architecture['Conv_kernels'])):
-				# for i, weights in enumerate(reversed(self.weights)):
+				for i, (kernel, strides) in enumerate(zip(reversed(self.network_architecture['Conv_kernels']),
+														  reversed(self.network_architecture['Conv_strides']))):
 					shape = tf.shape(encoder[-1-i])
 					oshape = tf.stack([shape[0], shape[1], shape[2], shape[3]])
-					with tf.variable_scope('DeconvLayer_'+str(i)):
-						net = _deconv_layer_2d(
-								input=net, 
-								kshape=[kernel, kernel, encoder[-(i+1)].get_shape()[3].value, net.get_shape()[3].value], 
-								# kernel=weights,
-								oshape=oshape,
-								strides=[1,2,2,1], 
-								padding='SAME')
+					with tf.variable_scope('DeconvLayer'+str(i+1)):
+						if self.rfnn:
+							net = _rfnn_deconv_layer_2d(
+									input=net,
+									basis=self.basis[i],
+									omaps=encoder[-1-i].get_shape()[-1].value,
+									oshape=oshape,
+									strides=strides, 
+									padding='SAME',
+									bnorm=False)
+							# check which rotation was chosen in Encoder part?
+							net = tf.stack(net)
+							net = tf.stack(tf.reduce_max(net, reduction_indices=[0]))
+						else:
+							net = _deconv_layer_2d(
+									input=net, 
+									kshape=[kernel, kernel, encoder[-(i+1)].get_shape()[-1].value, net.get_shape()[3].value], 
+									oshape=oshape,
+									strides=strides, 
+									padding='SAME')
+								
 						
 						print(net.get_shape())
 			
-			# ==== Reconstruction ====			
 			_activation_summary(net)
 			return net, self.layer1
 			

@@ -1,36 +1,92 @@
 import numpy as np
 import tensorflow as tf
 from scipy.ndimage.filters import convolve1d as conv
+from Utils.cnn_utils import batch_norm_wrapper 
 
 def floatX(X):
 	return np.asarray(X, dtype=np.float32)	
 
-def _rfnn_conv_layer_2d(input, ksize, fsize, nrbasis, sigmas, stride, padding, name):
-	with tf.variable_scope(name) as scope:
-		basis = init_basis_hermite_2D(ksize[0], sigmas, nrbasis)
-		alphas = tf.get_variable(
-					name,
-					shape=[fsize[1], fsize[0], nrbasis],
-					initializer=tf.random_uniform_initializer(-1.0, 1.0))
-		# Assuming 1 scale only for now
+def _rfnn_conv_layer_2d_with_alphas(input, basis, alphas, biases, strides, padding, is_training, bnorm=False):
+	kernels = []
+	outputs = []
+	for i in range(np.shape(basis)[0]):
 		kernel = tf.reduce_sum(
 				tf.transpose(alphas[:,:,:,None,None]) *
-				tf.transpose(basis[None,None,0,:,:,:])
-					,axis=2
-			)
+				tf.transpose(basis[None,None,i,:,:,:])
+					,axis=2, name='weights_' + str(i) )
+		
+		conv = tf.nn.conv2d(input, kernel, strides=strides, padding=padding)
+		if bnorm:
+			conv = batch_norm_wrapper(conv, is_training, True)
+		else:
+			conv = tf.nn.bias_add(conv, biases)				
+		conv_out = tf.nn.relu(conv, name='Activation')
+		
+		kernels.append(kernel)
+		outputs.append(conv_out)
+	
+	return outputs, kernels
+	
+def _rfnn_conv_layer_2d(input, basis, omaps, strides, padding, is_training, bnorm=False):
+	alphas = tf.get_variable(
+		'alphas',
+		shape=[omaps, input.get_shape()[-1].value, np.shape(basis)[1]],
+		initializer=tf.random_uniform_initializer(-1.0, 1.0))
+		
+	if not bnorm:
 		biases = tf.get_variable(
 			'biases',
-			[fsize[-1]],
+			shape=[omaps],
 			initializer=tf.constant_initializer(0.0),
 			dtype=tf.float32)
-		
-		conv = tf.nn.conv2d(input, kernel, strides=stride, padding=padding)
-		conv = tf.nn.bias_add(conv, biases)
-			
-		conv_out = tf.nn.relu(conv, name='Activation')
-		_activation_summary(conv_out)
 	
-	return conv_out, kernel
+	kernels = []
+	outputs = []
+	for i in range(np.shape(basis)[0]):
+		kernel = tf.reduce_sum(
+				tf.transpose(alphas[:,:,:,None,None]) *
+				tf.transpose(basis[None,None,i,:,:,:])
+					,axis=2, name='weights_' + str(i) )
+		
+		conv = tf.nn.conv2d(input, kernel, strides=strides, padding=padding)
+		if bnorm:
+			conv = batch_norm_wrapper(conv, is_training, True)
+		else:
+			conv = tf.nn.bias_add(conv, biases)				
+		conv_out = tf.nn.relu(conv, name='Activation')
+		
+		kernels.append(kernel)
+		outputs.append(conv_out)
+	
+	return alphas, biases, outputs, kernels
+	
+def _rfnn_deconv_layer_2d(input, basis, omaps, oshape, strides, padding, bnorm=False):
+	alphas = tf.get_variable(
+		'alphas',
+		shape=[input.get_shape()[-1].value, omaps, np.shape(basis)[1]],
+		initializer=tf.random_uniform_initializer(-1.0, 1.0))
+		
+	biases = tf.get_variable(
+		'biases',
+		shape=[omaps],
+		initializer=tf.constant_initializer(0.0),
+		dtype=tf.float32)
+	
+	kernels = []
+	outputs = []
+	for i in range(np.shape(basis)[0]):
+		kernel = tf.reduce_sum(
+				tf.transpose(alphas[:,:,:,None,None]) *
+				tf.transpose(basis[None,None,i,:,:,:])
+					,axis=2, name='weights_' + str(i) )
+		
+		deconv = tf.nn.conv2d_transpose(input, kernel, oshape, strides, padding)
+		deconv = tf.nn.bias_add(deconv, biases)	
+		deconv = tf.nn.relu(deconv, name='Activation')
+		
+		outputs.append(deconv)
+	
+	return outputs
 	
 	
 def init_basis_hermite_2D(kernel, sigmas, bases):

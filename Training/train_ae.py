@@ -76,12 +76,17 @@ def train():
 	network_architecture = \
 	{
 		'Conv_kernels':[11],
-		'Conv_maps':[64]
+		'Conv_maps':[64],
+		'Conv_strides':[[1,2,2,1]],
+		'Basis':[10]
 	}  	
 
-	ae = Autoencoder(network_architecture)
+	ae = {
+			'RFNN' 			: lambda: Autoencoder(network_architecture, rfnn=True, sigmas=FLAGS.sigmas),
+			'CTNET'			: lambda: Autoencoder(network_architecture, rfnn=False)
+		}[FLAGS.model_name]()
 	
-	reconstr,layer1 = ae.inference(x)
+	reconstr, layer1 = ae.inference(x)
 	# reconstr_loss, sparsity_loss, loss = _loss(x, reconstr, [ae.z], ae.sp_lambda)
 	loss = _loss(x, reconstr, [0], ae.sp_lambda)
 	
@@ -129,7 +134,11 @@ def train():
 				  # "sparse=", "{:.9f}".format(avg_sp))
 				
 		train_writer.close()
-		np.save(FLAGS.pretrained_weights_path, sess.run(ae.weights))
+		if FLAGS.model_name == 'RFNN':
+			np.save(FLAGS.pretrained_weights_path, sess.run(ae.alphas))
+		else:
+			np.save(FLAGS.pretrained_weights_path, sess.run(ae.kernels))
+		np.save(FLAGS.pretrained_biases_path, sess.run(ae.biases))
 	
 		# -------- Show some reconstructions -----------
 		# x_sample = mnist.test.next_batch(batch_size)[0].reshape([batch_size,28,28,1])
@@ -292,9 +301,17 @@ if __name__ == '__main__':
 
 	parser.add_argument('--pretrained_weights_path', type = str, default = "./pretrained_weights/weights.npy",
 						help='Specify the path to write the weights to.')	
+	parser.add_argument('--pretrained_biases_path', type = str, default = "./pretrained_weights/biases.npy",
+						help='Specify the path to write the weights to.')	
 	parser.add_argument('--max_epochs', type = int, default = 100,
 						help='Iterations to train the AE for.')						
-						
+	parser.add_argument('--model_name', type = str, default = 'CTNET',
+						help='Model name')	
+	parser.add_argument('--sigmas', type = str,
+						help='Sigmas for RFNN')						
 	FLAGS, unparsed = parser.parse_known_args()
+	
+	if 'RFNN' in FLAGS.model_name:
+		FLAGS.sigmas = [float(x) for x in FLAGS.sigmas.split(',')]
 	
 	tf.app.run()

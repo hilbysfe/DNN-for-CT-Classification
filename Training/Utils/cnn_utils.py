@@ -41,8 +41,11 @@ def _conv_layer_2d(input, shape, strides, padding, is_training, bnorm=False):
 		# batch = kernel_transposed.get_shape()[0].value
 					
 		# tf.summary.image('/filters', kernel_transposed, max_outputs=batch)			
-			
-	return conv_out, kernel
+	
+	if bnorm:
+		return conv_out, kernel
+	else:
+		return conv_out, kernel, biases
 
 def _conv_layer_2d_with_kernel(input, kernel, strides, padding, is_training, name, bnorm=False):
 	# No bias when BN
