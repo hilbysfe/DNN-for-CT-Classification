@@ -108,10 +108,11 @@ def GetBitsStored(img):
 
 
 def MoveDirectory(source, target):
-	if not os.path.exists(target):
-		os.makedirs(target)
+	if not os.path.exists(os.path.join(target, source.split('\\')[-1])):
+		os.makedirs(os.path.join(target, source.split('\\')[-1]))
 		for f in os.listdir(source):
-			shutil.move(os.path.join(source, f), os.path.join(target, f))
+			shutil.move(os.path.join(source, f), os.path.join(target, source.split('\\')[-1], f))
+		shutil.rmtree(os.path.abspath(os.path.dirname(source)))
 
 
 def CollectDICOMFolders(path):
@@ -130,14 +131,12 @@ def RemoveSagCorLoc(rootSource):
 	Removes all localizer slices from series, then detects and deletes coronal and sagittal series.
 	"""
 	patients = os.listdir(rootSource)
-	lists = []	
 	for patient in patients:
 		try:
 			level_1_subdir = GetImmediateSubdirectories(os.path.join(rootSource, patient))[0]
 			dicomFolders = CollectDICOMFolders(level_1_subdir)
 			dates = dict()			
-			for f in dicomFolders:			
-				
+			for f in dicomFolders:				
 				dicomFiles = [os.path.join(root, name)
 						 for root, dirs, files in os.walk(f)
 						 for name in files if name.endswith((".dcm", ".DCM", ".dicom", ".DICOM"))]
@@ -149,6 +148,7 @@ def RemoveSagCorLoc(rootSource):
 					maxValue = np.power(2, GetBitsStored(img))/(GetPixelRepresentation(img)+1) - 1
 					if 'LOCALIZER' in GetImageType(img) or np.max(sitk.GetArrayFromImage(img)) == maxValue:
 						# delete localizer image
+						print(file)
 						os.remove(file)						
 						blackList.append(file)
 				
@@ -162,10 +162,6 @@ def RemoveSagCorLoc(rootSource):
 				filesSortedZ = sort_files(dicomFiles, map=GetZLocation)
 				distanceInZ = abs(GetImagePositionPatient(filesSortedZ[1])[2] - GetImagePositionPatient(filesSortedZ[-1])[2])
 				
-				if '1.3.6.1.4.1.40744.9.299291421217849152902168428089734451256' in f:
-					print(distanceInX)
-					print(distanceInY)
-					print(distanceInZ)
 				if distanceInZ < distanceInX or distanceInZ < distanceInY:
 					# delete cor / sag series
 					shutil.rmtree(f)
@@ -175,34 +171,102 @@ def RemoveSagCorLoc(rootSource):
 		except:
 			print(patient + ' failed.')
 		
-# def SelectBaseline(rootSource, rootTarget):
-					
-				# try:
-					# img = sitk.ReadImage(files[0])
-				# except:
-					# continue
-				# try:
-					# d = img.GetMetaData('0008|0020')
-					# t = img.GetMetaData('0008|0030')[0:6]
-				# except:
-					# continue
-				# if d is not '' and t is not '':
-					# date = datetime(int(d[0:4]), int(d[4:6]), int(d[6:]), int(t[0:2]), int(t[2:4]), int(t[4:6]))
-				# elif d is not '':
-					# date = datetime(int(d[0:4]), int(d[4:6]), int(d[6:]))
+def SelectBaseline(rootSource):
+	patients = os.listdir(rootSource)
+	for patient in patients:
+		try:
+			level_1_subdir = GetImmediateSubdirectories(os.path.join(rootSource, patient))[0]
+			dicomFolders = CollectDICOMFolders(level_1_subdir)
+			dates = dict()			
+			for f in dicomFolders:				
+				dicomFiles = [os.path.join(root, name)
+						 for root, dirs, files in os.walk(f)
+						 for name in files if name.endswith((".dcm", ".DCM", ".dicom", ".DICOM"))]
+				sortedFiles = sort_files(dicomFiles, map=GetZLocation)
+				
+				img = sitk.ReadImage(sortedFiles[0])
+				
+				d = img.GetMetaData('0008|0020')
+				t = img.GetMetaData('0008|0030')[0:6]
+				if d is not '' and t is not '':
+					date = datetime(int(d[0:4]), int(d[4:6]), int(d[6:]), int(t[0:2]), int(t[2:4]), int(t[4:6]))
+				elif d is not '':
+					date = datetime(int(d[0:4]), int(d[4:6]), int(d[6:]))
 
-				# if date not in dates.keys():
-					# dates[date] = []
-				# dates[date].append(f)
+				if date not in dates.keys():
+					dates[date] = []
+				dates[date].append(f)
 
-			# min_date = min(dates.keys())
-			# if len(dates.keys()) > 1:
-				# print(patient)
-			# for f in dates[min_date]:
-				# path = os.path.join(rootTarget, patient, f.split('\\')[-2], f.split('\\')[-1])
-				# MoveDirectory(f, path)
+			min_date = min(dates.keys())
+			for date, folders in dates.items():
+				if date != min_date:
+					for folder in folders:
+						shutil.rmtree(folder)
+		except:
+			print(patient + ' failed.')
+			continue
+		
+		print(patient + ' done.')
 
+		
+def SelectBySliceThickness(rootSource, rootTarget):
+	patients = os.listdir(rootSource)
+	for patient in patients:
+		if os.path.exists(os.path.join(rootTarget, patient)):
+			continue
+		try:
+			level_1_subdir = GetImmediateSubdirectories(os.path.join(rootSource, patient))[0]
+			dicomFolders = CollectDICOMFolders(level_1_subdir)
+			sliceMap = dict()
+			for f in dicomFolders:
+				dicomFiles = [os.path.join(root, name)
+						 for root, dirs, files in os.walk(f)
+						 for name in files if name.endswith((".dcm", ".DCM", ".dicom", ".DICOM"))]
+				
+				sliceList = [ GetSliceThickness(file) for file in dicomFiles ]
+				
+				# if 5.0 in sliceList:
+				if len(set(sliceList)) != 1:
+					# print(patient + ' failed.')
+					continue
+				else:
+					sliceMap[sliceList[0]] = f
+			
+			MoveDirectory(sliceMap[max(sliceMap.keys())], rootTarget + '\\' + patient + '\\')			
+			print(patient + ' done.')
+		except:
+			print(patient + ' failed.')
 
-RemoveSagCorLoc('D:\\Adam\\Data\\Registry\\REGISTRY_NCCT_BL')
-# , 'D:\\Adam Hilbert\\Data\\Registry\\CTA\\')
+def restore(rootSource, rootTarget):
+	patients = os.listdir(rootSource)
+	for patient in patients:
+		try:
+			level_1_subdir = GetImmediateSubdirectories(os.path.join(rootTarget, patient))[0].split('\\')[-1]
+			dicomFolders = CollectDICOMFolders(os.path.join(rootSource, patient))
+			for f in dicomFolders:			
+				path = rootTarget + '\\' + patient + '\\' + level_1_subdir + '\\'
+				MoveDirectory(f, path)			
+			print(patient + ' done.')
+		except:
+			print(patient + ' failed.')	
+			
+def MoveBySlices(rootSource, rootTarget):
+	patients = os.listdir(rootSource)
+	for patient in patients:
+		try:
+			level_1_subdir = GetImmediateSubdirectories(os.path.join(rootTarget, patient))[0]
+			dicomFolders = CollectDICOMFolders(os.path.join(rootSource, patient))
+			
+			for f in dicomFolders:
+				if dicomFolders[f] > 60:
+					MoveDirectory(os.path.join(rootTarget, patient, f), level_1_subdir)
+					print(patient + ' moved.')
+		except:
+			print(patient + ' failed.')
 
+	
+# RemoveSagCorLoc('D:\\Adam\\Data\\Registry\\REGISTRY_CTA_BL')
+# SelectBaseline('D:\\Adam\\Data\\Registry\\REGISTRY_CTA_BL')
+
+MoveBySlices('D:\\Adam\\Data\\Registry\\5.0\\REGISTRY_NCCT_BL', 'D:\\Adam\\Data\\Registry\\REGISTRY_NCCT_BL')
+# restore('D:\\Adam\\Data\\Registry\\5.0\\REGISTRY_CTA_BL', 'D:\\Adam\\Data\\Registry\\REGISTRY_CTA_BL')
