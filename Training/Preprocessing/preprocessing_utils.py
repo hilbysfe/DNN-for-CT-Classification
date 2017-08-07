@@ -212,6 +212,9 @@ def RemoveSagCorLoc(rootSource):
 
 
 def SelectBaseline(rootSource):
+	""""
+	Selects the baseline series
+	"""
 	patients = os.listdir(rootSource)
 	for patient in patients:
 		try:
@@ -250,7 +253,11 @@ def SelectBaseline(rootSource):
 		print(patient + ' done.')
 
 
-def SelectBySliceThickness(rootSource, rootTarget):
+def SelectBySliceThickness(rootSource, rootTarget, thickness):
+	""""
+	Copies heads only from the thinnest series below the given thickness
+	"""
+
 	patients = os.listdir(rootSource)
 	for patient in patients:
 		if os.path.exists(os.path.join(rootTarget, patient)):
@@ -259,7 +266,6 @@ def SelectBySliceThickness(rootSource, rootTarget):
 		skip = False
 		# if patient == 'R0016':
 		try:
-			# level_1_subdir = GetImmediateSubdirectories(os.path.join(rootSource, patient))[0]
 			dicomFolders = CollectDICOMFolders(os.path.join(rootSource, patient))
 			sliceMap = dict()
 
@@ -268,29 +274,29 @@ def SelectBySliceThickness(rootSource, rootTarget):
 				continue
 
 			for f in dicomFolders:
-				# dicomFiles = [os.path.join(root, name)
-				# 			  for root, dirs, files in os.walk(f)
-				# 			  for name in files if name.endswith((".dcm", ".DCM", ".dicom", ".DICOM"))]
+				dicomFiles = [os.path.join(root, name)
+							  for root, dirs, files in os.walk(f)
+							  for name in files if name.endswith((".dcm", ".DCM", ".dicom", ".DICOM"))]
 
-				# sliceList = [round(GetSliceThickness(file), 1) for file in dicomFiles]
+				sliceList = [round(GetSliceThickness(file), 1) for file in dicomFiles]
 
-				# if len(set(sliceList)) != 1:
-				# 	continue
-				# else:
-				# 	if sliceList[0] in sliceMap.keys() and sliceList[0] <= 2.0:
-				# 		print(patient + ' has multiple series of target thickness.')
-						# CopyDirectory(os.path.join(rootSource, patient), rootTarget2)
-						# print(patient + ' copied.')
-					# 	skip = True
-					# 	break
-					# sliceMap[sliceList[0]] = f
-				# if not skip:
-				# 	if min(sliceMap.keys()) > 2.0:
-				# 		print(patient + ' thinnest slice is ' + str(min(sliceMap.keys())))
-				# 		continue
+				if len(set(sliceList)) != 1:
+					continue
+				else:
+					if sliceList[0] in sliceMap.keys() and sliceList[0] <= thickness:
+						print(patient + ' has multiple series of target thickness.')
+						CopyDirectory(os.path.join(rootSource, patient), rootTarget2)
+						print(patient + ' copied.')
+						skip = True
+						break
+					sliceMap[sliceList[0]] = f
+				if not skip:
+					if min(sliceMap.keys()) > thickness:
+						print(patient + ' thinnest slice is ' + str(min(sliceMap.keys())))
+						continue
 
 				# Copy only head
-				headFiles = CropHead(f)  # sliceMap[min([t for t in sliceMap.keys() if t <= 2.0])]
+				headFiles = CropHead(sliceMap[min([t for t in sliceMap.keys() if t <= thickness])])
 				CopyFiles(headFiles, os.path.join(rootTarget, patient))
 				print(patient + ' done.')
 		except:
@@ -495,41 +501,27 @@ def MIP_MHA(patient):
 		except:
 			print(patient + ' failed.')
 
-# rootSource = r'E:\MRCLEAN\CTA_THIN'
-rootSource = r'E:\MRCLEAN\CTA_THIN_SKULLSTRIPPED'
-rootDicom = r'E:\MRCLEAN\CTA_THIN'
-# rootTarget = r'E:\MRCLEAN\CTA_MIP'
-rootTarget = r'E:\MRCLEAN\CTA_SKULLSTRIPPED_MIP'
-
-headlist = ['R1356', 'R1294', 'R1211']
-
-WINDOW = 10
-OVERLAP = 3
-
-# if __name__ == '__main__':
-	# patients = os.listdir(r'F:\MRCLEAN_REGISTRY\CTA_BL')
-	# for patient in patients:
-		# if patient == 'R0388':
-			# dicomFolders = CollectDICOMFolders(os.path.join(r'F:\MRCLEAN_REGISTRY\CTA_BL', patient))
-			# if len(dicomFolders.keys()) != 1:
-			# 	print(patient + ' failed.')
-			# for d in dicomFolders.keys():
-			# 	headFiles = CropHead(d)
-			# 	CopyFiles(headFiles, os.path.join(rootDicom, patient))
-			# MIP_MHA(f, ImagePath, 12, 3)
-			# MIP_DICOM(patient)
-
-if __name__ == '__main__':
+def DICOM2MHA(rootSource, rootTarget):
 	patients = os.listdir(rootSource)
-	with Pool() as p:
-		p.map(MIP_MHA, patients)
+	for patient in patients:
+		# Read image
+		DicomFolder = preprocessing_utils.CollectDICOMFolders(os.path.join(rootSource, patient))
+		if len(DicomFolder.keys()) != 1:
+			print(patient + ' failed.')
+			continue
+		for f in DicomFolder.keys():
+			reader = sitk.ImageSeriesReader()
+			series_found = reader.GetGDCMSeriesIDs(f)
+			if len(series_found) != 1:
+				print(patient + ' more series found.')
+			filenames = reader.GetGDCMSeriesFileNames(f, series_found[0])
+			reader.SetFileNames(filenames)
+			input_image = reader.Execute()
 
+			# Write image
+			if not os._exists(os.path.join(rootTarget, patient)):
+				os.makedirs(os.path.join(rootTarget, patient))
+			sitk.WriteImage(input_image, os.path.join(rootTarget, patient, patient + '.mha'))
 
-# RemoveSagCorLoc('D:\\Adam Hilbert\\Data\\MRCLEAN_CTA_baseline')
-# SelectBaseline('D:\\Adam Hilbert\\Data\\MRCLEAN_CTA_baseline')
+			print(patient + ' done.')
 
-# CropHeads('D:\\Adam Hilbert\\Data\\MRCLEAN_TRIAL\\CTA_THIN', 'E:\\MRCLEAN_TRIAL_HEAD_CTA_THIN')
-# print( CountSliceThickness('D:\\Adam Hilbert\\Data\\MRCLEAN_TRIAL\\MRCLEAN_CTA_baseline') )
-
-# SelectBySliceThickness('D:\\Adam Hilbert\\Data\\MRCLEAN_TRIAL\\MRCLEAN_CTA_baseline', 'D:\\Adam Hilbert\\Data\\MRCLEAN_TRIAL\\CTA_THIN')
-# restore('D:\\Adam\\Data\\Registry\\5.0\\REGISTRY_CTA_BL', 'D:\\Adam\\Data\\Registry\\REGISTRY_CTA_BL')

@@ -5,27 +5,24 @@ from preprocessing_utils import CollectDICOMFolders
 import os
 from multiprocessing import Pool
 import time
-
-
-rootSource = r'E:\REGISTRY\CTA_THIN'
-rootTarget = r'E:\REGISTRY\CTA_THIN_SKULLSTRIPPED'
+from itertools import repeat
 
 
 
 # ============ FOR CTA ============
 # Radius (in mm) of biggest hole in the skull after the foramen magnum.
-FORAMEN_RADIUS_IN_MM = 7
-
-MIN_SKULL_HU_VALUE = 350
-MAX_BRAIN_HU_VALUE = 330
-MIN_BRAIN_HU_VALUE = -20
+# FORAMEN_RADIUS_IN_MM = 7
+# 
+# MIN_SKULL_HU_VALUE = 350
+# MAX_BRAIN_HU_VALUE = 330
+# MIN_BRAIN_HU_VALUE = -20
 
 # ============ FOR NCCT ============
-# FORAMEN_RADIUS_IN_MM = 7
-#
-# MIN_SKULL_HU_VALUE = 160
-# MAX_BRAIN_HU_VALUE = 140
-# MIN_BRAIN_HU_VALUE = -20
+FORAMEN_RADIUS_IN_MM = 7
+
+MIN_SKULL_HU_VALUE = 160
+MAX_BRAIN_HU_VALUE = 140
+MIN_BRAIN_HU_VALUE = -20
 
 def strip(input_image):
 	FORAMEN_RADIUS_3D = (math.floor(FORAMEN_RADIUS_IN_MM / input_image.GetSpacing()[0]),
@@ -197,7 +194,8 @@ def strip(input_image):
 
 	return aux_image
 
-def skullstripping(patient):
+
+def skullstripping(patient, rootSource, rootTarget):
 	if os.path.exists(os.path.join(rootTarget, patient)):
 		print(patient + ' exists.')
 		return
@@ -238,19 +236,32 @@ def skullstripping(patient):
 	except:
 		print(patient + ' failed.')
 
-def f(x):
-	time.sleep(2*x)
-	print(x)
-	print(time.time())
+
+pathTHICK = r'E:\REGISTRY\NCCT_THICK2'
+pathTHICK_SKULL = r'E:\REGISTRY\NCCT_THICK_SKULLSTRIPPED2'
 
 if __name__ == '__main__':
-	patients = os.listdir(rootSource)
-	headlist = ['R0388']
-	with Pool() as p:
-		p.map(skullstripping, headlist)
+	patients = [
+		'R0038',
+		'R0282',
+		'R0288',
+		'R0349',
+		'R0478',
+		'R0618',
+		'R0903',
+		'R0096',
+		'R0308',
+		'R0452',
+		'R0494',
+		'R0829',
+		'R0869',
+		'R0993',
+		'R1299',
+		'R1386',
+		'R1451',
+		'R1511'
+	]
 
-	# for patient in patients:
-	# 	if os.path.exists(os.path.join(rootTarget, patient)):
-	# 		print(patient + ' exists.')
-	# 		continue
-	# 	skullstripping(patient)
+	# Skullstrip
+	with Pool() as p:
+		p.starmap(skullstripping, zip(patients, repeat(pathTHICK), repeat(pathTHICK_SKULL)))
