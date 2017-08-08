@@ -120,11 +120,10 @@ def train():
 		return {x: xs, y_: ys, is_training: flag == 0}
 
 	# ====== LOAD DATASET ======
-	datapath = FLAGS.datapath
-	labelpath = FLAGS.labelpath
-	print('Loading dataset...')
-	dataset = utils.read_dataset(datapath, labelpath)
-	print('Loading dataset done.')
+	training_points = np.load(FLAGS.trainingpath)
+	test_points = np.load(FLAGS.testpath)
+	dataset = utils.Dataset(training_points.key(), training_points.values(), test_points.keys(), test_points.values(), cross_validation_folds=10)
+	
 
 	# ====== DEFINE SPACEHOLDERS ======
 	with tf.name_scope('input'):
@@ -182,43 +181,46 @@ def train():
 	# np.save('./Kernels/alphas_0.npy', alphas)
 
 	# Train
-	max_acc = 0
 	training_steps = int(dataset.Training.num_examples / FLAGS.batch_size)
 	# ====== DEFINE SESSION AND OPTIMIZE ======
 	with tf.Session() as sess:
-		tf.global_variables_initializer().run()
+		for f in range(FLAGS.xvalidation_folds):
+			tf.global_variables_initializer().run()
 
-		if FLAGS.pretraining:
-			for assign_op in assign_ops:
-				sess.run(assign_op)
+			if FLAGS.pretraining:
+				for assign_op in assign_ops:
+					sess.run(assign_op)
+					
+			train_writer = tf.summary.FileWriter(FLAGS.log_dir + '/train/' + str(f), sess.graph)
+			test_writer = tf.summary.FileWriter(FLAGS.log_dir + '/test'  + str(f))
 
-		train_writer = tf.summary.FileWriter(FLAGS.log_dir + '/train', sess.graph)
-		test_writer = tf.summary.FileWriter(FLAGS.log_dir + '/test')
+			max_acc = 0
+			for i in range(int(FLAGS.max_epochs * training_steps)):
+				# ------------ TRAIN -------------
+				_ = sess.run([train_op], feed_dict=feed_dict(0))
+				if i % (FLAGS.eval_freq * training_steps) == 0 or i == int(FLAGS.max_epochs * training_steps):
+					# ------------ VALIDATON -------------
+					summary, tot_acc = sess.run([merged, accuracy], feed_dict=feed_dict(1))
+					test_writer.add_summary(summary, i)
 
-		for i in range(int(FLAGS.max_epochs * training_steps)):
-			# ------------ TRAIN -------------
-			_ = sess.run([train_op], feed_dict=feed_dict(0))
-			if i % (FLAGS.eval_freq * training_steps) == 0 or i == int(FLAGS.max_epochs * training_steps):
-				# ------------ VALIDATON -------------
-				summary, tot_acc = sess.run([merged, accuracy], feed_dict=feed_dict(1))
-				test_writer.add_summary(summary, i)
+					if tot_acc > max_acc:
+						max_acc = tot_acc
+					print('Validation accuracy at step %s: %s' % (i, tot_acc))
 
-				if tot_acc > max_acc:
-					max_acc = tot_acc
-				print('Validation accuracy at step %s: %s' % (i, tot_acc))
+				if i % (FLAGS.print_freq * training_steps) == 0:
+					# ------------ PRINT -------------
+					summary = sess.run(merged, feed_dict=feed_dict(0))
+					train_writer.add_summary(summary, i)
 
-			if i % (FLAGS.print_freq * training_steps) == 0:
-				# ------------ PRINT -------------
-				summary = sess.run(merged, feed_dict=feed_dict(0))
-				train_writer.add_summary(summary, i)
+				# if i % FLAGS.checkpoint_freq == 0: # or i == FLAGS.max_steps:
+				# checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'model.ckpt')
+				# saver.save(sess, checkpoint_path, global_step=i)
 
-			# if i % FLAGS.checkpoint_freq == 0: # or i == FLAGS.max_steps:
-			# checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'model.ckpt')
-			# saver.save(sess, checkpoint_path, global_step=i)
-
-		train_writer.close()
-		test_writer.close()
-		print('Max validation accuracy : %s' % max_acc)
+			train_writer.close()
+			test_writer.close()
+			print('Max validation accuracy in fold %s: %s' % (f,max_acc))
+			
+			dataset.next_fold()
 
 	# Print final kernels
 	# alphas_tensor, kernels_tensor = get_kernels()	
@@ -227,42 +229,42 @@ def train():
 	# np.save('./Kernels/alphas_final.npy', alphas)
 
 	# ======== ROC Analysis ==========
-	tresholds = 200
-	fpr_mean = np.zeros((tresholds))
-	tpr_mean = np.zeros((tresholds))
-	tr = np.linspace(0, 1, tresholds)
-	auc_list = []
-	iters = 20
-	test_acc = 0
-	for k in range(iters):
+	# tresholds = 200
+	# fpr_mean = np.zeros((tresholds))
+	# tpr_mean = np.zeros((tresholds))
+	# tr = np.linspace(0, 1, tresholds)
+	# auc_list = []
+	# iters = 20
+	# test_acc = 0
+	# for k in range(iters):
 
-		y_score, labels_test, acc = sess.run([scores, y_, accuracy], feed_dict=feed_dict(2))
+		# y_score, labels_test, acc = sess.run([scores, y_, accuracy], feed_dict=feed_dict(2))
 
-		# Compute ROC curve and ROC area for each class
-		fpr = np.zeros((tresholds))
-		tpr = np.zeros((tresholds))
-		for j in range(tresholds):
-			tp = 0
-			fp = 0
-			for i in range(np.shape(y_score)[0]):
-				if y_score[i][0] >= tr[j]:
-					if labels_test[i][0] == 1:
-						tp += 1
-					else:
-						fp += 1
-			tpr[j] += tp / np.sum(labels_test[:, 0] == 1)
-			fpr[j] += fp / np.sum(labels_test[:, 1] == 1)
-		auc_k = auc(fpr, tpr)
-		auc_list.append(auc_k)
-		tpr_mean = np.add(tpr_mean, np.divide(tpr, iters))
-		fpr_mean = np.add(fpr_mean, np.divide(fpr, iters))
+		# # Compute ROC curve and ROC area for each class
+		# fpr = np.zeros((tresholds))
+		# tpr = np.zeros((tresholds))
+		# for j in range(tresholds):
+			# tp = 0
+			# fp = 0
+			# for i in range(np.shape(y_score)[0]):
+				# if y_score[i][0] >= tr[j]:
+					# if labels_test[i][0] == 1:
+						# tp += 1
+					# else:
+						# fp += 1
+			# tpr[j] += tp / np.sum(labels_test[:, 0] == 1)
+			# fpr[j] += fp / np.sum(labels_test[:, 1] == 1)
+		# auc_k = auc(fpr, tpr)
+		# auc_list.append(auc_k)
+		# tpr_mean = np.add(tpr_mean, np.divide(tpr, iters))
+		# fpr_mean = np.add(fpr_mean, np.divide(fpr, iters))
 
-		test_acc += acc / iters
+		# test_acc += acc / iters
 
-	roc_auc = np.mean(np.array(auc_list))
-	std_auc = np.std(np.array(auc_list))
+	# roc_auc = np.mean(np.array(auc_list))
+	# std_auc = np.std(np.array(auc_list))
 
-	print('Acc/AUC/std : %s/%s/%s' % (test_acc, roc_auc, std_auc))
+	# print('Acc/AUC/std : %s/%s/%s' % (test_acc, roc_auc, std_auc))
 
 
 # if not os.path.isdir('./Statistics/' + FLAGS.model_name + '/3Dfinal/'):
@@ -356,7 +358,9 @@ if __name__ == '__main__':
 						help='Batch size to run trainer.')
 	parser.add_argument('--pretraining', type=str2bool, default=PRETRAINING,
 						help='Specify pretraining with Autoencoder')
-
+	parser.add_argument('--xvalidation_folds', type=int, default=10,
+						help='Specify number of cross-validation folds')
+						
 	parser.add_argument('--print_freq', type=int, default=PRINT_FREQ_DEFAULT,
 						help='Frequency of evaluation on the train set')
 	parser.add_argument('--eval_freq', type=int, default=EVAL_FREQ_DEFAULT,
@@ -380,10 +384,10 @@ if __name__ == '__main__':
 	parser.add_argument('--l2', type=float, default=L2,
 						help='Convlayer L2')
 
-	parser.add_argument('--datapath', type=str,
-						help='Path to dataset root')
-	parser.add_argument('--labelpath', type=str,
-						help='Path to file containing labels')
+	parser.add_argument('--trainingpath', type=str,
+						help='Path to file training_points has been saved to')
+	parser.add_argument('--testpath', type=str,
+						help='Path to file test_points has been saved to')
 	parser.add_argument('--pretrained_weights_path', type=str, default="",
 						help='Path to pretrained weights')
 	parser.add_argument('--pretrained_biases_path', type=str, default="",
