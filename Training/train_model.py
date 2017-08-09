@@ -377,11 +377,11 @@ if __name__ == '__main__':
 	parser.add_argument('--maps', type=str, default=MAPS_DEFAULT,
 						help='Amount of kernel maps of convolution')
 
-	parser.add_argument('--hdrop', type=float, default=HDROP,
+	parser.add_argument('--hdrop', type=float, default=0.0,
 						help='Hiddenlayer dropout')
-	parser.add_argument('--cdrop', type=float, default=CDROP,
+	parser.add_argument('--cdrop', type=float, default=0.0,
 						help='Convlayer dropout')
-	parser.add_argument('--l2', type=float, default=L2,
+	parser.add_argument('--l2', type=float, default=0.0,
 						help='Convlayer L2')
 
 	parser.add_argument('--trainingpath', type=str,
