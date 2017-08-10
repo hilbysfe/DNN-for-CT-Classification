@@ -6,7 +6,7 @@ import argparse
 import os
 import tensorflow as tf
 import numpy as np
-from sklearn.metrics import auc
+#from sklearn.metrics import auc
 import math
 import shutil
 
@@ -14,11 +14,6 @@ import cifar10_utils
 
 from Utils import utils
 from Models.rfnn import RFNN
-from Models.alexnet import Alexnet
-from Models.inception import Inception
-from Models.c3d import C3D
-from Models.alexnet import alexnet_v2_arg_scope
-from Models.ctnet import CTNET
 
 LEARNING_RATE_DEFAULT = 0.05
 BATCH_SIZE_DEFAULT = 32

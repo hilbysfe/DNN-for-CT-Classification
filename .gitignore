@@ -19,3 +19,4 @@ Training/Utils/Statistics/
 Training/ae_models/
 Training/weights.npy
 Training/pretrained_weights/
+/.project
