@@ -153,75 +153,96 @@ class RFNN(object):
 		
 	# ---- Use this for 3D models ----
 	def inference_3d(self, X):
+		# --- Define forward pass ---
 		print(X.get_shape())
 		
-		# ==== Layer 1 ====		
-		w_L1 = tf.reduce_sum(
-			tf.transpose(self.alphas_L1[:,:,:,None,None]) *
-			tf.transpose(self.basis_L1[None,None,:,:,:,:])
-			,axis = 2)		
-		l1b = self._conv_layer_3d(
-				input=X,
-				kernel=w_L1,
-				stride=[1,1,1,1,1],
-				padding='SAME',
-				name='ConvLayer1')
-		print(l1b.get_shape())
+		# ==== Layer 1 ====
+		with tf.variable_scope('ConvLayer1'):
+			self.alphas_L1, self.biases_L1, layer1, w_L1 = _rfnn_conv_layer_3d(
+								input=X,
+								basis=self.basis_L1,
+								omaps=self.maps[0],
+								strides=[1,2,2,2,1],
+								padding='SAME',
+								is_training=self.is_training,
+								bnorm=False)
 		
-		l1 = tf.nn.max_pool3d(l1b, ksize=[1,3,3,2,1], strides=[1,2,2,2,1], padding="VALID")
-		print(l1.get_shape())
-				
-#		keep_prob = tf.select(self.is_training, 1-self.dropout_rate_conv, 1)
-#		l1 = tf.nn.dropout(l1, keep_prob)
+		# ==== MaxPool1 ====
+		# net = [ tf.nn.max_pool(layer1[i], ksize=[1,3,3,1], strides=[1,2,2,1], padding="VALID")
+			# for i in range(np.shape(self.sigmas)[0]) ]
+		# print(net.get_shape())
+		
+		# --- maxpool along scale and rotation
+		# net = tf.stack(layer1)
+		# layer1 = tf.stack( [ tf.reduce_max(layer1[:,:,:,:,i], reduction_indices=[0])
+							# for i in range(self.alphas_L1.get_shape()[0].value) ]
+						# )
 
-		# ==== Layer 2 ====		
-		w_L2 = tf.reduce_sum(
-			tf.transpose(self.alphas_L2[:,:,:,None,None]) * 
-			tf.transpose(self.basis_L2[None,None,:,:,:,:])
-			,axis = 2)
-		l2b = self._conv_layer_3d(
-				input=l1,
-				kernel=w_L2,
-				stride=[1,1,1,1,1],
-				padding='SAME',
-				name='ConvLayer2')
-		print(l2b.get_shape())
+		# net = tf.reshape(layer1, [-1, layer1.get_shape()[2].value,
+								  # layer1.get_shape()[3].value, layer1.get_shape()[0].value])
+		net = tf.stack(layer1)
+		net = tf.stack(tf.reduce_max(net, reduction_indices=[0]))
+		print(net.get_shape())
 		
-		l2 = tf.nn.max_pool3d(l2b, ksize=[1,3,3,2,1], strides=[1,2,2,2,1], padding="VALID")
-		print(l2.get_shape())
-					
-#		keep_prob = tf.select(self.is_training, 1-self.dropout_rate_conv, 1)
-#		l2 = tf.nn.dropout(l2, 1-self.dropout_rate_conv)
-
-		# ==== Layer 3 ====		
-		w_L3 = tf.reduce_sum(
-			tf.transpose(self.alphas_L3[:,:,:,None,None]) * 
-			tf.transpose(self.basis_L3[None,None,:,:,:,:])
-			,axis = 2)
-		l3b = self._conv_layer_3d(
-				input=l2,
-				kernel=w_L3,
-				stride=[1,1,1,1,1],
-				padding='SAME',
-				name='ConvLayer3')
-		print(l3b.get_shape())
+		# ==== Layer 2a ====	
+		with tf.variable_scope('ConvLayer2a'):		
+			self.alphas_L2, self.biases_L2, layer2, w_L2 = _rfnn_conv_layer_3d(
+						input=net,
+						basis=self.basis_L2,
+						omaps=self.maps[1],
+						strides=[1,1,1,1,1],
+						padding='SAME',
+						is_training=self.is_training,
+						bnorm=False)
 		
-		l3 = tf.nn.max_pool3d(l3b, ksize=[1,3,3,2,1], strides=[1,2,2,2,1], padding="VALID")
-		print(l3.get_shape())
+		# --- maxpool along scale and rotation		
+		# layer2 = tf.stack( [ tf.reduce_max(layer2[:,:,:,:,i], reduction_indices=[0])
+							# for i in range(self.alphas_L2.get_shape()[0].value) ]
+						# )
+		# net = tf.reshape(layer2, [-1, layer2.get_shape()[2].value,
+								  # layer2.get_shape()[3].value, layer2.get_shape()[0].value])
+		net = tf.stack(layer2)
+		net = tf.stack(tf.reduce_max(net, reduction_indices=[0]))
+		print(net.get_shape())
 		
-		# ==== Layer 4 ====		
+		# ==== Layer 2b ====		
+		with tf.variable_scope('ConvLayer2b'):		
+			self.alphas_L3, self.biases_L3, layer3, w_L3 = _rfnn_conv_layer_3d(
+						input=net,
+						basis=self.basis_L3,
+						omaps=self.n_classes,
+						strides=[1,2,2,2,1],
+						padding='SAME',
+						is_training=self.is_training,
+						bnorm=False)
+			
+		# ==== MaxPool2 ====
+		# net = [ tf.nn.max_pool(layer3[i], ksize=[1,3,3,1], strides=[1,2,2,1], padding="VALID") 
+			# for i in range(np.shape(self.sigmas)[0]) ]
+		# print(net.get_shape())
+		
+		# --- maxpool along scale and rotation
+		# layer3 = tf.stack( [ tf.reduce_max(layer3[:,:,:,:,i], reduction_indices=[0])
+							# for i in range(self.alphas_L3.get_shape()[0].value) ]
+						# )
+		# net = tf.reshape(layer3, [-1, layer3.get_shape()[2].value,
+								  # layer3.get_shape()[3].value, layer3.get_shape()[0].value])
+		net = tf.stack(layer3)
+		net = tf.stack(tf.reduce_max(net, reduction_indices=[0]))
+		print(net.get_shape())
+		
+		# ==== AVG Pooling ====		
+		k = net.get_shape()[1].value
+		j = net.get_shape()[3].value
+		net = tf.nn.avg_pool3d(net, ksize=[1,k,k,j,1], strides=[1,1,1,1,1], padding="VALID")
+		print(net.get_shape())
+		
+		# ==== Flatten ====		
 		with tf.variable_scope('Flatten'):
-			fshape = l3.get_shape()
+			fshape = net.get_shape()
 			dim = fshape[1].value*fshape[2].value*fshape[3].value*fshape[4].value
-			l4 = tf.reshape(l3, [-1, dim])
-		print(l4.get_shape())		
-
-#		keep_prob = tf.select(self.is_training, 1-self.dropout_rate_conv, 1)
-		#pyx = tf.nn.dropout(l4, 1-self.dropout_rate_hidden)
-		
-		with tf.variable_scope('FullLayer'):		
-			pyx = tf.matmul(l4, self.w_L4)			
-			pyx = batch_norm_wrapper(pyx, self.is_training, False)
+			pyx = tf.reshape(net, [-1, dim])
+		print(pyx.get_shape())	
 		
 		return pyx	
 	
