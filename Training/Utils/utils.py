@@ -38,11 +38,10 @@ def read_dataset(datapath, labelpath, test_ratio=0.15, dense_labels=False):
 
 	# --- Retrieve all patients we have images from ---
 	patients = os.listdir(datapath)
-	all_samples = len(patients)
 
 	# --- Load labels from file ---
 	labels_wb = ox.load_workbook(labelpath)
-	labels_ws = labels_wb.active
+	labels_ws = labels_wb['Registrydatabase']
 
 	label_dict = {key[0].value: value[0].value 
 		for (key, value) in zip(labels_ws[followid_attribute], labels_ws[label_attribute]) }
@@ -50,7 +49,9 @@ def read_dataset(datapath, labelpath, test_ratio=0.15, dense_labels=False):
 	# --- Store images + labels ---
 	all_images = [os.path.join(root, name)
 							  for root, dirs, files in os.walk(datapath)
-							  for name in files if name.endswith(".mha")]
+							  for name in files if name.endswith(".mha")
+									if name.split('.')[0] in label_dict.keys()]
+	patients = [ name for name in patients if name in label_dict.keys() ]	
 	all_labels = [ label_dict[name] for name in patients ]				
 
 	all_labels = np.array( all_labels )
@@ -60,7 +61,7 @@ def read_dataset(datapath, labelpath, test_ratio=0.15, dense_labels=False):
 	num_classes = np.shape(classes)[0]
 
 	num_examples = np.min(classes) * num_classes
-	print('Balanced set contains % patients' % num_examples)
+	print('Balanced set contains %i patients' % num_examples)
 	smallest_class = dict(zip(classes, uni))[np.min(classes)]
 
 	indices = []
@@ -73,21 +74,15 @@ def read_dataset(datapath, labelpath, test_ratio=0.15, dense_labels=False):
 
 		indices = np.append(indices, indices_class_i)
 
+	# Shuffle
 	indices = [int(x) for x in indices]
-
+	np.random.shuffle(indices)
 	all_labels = all_labels[indices]
 	all_images = all_images[indices]
-	all_patients = patients[indices]
-
-	# Shuffle
-	perm = np.arange(num_examples)
-	np.random.shuffle(perm)
-	all_labels = all_labels[perm]
-	all_images = all_images[perm]
-	all_patients = all_patients[perm]
+	all_patients = np.array(patients)[indices]
 
 	if not dense_labels:
-	all_labels = dense_to_one_hot(all_labels, 2)
+		all_labels = dense_to_one_hot(all_labels, 2)
 	
 	# Calculate and cut the subsets
 	test_size = int(num_examples*test_ratio)
@@ -98,7 +93,7 @@ def read_dataset(datapath, labelpath, test_ratio=0.15, dense_labels=False):
 	training_points = dict()
 	test_points = dict()		
 	for image in all_images:
-		pat = image.split("\\")[-1].split('.')[0]
+		pat = image.split("/")[-1].split('.')[0]
 		if pat in training_patIDs:
 			training_points[image] = label_dict[pat]
 		else:
@@ -116,13 +111,17 @@ def div0( a, b ):
 
 	
 	
-def split_dataset(datapath, output_path):
+def split_dataset(datapath, labelpath, output_path):
 
-	training_points, test_points = read_dataset(datapath)
+	training_points, test_points = read_dataset(datapath, labelpath)
 	
+	if not os.path.exists(output_path):
+		os.makedirs(output_path)
+
 	np.save(os.path.join(output_path, 'training_points.npy'), training_points)
 	np.save(os.path.join(output_path, 'test_points.npy'), test_points)
 	
+	return training_points, test_points	
 	
 class DataSet(object):
 
@@ -155,9 +154,13 @@ class DataSet(object):
 
 			imageset = []
 			labelset = []
-			self._Training = Subset(np.array([ imageset += fold for i, fold in enumerate(self._image_folds) if i != self._current_fold]),
-									np.array([ labelset += fold for i, fold in enumerate(self._label_folds) if i != self._current_fold]))
-									
+			for i, fold in enumerate(self._image_folds):
+				if i != self._current_fold:
+					imageset += fold
+			for i, fold in enumerate(self._label_folds):
+				if i != self._current_fold:
+					labelset += fold
+			self._Training = Subset(np.array(imageset), np.array(labelset))				
 			self._Validation = Subset(np.array(self._image_folds[self._current_fold]),
 									np.array(self._label_folds[self._current_fold]))
 	
@@ -174,9 +177,13 @@ class DataSet(object):
 		
 		imageset = []
 		labelset = []
-		self._Training = Subset(np.array([ imageset += fold for i, fold in enumerate(self._image_folds) if i != self._current_fold]),
-								np.array([ labelset += fold for i, fold in enumerate(self._label_folds) if i != self._current_fold]))
-								
+		for i, fold in enumerate(self._image_folds):
+			if i != self._current_fold:
+				imageset += fold
+		for i, fold in enumerate(self._label_folds):
+			if i != self._current_fold:
+				labelset += fold
+		self._Training = Subset(np.array(imageset), np.array(labelset))	
 		self._Validation = Subset(np.array(self._image_folds[self._current_fold]),
 								np.array(self._label_folds[self._current_fold]))
 	
