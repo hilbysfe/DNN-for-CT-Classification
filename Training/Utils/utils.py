@@ -5,6 +5,26 @@ import SimpleITK as sitk
 import numpy as np
 import openpyxl as ox
 import operator
+import pickle
+
+
+def online_std(files):
+	n = 0
+	mean = np.zeros(np.shape(sitk.GetArrayFromImage(sitk.ReadImage(files[0]))))
+	std = np.zeros(np.shape(sitk.GetArrayFromImage(sitk.ReadImage(files[0]))))
+
+	for file in files:
+		data = sitk.GetArrayFromImage(sitk.ReadImage(file))
+		n += 1
+		delta = np.subtract(data, mean)
+		mean = np.add(mean, np.divide(delta,n))
+		delta2 = np.subtract(data, mean)
+		std = np.add(std, np.multiply(delta, delta2))
+
+	if n<2:
+		return float('nan')
+	else:
+		return mean, np.divide(std, n-1)
 
 def dense_to_one_hot(labels_dense, num_classes):
 	"""
@@ -51,12 +71,18 @@ def read_dataset(datapath, labelpath, test_ratio=0.15, dense_labels=False):
 							  for root, dirs, files in os.walk(datapath)
 							  for name in files if name.endswith(".mha")
 									if name.split('.')[0] in label_dict.keys()]
+	all_labels = [label_dict[name.split('.')[0]]
+							  for root, dirs, files in os.walk(datapath)
+							  for name in files if name.endswith(".mha")
+									if name.split('.')[0] in label_dict.keys()]
+
+	# --- Filter out the ones missing from Database ---
 	patients = [ name for name in patients if name in label_dict.keys() ]	
-	all_labels = [ label_dict[name] for name in patients ]				
 
 	all_labels = np.array( all_labels )
 	all_images = np.array( all_images )
 
+	# --- Balance out dataset ---
 	uni, classes = np.unique(all_labels, return_counts = True)
 	num_classes = np.shape(classes)[0]
 
@@ -74,7 +100,7 @@ def read_dataset(datapath, labelpath, test_ratio=0.15, dense_labels=False):
 
 		indices = np.append(indices, indices_class_i)
 
-	# Shuffle
+	# --- Shuffle ---
 	indices = [int(x) for x in indices]
 	np.random.shuffle(indices)
 	all_labels = all_labels[indices]
@@ -84,7 +110,7 @@ def read_dataset(datapath, labelpath, test_ratio=0.15, dense_labels=False):
 	if not dense_labels:
 		all_labels = dense_to_one_hot(all_labels, 2)
 	
-	# Calculate and cut the subsets
+	# --- Calculate and cut the subsets ---
 	test_size = int(num_examples*test_ratio)
 	
 	training_patIDs = all_patients[test_size:]
@@ -95,9 +121,9 @@ def read_dataset(datapath, labelpath, test_ratio=0.15, dense_labels=False):
 	for image in all_images:
 		pat = image.split("/")[-1].split('.')[0]
 		if pat in training_patIDs:
-			training_points[image] = label_dict[pat]
+			training_points[image] = all_labels[np.where(all_images == image)[0][0]]
 		else:
-			test_points[image] = label_dict[pat]
+			test_points[image] = all_labels[np.where(all_images == image)[0][0]]
 	
 	return training_points, test_points
 
@@ -118,29 +144,31 @@ def split_dataset(datapath, labelpath, output_path):
 	if not os.path.exists(output_path):
 		os.makedirs(output_path)
 
-	np.save(os.path.join(output_path, 'training_points.npy'), training_points)
-	np.save(os.path.join(output_path, 'test_points.npy'), test_points)
-	
+	with open(os.path.join(output_path, 'training_points.npy'), 'wb') as handle:
+	    pickle.dump(training_points, handle, protocol=pickle.HIGHEST_PROTOCOL)
+	with open(os.path.join(output_path, 'test_points.npy'), 'wb') as handle:
+	    pickle.dump(test_points, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
 	return training_points, test_points	
 	
 class DataSet(object):
 
-	def __init__(self, training_images, training_labels, test_images, test_labels, cross_validation_folds=0):
-		
+	def __init__(self, training_images, training_labels, test_images, test_labels, cross_validation_folds=0, normalize=False):
+		print('Init Dataset...')
 		self._Test = SubSet(test_images, test_labels)
 		if cross_validation_folds == 0:
 			self._Training = SubSet(training_images, training_labels)
 			
-			images = np.array([sitk.GetArrayFromImage(sitk.ReadImage(file)) for file in self._Training.images])
-			mean = np.mean(images, axis=0)
-			std = np.std(images, axis=0)
+			print('Computing mean and std image...')
+			mean, std = online_std(self._Training.images)
+			print('Computing mean and std image...done.')
 			
 			self._Training.setNormalizationParameters(mean, std)
 			self._Test.setNormalizationParameters(mean, std)
 			
 		else:
 			self._current_fold = 0
-			self._fold_size = np.floor(len(training_images)/cross_validation_folds)
+			self._fold_size = int(np.floor(len(training_images)/cross_validation_folds))
 			
 			self._image_folds = []
 			self._label_folds = []
@@ -151,26 +179,38 @@ class DataSet(object):
 			
 			self._image_folds.append(training_images[offset:])
 			self._label_folds.append(training_labels[offset:])
-
+	
+			print('Creating folds...')
 			imageset = []
 			labelset = []
 			for i, fold in enumerate(self._image_folds):
 				if i != self._current_fold:
-					imageset += fold
+					imageset += list(fold)
 			for i, fold in enumerate(self._label_folds):
 				if i != self._current_fold:
-					labelset += fold
-			self._Training = Subset(np.array(imageset), np.array(labelset))				
-			self._Validation = Subset(np.array(self._image_folds[self._current_fold]),
+					labelset += list(fold)
+			self._Training = SubSet(np.array(imageset), np.array(labelset))				
+			self._Validation = SubSet(np.array(self._image_folds[self._current_fold]),
 									np.array(self._label_folds[self._current_fold]))
-	
-			images = np.array([sitk.GetArrayFromImage(sitk.ReadImage(file)) for file in self._Training.images])
-			mean = np.mean(images, axis=0)
-			std = np.std(images, axis=0)
+			print('Creating folds...done.')
 			
-			self._Training.setNormalizationParameters(mean, std)
-			self._Validation.setNormalizationParameters(mean, std)
+			if normalize:
+				print('Computing mean and std image...')
+				mean, std = online_std(self._Training.images)
+				print('Computing mean and std image...done.')
 			
+				self.Normalization = True
+				self._Training.Normalization = True
+				self._Validation.Normalization = True
+				self._Training.setNormalizationParameters(mean, std)
+				self._Validation.setNormalizationParameters(mean, std)
+			else:
+				self.Normalization = False
+				self._Training.Normalization = False
+				self._Validation.Normalization = False
+
+
+		print('Init Dataset...done.')
 	
 	def next_fold():
 		self._current_fold += 1
@@ -179,21 +219,27 @@ class DataSet(object):
 		labelset = []
 		for i, fold in enumerate(self._image_folds):
 			if i != self._current_fold:
-				imageset += fold
+				imageset += list(fold)
 		for i, fold in enumerate(self._label_folds):
 			if i != self._current_fold:
-				labelset += fold
-		self._Training = Subset(np.array(imageset), np.array(labelset))	
-		self._Validation = Subset(np.array(self._image_folds[self._current_fold]),
+				labelset += list(fold)
+		self._Training = SubSet(np.array(imageset), np.array(labelset))	
+		self._Validation = SubSet(np.array(self._image_folds[self._current_fold]),
 								np.array(self._label_folds[self._current_fold]))
 	
-		images = np.array([sitk.GetArrayFromImage(sitk.ReadImage(file)) for file in self._Training.images])
-		mean = np.mean(images, axis=0)
-		std = np.std(images, axis=0)
+		if self.Normalization:
+			print('Computing mean and std image...')
+			mean, std = online_std(self._Training.images)
+			print('Computing mean and std image...done.')
 		
-		self._Training.setNormalizationParameters(mean, std)
-		self._Validation.setNormalizationParameters(mean, std)
-	
+			self._Training.Normalization = True
+			self._Validation.Normalization = True
+			self._Training.setNormalizationParameters(mean, std)
+			self._Validation.setNormalizationParameters(mean, std)
+		else:
+			self._Training.Normalization = False
+			self._Validation.Normalization = False
+
 		return self._Training, self._Validation
 	
 	
@@ -249,7 +295,7 @@ class SubSet(object):
 	def epochs_completed(self):
 		return self._epochs_completed
 		
-	def setNormalizationParameters(mean, std):
+	def setNormalizationParameters(self, mean, std):
 		self._mean = mean
 		self._std = std
 
@@ -292,6 +338,9 @@ class SubSet(object):
 		Args:
 			image_path: Path of image to read from.
 		"""
-		return div0(sitk.GetArrayFromImage(sitk.ReadImage(image_path)) - self._mean, self._std)[9:25,:,:]
+		if self.Normalization:
+			return div0(sitk.GetArrayFromImage(sitk.ReadImage(image_path)) - self._mean, self._std)
+		else:
+			return sitk.GetArrayFromImage(sitk.ReadImage(image_path))
 		
 		

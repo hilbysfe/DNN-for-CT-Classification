@@ -3,8 +3,6 @@ import tensorflow as tf
 from scipy.ndimage.filters import convolve1d as conv
 from Utils.cnn_utils import batch_norm_wrapper 
 
-def floatX(X):
-	return np.asarray(X, dtype=np.float32)	
 
 def _rfnn_conv_layer_2d_with_alphas(input, basis, alphas, biases, strides, padding, is_training, bnorm=False):
 	kernels = []
@@ -31,14 +29,15 @@ def _rfnn_conv_layer_2d(input, basis, omaps, strides, padding, is_training, bnor
 	alphas = tf.get_variable(
 		'alphas',
 		shape=[omaps, input.get_shape()[-1].value, np.shape(basis)[1]],
-		initializer=tf.random_uniform_initializer(-1.0, 1.0))
+		initializer=tf.random_uniform_initializer(-1.0, 1.0),
+		dtype=tf.float16)
 		
 	if not bnorm:
 		biases = tf.get_variable(
 			'biases',
 			shape=[omaps],
 			initializer=tf.constant_initializer(0.0),
-			dtype=tf.float32)
+			dtype=tf.float16)
 	
 	kernels = []
 	outputs = []
@@ -64,13 +63,14 @@ def _rfnn_deconv_layer_2d(input, basis, omaps, oshape, strides, padding, bnorm=F
 	alphas = tf.get_variable(
 		'alphas',
 		shape=[input.get_shape()[-1].value, omaps, np.shape(basis)[1]],
-		initializer=tf.random_uniform_initializer(-1.0, 1.0))
+		initializer=tf.random_uniform_initializer(-1.0, 1.0),
+		dtype=tf.float16)
 		
 	biases = tf.get_variable(
 		'biases',
 		shape=[omaps],
 		initializer=tf.constant_initializer(0.0),
-		dtype=tf.float32)
+		dtype=tf.float16)
 	
 	kernels = []
 	outputs = []
@@ -89,27 +89,30 @@ def _rfnn_deconv_layer_2d(input, basis, omaps, oshape, strides, padding, bnorm=F
 	return outputs
 	
 def _rfnn_conv_layer_3d(input, basis, omaps, strides, padding, is_training, bnorm=False):
+#	with tf.device('/cpu:0'):
 	alphas = tf.get_variable(
 		'alphas',
 		shape=[omaps, input.get_shape()[-1].value, np.shape(basis)[1]],
-		initializer=tf.random_uniform_initializer(-1.0, 1.0))
+		initializer=tf.random_uniform_initializer(-1.0, 1.0),
+		dtype=tf.float16)
 		
 	if not bnorm:
+#		with tf.device('/cpu:0'):
 		biases = tf.get_variable(
 			'biases',
 			shape=[omaps],
 			initializer=tf.constant_initializer(0.0),
-			dtype=tf.float32)
+			dtype=tf.float16)
 	
 	kernels = []
 	outputs = []
 	for i in range(np.shape(basis)[0]):
 		kernel = tf.reduce_sum(
-						np.transpose(alphas[:,:,None,:,None,None,None])
-						np.transpose(bases[None,None,i,:,:,:,:])
-					,axis=2, name='weights_' + str(i) )
+				tf.transpose(alphas[:,:,:,None,None,None]) *
+				tf.transpose(basis[None,None,i,:,:,:,:])
+					,axis=3, name='weights_' + str(i) )
 		
-		conv = tf.nn.conv3d(input, kernel, strides=strides, padding=padding)
+		conv = tf.cast(tf.nn.conv3d(tf.cast(input, tf.float32), tf.cast(kernel, tf.float32), strides=strides, padding=padding), tf.float16)
 		if bnorm:
 			conv = batch_norm_wrapper(conv, is_training, True)
 		else:
@@ -125,20 +128,21 @@ def _rfnn_deconv_layer_3d(input, basis, omaps, oshape, strides, padding, bnorm=F
 	alphas = tf.get_variable(
 		'alphas',
 		shape=[input.get_shape()[-1].value, omaps, np.shape(basis)[1]],
-		initializer=tf.random_uniform_initializer(-1.0, 1.0))
+		initializer=tf.random_uniform_initializer(-1.0, 1.0),
+		dtype=tf.float16)
 		
 	biases = tf.get_variable(
 		'biases',
 		shape=[omaps],
 		initializer=tf.constant_initializer(0.0),
-		dtype=tf.float32)
+		dtype=tf.float16)
 	
 	kernels = []
 	outputs = []
 	for i in range(np.shape(basis)[0]):
 		kernel = tf.reduce_sum(
-						np.transpose(alphas[:,:,None,:,None,None,None])
-						np.transpose(bases[None,None,i,:,:,:,:])
+				tf.transpose(alphas[:,:,:,None,None,None]) *
+				tf.transpose(basis[None,None,i,:,:,:,:])
 					,axis=3, name='weights_' + str(i) )
 		
 		deconv = tf.nn.conv3d_transpose(input, kernel, oshape, strides, padding)
@@ -188,13 +192,13 @@ def init_basis_hermite_2D(kernel, sigmas, bases):
 		hermiteBasis[i,13,:,:] = conv(gauss1x, g3, axis=0) # g_yyyx
 		hermiteBasis[i,14,:,:] = conv(gauss2x, g2, axis=0) # g_yyxx
 
-	return tf.constant(floatX(hermiteBasis[:,0:bases,:,:]))
+	return tf.constant(hermiteBasis[:,0:bases,:,:], dtype=tf.float16)
 
 def init_basis_hermite_3D(kernel, sigmas, bases):
 	nrBasis = 35	
 	hermiteBasis = np.empty( (np.int(np.shape(sigmas)[0]), np.int(nrBasis), np.int(kernel), np.int(kernel), np.int(kernel)) )
 
-	x = np.arange(-np.int((kernel-1)/2), np.int((kernel-1)/2)+1, dtype=np.float)
+	x = np.arange(-np.int((kernel-1)/2), np.int((kernel-1)/2)+1, dtype=np.float16)
 	impulse = np.zeros( (kernel, kernel, kernel) )
 	impulse[np.int((kernel-1)/2), np.int((kernel-1)/2), np.int((kernel-1)/2)] = 1.0
 	
@@ -295,16 +299,20 @@ def init_basis_hermite_3D(kernel, sigmas, bases):
 		hermiteBasis[i,33,:,:,:] = gauss4yyzz_
 		hermiteBasis[i,34,:,:,:] = gauss4xzzy_
 	
-	return tf.constant(floatX(hermiteBasis[:,0:bases,:,:,:]))
+#	with tf.device('/cpu:0'):
+	return tf.constant(hermiteBasis[:,0:bases,:,:,:], dtype=tf.float16)
 
 def init_alphas(nrFilters,channels,nrBasis,name):
-	return tf.get_variable(
-		name,
-		shape=[nrFilters,channels,nrBasis],
-		initializer=tf.random_uniform_initializer(-1.0, 1.0))
+	with tf.device('/cpu:0'):
+		return tf.get_variable(
+			name,
+			shape=[nrFilters,channels,nrBasis],
+			initializer=tf.random_uniform_initializer(-1.0, 1.0),
+			dtype=tf.float16)
 		
 def init_biases(channels,name):
-	return tf.get_variable(
-		name, shape=[channels],
-		initializer=tf.constant_initializer(0.0),
-		dtype=tf.float32)
+	with tf.device('/cpu:0'):
+		return tf.get_variable(
+			name, shape=[channels],
+			initializer=tf.constant_initializer(0.0),
+			dtype=tf.float16)

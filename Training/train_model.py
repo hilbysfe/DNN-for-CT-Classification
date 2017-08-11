@@ -9,8 +9,8 @@ import numpy as np
 #from sklearn.metrics import auc
 import math
 import shutil
+import pickle
 
-import cifar10_utils
 
 from Utils import utils
 from Models.rfnn import RFNN
@@ -56,7 +56,7 @@ def accuracy_function(logits, labels):
 	with tf.name_scope('correct_prediction'):
 		correct_prediction = tf.equal(tf.argmax(softmax, 1), tf.argmax(labels, 1))
 	with tf.name_scope('Accuracy'):
-		accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+		accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float16))
 	tf.summary.scalar('Accuracy', accuracy)
 
 	return accuracy, correct_prediction, softmax
@@ -65,13 +65,13 @@ def accuracy_function(logits, labels):
 def loss_function(logits, labels):
 	with tf.variable_scope('Losses') as scope:
 		with tf.name_scope('Cross_Entropy_Loss'):
-			cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits, labels, name='cross_entropy_per_example')
+			cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels, name='cross_entropy_per_example')
 			cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
 
 			tf.add_to_collection('losses', cross_entropy_mean)
 			tf.summary.scalar('cross_entropy', cross_entropy_mean)
 		with tf.name_scope('Regularization_Loss'):
-			reg_loss = tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES), name='reg_loss')
+			reg_loss = tf.cast(tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES), name='reg_loss'), tf.float16)
 
 			tf.add_to_collection('losses', reg_loss)
 			tf.summary.scalar('reg_loss', reg_loss)
@@ -94,7 +94,8 @@ def train_step(loss, global_step):
 	# LEARNING_RATE_DECAY_FACTOR,
 	# staircase=True)
 	# tf.summary.scalar('learning_rate', lr)
-	train_op = tf.train.AdamOptimizer(FLAGS.learning_rate).minimize(loss)
+	# train_op = tf.train.AdamOptimizer(FLAGS.learning_rate, epsilon=1e-4).minimize(loss)
+	train_op = tf.train.GradientDescentOptimizer(FLAGS.learning_rate).minimize(loss)
 	return train_op
 
 
@@ -109,24 +110,33 @@ def train():
 			xs, ys = dataset.Training.next_batch(FLAGS.batch_size)
 		else:
 			if flag == 1:
-				xs, ys = dataset.Validation.next_batch(dataset.Validation.num_examples)
+				xs, ys = dataset.Validation.next_batch(FLAGS.batch_size)
 			else:
 				xs, ys = dataset.Test.next_batch(dataset.Test.num_examples)
 		return {x: xs, y_: ys, is_training: flag == 0}
 
 	# ====== LOAD DATASET ======
-	training_points = np.load(FLAGS.trainingpath)
-	test_points = np.load(FLAGS.testpath)
-	dataset = utils.Dataset(training_points.key(), training_points.values(), test_points.keys(), test_points.values(), cross_validation_folds=10)
-	
+	print('Loading Dataset...')
+	with open(FLAGS.trainingpath, 'rb') as handle:
+	    training_points = pickle.load(handle)
+	with open(FLAGS.testpath, 'rb') as handle:
+	    test_points = pickle.load(handle)
+
+	dataset = utils.DataSet(np.array(list(training_points.keys())), np.array(list(training_points.values())),
+				np.array(list(test_points.keys())), np.array(list(test_points.values())),
+				cross_validation_folds=10,
+				normalize = FLAGS.normalization)
+	print('Loading Dataset...done.')
 
 	# ====== DEFINE SPACEHOLDERS ======
 	with tf.name_scope('input'):
-		x = tf.placeholder(tf.float32, [None, 512, 512, 16], name='x-input')
-		y_ = tf.placeholder(tf.float32, [None, 2], name='y-input')
+		x = tf.placeholder(tf.float16, [None, 512, 512, 30, 1], name='x-input')
+		y_ = tf.placeholder(tf.float16, [None, 2], name='y-input')
 		is_training = tf.placeholder(tf.bool, name='is-training')
 
 	# ====== MODEL DEFINITION ======
+	print('Defining model...')
+
 	sigmas = [float(x) for x in FLAGS.sigmas.split(',')]
 	kernels = [int(x) for x in FLAGS.kernels.split(',')]
 	maps = [int(x) for x in FLAGS.maps.split(',')]
@@ -137,10 +147,15 @@ def train():
 		sigmas=sigmas,
 		bases_3d=True,
 		is_training=is_training,
+		batchnorm=FLAGS.batch_normalization
 	)
+
+	print('Defining model...done.')
 
 	# ====== UNSUPERVISED PRE-TRAINING ======
 	if FLAGS.pretraining:
+		print('Pre-training model...')
+
 		network_architecture = \
 			{
 				'Conv_kernels': kernels,
@@ -152,11 +167,14 @@ def train():
 
 		# Calculate predictions
 		logits = model.inference(net)
+
+		print('Pre-training model...done.')
 	else:
 		# Calculate predictions
 		logits = model.inference(x)
 
 	# ====== DEFINE LOSS, ACCURACY TENSORS ======
+	print('Defining necessary OPs...')
 	loss = loss_function(logits, y_)
 	accuracy, prediction, scores = accuracy_function(logits, y_)
 
@@ -175,10 +193,15 @@ def train():
 	# np.save('./Kernels/kernel_0.npy', kernels_array)
 	# np.save('./Kernels/alphas_0.npy', alphas)
 
+	print('Defining necessary OPs...done.')
+
 	# Train
 	training_steps = int(dataset.Training.num_examples / FLAGS.batch_size)
 	# ====== DEFINE SESSION AND OPTIMIZE ======
+	sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+	
 	with tf.Session() as sess:
+		print('Training model...')
 		for f in range(FLAGS.xvalidation_folds):
 			tf.global_variables_initializer().run()
 
@@ -195,7 +218,19 @@ def train():
 				_ = sess.run([train_op], feed_dict=feed_dict(0))
 				if i % (FLAGS.eval_freq * training_steps) == 0 or i == int(FLAGS.max_epochs * training_steps):
 					# ------------ VALIDATON -------------
-					summary, tot_acc = sess.run([merged, accuracy], feed_dict=feed_dict(1))
+					tot_acc = 0.0
+					tot_loss = 0.0
+					steps = int(math.floor(dataset.Validation.num_examples/FLAGS.batch_size))
+					for step in range(steps):
+						acc_s, loss_s = sess.run([accuracy, loss], feed_dict=feed_dict(1))
+						tot_acc += (acc_s / steps)
+						tot_loss += (loss_s / steps)
+							
+					# Create a new Summary object with your measure
+					summary = tf.Summary()
+					summary.value.add(tag="Accuracy", simple_value=tot_acc)
+					summary.value.add(tag="Loss", simple_value=tot_loss)
+				
 					test_writer.add_summary(summary, i)
 
 					if tot_acc > max_acc:
@@ -216,6 +251,8 @@ def train():
 			print('Max validation accuracy in fold %s: %s' % (f,max_acc))
 			
 			dataset.next_fold()
+
+
 
 	# Print final kernels
 	# alphas_tensor, kernels_tensor = get_kernels()	
@@ -335,7 +372,7 @@ def str2bool(s):
 
 
 def main(_):
-	print_flags()
+#	print_flags()
 
 	initialize_folders()
 	train()
@@ -351,10 +388,14 @@ if __name__ == '__main__':
 						help='Number of steps to run trainer.')
 	parser.add_argument('--batch_size', type=int, default=BATCH_SIZE_DEFAULT,
 						help='Batch size to run trainer.')
-	parser.add_argument('--pretraining', type=str2bool, default=PRETRAINING,
+	parser.add_argument('--pretraining', type=str2bool, default=False,
 						help='Specify pretraining with Autoencoder')
 	parser.add_argument('--xvalidation_folds', type=int, default=10,
 						help='Specify number of cross-validation folds')
+	parser.add_argument('--normalization', type=str2bool, default=False,
+						help='Specify if normalization is applied to the data')
+	parser.add_argument('--batch_normalization', type=str2bool, default=False,
+						help='Specify if batch-normalization is used')
 						
 	parser.add_argument('--print_freq', type=int, default=PRINT_FREQ_DEFAULT,
 						help='Frequency of evaluation on the train set')

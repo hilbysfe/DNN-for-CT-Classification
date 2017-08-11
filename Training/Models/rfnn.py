@@ -10,21 +10,22 @@ from Utils.rfnn_utils import init_biases
 from Utils.rfnn_utils import init_basis_hermite_2D
 from Utils.rfnn_utils import init_basis_hermite_3D
 from Utils.rfnn_utils import _rfnn_conv_layer_2d
+from Utils.rfnn_utils import _rfnn_conv_layer_3d
 
 from Utils.cnn_utils import batch_norm_wrapper 
-from Utils.cnn_utils import _conv_layer_2d_with_kernel_and_bias
 
 
 	
 class RFNN(object):
 
-	def __init__(self, sigmas, kernels, maps, n_classes=2, bases_3d = False, dropout_rate_conv=.2, dropout_rate_hidden=0.7, is_training = True):
+	def __init__(self, sigmas, kernels, maps, n_classes=2, bases_3d = False, dropout_rate_conv=.2, dropout_rate_hidden=0.7, is_training = True, batchnorm=False):
 	
 		self.n_classes				= n_classes
 		self.dropout_rate_conv			= dropout_rate_conv
 		self.dropout_rate_hidden		= dropout_rate_hidden
 		self.is_training			= is_training
-		
+		self.batchnorm				= batchnorm
+
 		self.act				= tf.nn.relu
 		self.regularizer 			= tf.contrib.layers.l2_regularizer(0.0005)
 				
@@ -41,7 +42,8 @@ class RFNN(object):
 		bases_L1 = 10
 		bases_L2 = 6
 		bases_L3 = 6
-				
+		
+#		with tf.device(
 		self.basis_L1 = self.hermit(kernels[0], sigmas, bases_L1)
 		self.basis_L2 = self.hermit(kernels[1], sigmas, bases_L2)
 		self.basis_L3 = self.hermit(kernels[2], sigmas, bases_L3)	
@@ -65,7 +67,7 @@ class RFNN(object):
 								basis=self.basis_L1,
 								omaps=self.maps[0],
 								strides=[1,2,2,1],
-								padding='SAME',
+								padding='VALID',
 								is_training=self.is_training,
 								bnorm=False)
 		
@@ -93,7 +95,7 @@ class RFNN(object):
 						basis=self.basis_L2,
 						omaps=self.maps[1],
 						strides=[1,1,1,1],
-						padding='SAME',
+						padding='VALID',
 						is_training=self.is_training,
 						bnorm=False)
 		
@@ -114,7 +116,7 @@ class RFNN(object):
 						basis=self.basis_L3,
 						omaps=self.n_classes,
 						strides=[1,2,2,1],
-						padding='SAME',
+						padding='VALID',
 						is_training=self.is_training,
 						bnorm=False)
 			
@@ -163,9 +165,9 @@ class RFNN(object):
 								basis=self.basis_L1,
 								omaps=self.maps[0],
 								strides=[1,2,2,2,1],
-								padding='SAME',
+								padding='VALID',
 								is_training=self.is_training,
-								bnorm=False)
+								bnorm=self.batchnorm)
 		
 		# ==== MaxPool1 ====
 		# net = [ tf.nn.max_pool(layer1[i], ksize=[1,3,3,1], strides=[1,2,2,1], padding="VALID")
@@ -191,9 +193,9 @@ class RFNN(object):
 						basis=self.basis_L2,
 						omaps=self.maps[1],
 						strides=[1,1,1,1,1],
-						padding='SAME',
+						padding='VALID',
 						is_training=self.is_training,
-						bnorm=False)
+						bnorm=self.batchnorm)
 		
 		# --- maxpool along scale and rotation		
 		# layer2 = tf.stack( [ tf.reduce_max(layer2[:,:,:,:,i], reduction_indices=[0])
@@ -212,9 +214,9 @@ class RFNN(object):
 						basis=self.basis_L3,
 						omaps=self.n_classes,
 						strides=[1,2,2,2,1],
-						padding='SAME',
+						padding='VALID',
 						is_training=self.is_training,
-						bnorm=False)
+						bnorm=self.batchnorm)
 			
 		# ==== MaxPool2 ====
 		# net = [ tf.nn.max_pool(layer3[i], ksize=[1,3,3,1], strides=[1,2,2,1], padding="VALID") 
@@ -234,7 +236,7 @@ class RFNN(object):
 		# ==== AVG Pooling ====		
 		k = net.get_shape()[1].value
 		j = net.get_shape()[3].value
-		net = tf.nn.avg_pool3d(net, ksize=[1,k,k,j,1], strides=[1,1,1,1,1], padding="VALID")
+		net = tf.cast(tf.nn.avg_pool3d(tf.cast(net, tf.float32), ksize=[1,k,k,j,1], strides=[1,1,1,1,1], padding="VALID"), tf.float16)
 		print(net.get_shape())
 		
 		# ==== Flatten ====		

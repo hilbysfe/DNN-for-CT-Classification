@@ -6,6 +6,12 @@ import shutil
 from multiprocessing import Pool
 
 
+def resample_image(file_in, file_out):
+	if not os.path.exists(os.path.dirname(file_out)):
+		os.makedirs(os.path.dirname(file_out))
+	os.system("c3d %s -resample 512x512x30 -o %s" %(file_in, file_out))
+	print(file_in.split('/')[-1] + ' done.')
+
 def rotate_images(dataset_path, n):
 	root = 'D:\\AdamHilbert\\DNN_Classification_Project\\data\\CT24h_Datasets\\'
 	image_dir = root + dataset_path + '\\Training'
