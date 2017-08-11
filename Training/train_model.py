@@ -23,6 +23,7 @@ CHECKPOINT_FREQ_DEFAULT = 5000
 PRINT_FREQ_DEFAULT = 2
 SIGMAS_DEFAULT = "1.5,1.0,0.5"
 KERNELS_DEFAULT = "11,3,3"
+BASES_DEFAULT = "10,6,6"
 MAPS_DEFAULT = "64,64,64"
 MAXPOOLS_DEFAULT = "3,3,3,3"
 L2 = 0.0005
@@ -107,12 +108,12 @@ def train():
 	# ====== DEFINE FEED_DICTIONARY ======
 	def feed_dict(flag):
 		if flag == 0:
-			xs, ys = dataset.Training.next_batch(FLAGS.batch_size)
+			xs, ys = dataset.Training.next_batch(FLAGS.batch_size, bases3d=FLAGS.bases3d)
 		else:
 			if flag == 1:
-				xs, ys = dataset.Validation.next_batch(FLAGS.batch_size)
+				xs, ys = dataset.Validation.next_batch(FLAGS.batch_size, bases3d=FLAGS.bases3d)
 			else:
-				xs, ys = dataset.Test.next_batch(dataset.Test.num_examples)
+				xs, ys = dataset.Test.next_batch(dataset.Test.num_examples, bases3d=FLAGS.bases3d)
 		return {x: xs, y_: ys, is_training: flag == 0}
 
 	# ====== LOAD DATASET ======
@@ -130,7 +131,10 @@ def train():
 
 	# ====== DEFINE SPACEHOLDERS ======
 	with tf.name_scope('input'):
-		x = tf.placeholder(tf.float16, [None, 512, 512, 30, 1], name='x-input')
+		if FLAGS.bases3d:
+			x = tf.placeholder(tf.float16, [None, 512, 512, 30, 1], name='x-input')
+		else:
+			x = tf.placeholder(tf.float16, [None, 512, 512, 30], name='x-input')
 		y_ = tf.placeholder(tf.float16, [None, 2], name='y-input')
 		is_training = tf.placeholder(tf.bool, name='is-training')
 
@@ -140,12 +144,14 @@ def train():
 	sigmas = [float(x) for x in FLAGS.sigmas.split(',')]
 	kernels = [int(x) for x in FLAGS.kernels.split(',')]
 	maps = [int(x) for x in FLAGS.maps.split(',')]
+	bases = [int(x) for x in FLAGS.bases.split(',')]
 	model = RFNN(
 		n_classes=2,
 		kernels=kernels,
 		maps=maps,
 		sigmas=sigmas,
-		bases_3d=True,
+		bases=bases,
+		bases_3d=FLAGS.bases3d,
 		is_training=is_training,
 		batchnorm=FLAGS.batch_normalization
 	)
@@ -198,9 +204,9 @@ def train():
 	# Train
 	training_steps = int(dataset.Training.num_examples / FLAGS.batch_size)
 	# ====== DEFINE SESSION AND OPTIMIZE ======
-	sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
-	
-	with tf.Session() as sess:
+	config = tf.ConfigProto(allow_soft_placement=True)
+	config.gpu_options.allow_growth = True
+	with tf.Session(config=config) as sess:
 		print('Training model...')
 		for f in range(FLAGS.xvalidation_folds):
 			tf.global_variables_initializer().run()
@@ -412,6 +418,10 @@ if __name__ == '__main__':
 						help='Kernel sizes of convolution')
 	parser.add_argument('--maps', type=str, default=MAPS_DEFAULT,
 						help='Amount of kernel maps of convolution')
+	parser.add_argument('--bases', type=str, default=BASES_DEFAULT,
+						help='Amount of basis functions to use')
+	parser.add_argument('--bases3d', type=str2bool, default=True,
+						help='Specify if 3d or 2d model is used')
 
 	parser.add_argument('--hdrop', type=float, default=0.0,
 						help='Hiddenlayer dropout')

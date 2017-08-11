@@ -26,18 +26,20 @@ def _rfnn_conv_layer_2d_with_alphas(input, basis, alphas, biases, strides, paddi
 	return outputs, kernels
 	
 def _rfnn_conv_layer_2d(input, basis, omaps, strides, padding, is_training, bnorm=False):
-	alphas = tf.get_variable(
-		'alphas',
-		shape=[omaps, input.get_shape()[-1].value, np.shape(basis)[1]],
-		initializer=tf.random_uniform_initializer(-1.0, 1.0),
-		dtype=tf.float16)
+	with tf.device('/cpu:0'):
+		alphas = tf.get_variable(
+			'alphas',
+			shape=[omaps, input.get_shape()[-1].value, np.shape(basis)[1]],
+			initializer=tf.random_uniform_initializer(-1.0, 1.0),
+			dtype=tf.float16)
 		
 	if not bnorm:
-		biases = tf.get_variable(
-			'biases',
-			shape=[omaps],
-			initializer=tf.constant_initializer(0.0),
-			dtype=tf.float16)
+		with tf.device('/cpu:0'):
+			biases = tf.get_variable(
+				'biases',
+				shape=[omaps],
+				initializer=tf.constant_initializer(0.0),
+				dtype=tf.float16)
 	
 	kernels = []
 	outputs = []
@@ -89,20 +91,20 @@ def _rfnn_deconv_layer_2d(input, basis, omaps, oshape, strides, padding, bnorm=F
 	return outputs
 	
 def _rfnn_conv_layer_3d(input, basis, omaps, strides, padding, is_training, bnorm=False):
-#	with tf.device('/cpu:0'):
-	alphas = tf.get_variable(
-		'alphas',
-		shape=[omaps, input.get_shape()[-1].value, np.shape(basis)[1]],
-		initializer=tf.random_uniform_initializer(-1.0, 1.0),
-		dtype=tf.float16)
+	with tf.device('/cpu:0'):
+		alphas = tf.get_variable(
+			'alphas',
+			shape=[omaps, input.get_shape()[-1].value, np.shape(basis)[1]],
+			initializer=tf.random_uniform_initializer(-1.0, 1.0),
+			dtype=tf.float16)
 		
 	if not bnorm:
-#		with tf.device('/cpu:0'):
-		biases = tf.get_variable(
-			'biases',
-			shape=[omaps],
-			initializer=tf.constant_initializer(0.0),
-			dtype=tf.float16)
+		with tf.device('/cpu:0'):
+			biases = tf.get_variable(
+				'biases',
+				shape=[omaps],
+				initializer=tf.constant_initializer(0.0),
+				dtype=tf.float16)
 	
 	kernels = []
 	outputs = []
@@ -176,7 +178,7 @@ def init_basis_hermite_2D(kernel, sigmas, bases):
 		gauss2x = conv(impulse, g2, axis=1)
 		gauss0 = conv(gauss0x, g, axis=0)
 		
-		hermiteBasis[i,0,:,:] = gauss0					# g
+		hermiteBasis[i,0,:,:] = gauss0			  # g
 		hermiteBasis[i,1,:,:] = conv(gauss0y, g1, axis=1) # g_x
 		hermiteBasis[i,2,:,:] = conv(gauss0x, g1, axis=0) # g_y
 		hermiteBasis[i,3,:,:] = conv(gauss0y, g2, axis=1) # g_xx
@@ -191,8 +193,9 @@ def init_basis_hermite_2D(kernel, sigmas, bases):
 		hermiteBasis[i,12,:,:] = conv(gauss1y, g3, axis=1) # g_xxxy
 		hermiteBasis[i,13,:,:] = conv(gauss1x, g3, axis=0) # g_yyyx
 		hermiteBasis[i,14,:,:] = conv(gauss2x, g2, axis=0) # g_yyxx
-
-	return tf.constant(hermiteBasis[:,0:bases,:,:], dtype=tf.float16)
+	
+	with tf.device('/cpu:0'):
+		return tf.constant(hermiteBasis[:,0:bases,:,:], dtype=tf.float16)
 
 def init_basis_hermite_3D(kernel, sigmas, bases):
 	nrBasis = 35	
@@ -299,8 +302,8 @@ def init_basis_hermite_3D(kernel, sigmas, bases):
 		hermiteBasis[i,33,:,:,:] = gauss4yyzz_
 		hermiteBasis[i,34,:,:,:] = gauss4xzzy_
 	
-#	with tf.device('/cpu:0'):
-	return tf.constant(hermiteBasis[:,0:bases,:,:,:], dtype=tf.float16)
+	with tf.device('/cpu:0'):
+		return tf.constant(hermiteBasis[:,0:bases,:,:,:], dtype=tf.float16)
 
 def init_alphas(nrFilters,channels,nrBasis,name):
 	with tf.device('/cpu:0'):

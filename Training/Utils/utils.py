@@ -299,7 +299,7 @@ class SubSet(object):
 		self._mean = mean
 		self._std = std
 
-	def next_batch(self, batch_size):
+	def next_batch(self, batch_size, bases3d=True):
 		"""
 		Return the next `batch_size` examples from this data set.
 		Args:
@@ -326,7 +326,8 @@ class SubSet(object):
 		image_batch = np.swapaxes(image_batch, 2, 3)
 
 		# --- Only in case of 3D model ---
-		image_batch = np.expand_dims(image_batch, axis=4)			
+		if bases3d:
+			image_batch = np.expand_dims(image_batch, axis=4)			
 
 		return image_batch, label_batch
 

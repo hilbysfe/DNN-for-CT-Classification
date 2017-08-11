@@ -18,7 +18,7 @@ from Utils.cnn_utils import batch_norm_wrapper
 	
 class RFNN(object):
 
-	def __init__(self, sigmas, kernels, maps, n_classes=2, bases_3d = False, dropout_rate_conv=.2, dropout_rate_hidden=0.7, is_training = True, batchnorm=False):
+	def __init__(self, sigmas, kernels, maps, bases, n_classes=2, bases_3d = False, dropout_rate_conv=.2, dropout_rate_hidden=0.7, is_training = True, batchnorm=False):
 	
 		self.n_classes				= n_classes
 		self.dropout_rate_conv			= dropout_rate_conv
@@ -39,14 +39,10 @@ class RFNN(object):
 		# Init Basis and Alphas
 		#-------------------------
 
-		bases_L1 = 10
-		bases_L2 = 6
-		bases_L3 = 6
-		
 #		with tf.device(
-		self.basis_L1 = self.hermit(kernels[0], sigmas, bases_L1)
-		self.basis_L2 = self.hermit(kernels[1], sigmas, bases_L2)
-		self.basis_L3 = self.hermit(kernels[2], sigmas, bases_L3)	
+		self.basis_L1 = self.hermit(kernels[0], sigmas, bases[0])
+		self.basis_L2 = self.hermit(kernels[1], sigmas, bases[1])
+		self.basis_L3 = self.hermit(kernels[2], sigmas, bases[2])	
 	
 
 
@@ -63,13 +59,13 @@ class RFNN(object):
 		# ==== Layer 1 ====
 		with tf.variable_scope('ConvLayer1'):
 			self.alphas_L1, self.biases_L1, layer1, w_L1 = _rfnn_conv_layer_2d(
-								input=X,
-								basis=self.basis_L1,
-								omaps=self.maps[0],
-								strides=[1,2,2,1],
-								padding='VALID',
-								is_training=self.is_training,
-								bnorm=False)
+						input=X,
+						basis=self.basis_L1,
+						omaps=self.maps[0],
+						strides=[1,2,2,1],
+						padding='VALID',
+						is_training=self.is_training,
+						bnorm=self.batchnorm)
 		
 		# ==== MaxPool1 ====
 		# net = [ tf.nn.max_pool(layer1[i], ksize=[1,3,3,1], strides=[1,2,2,1], padding="VALID")
@@ -97,7 +93,7 @@ class RFNN(object):
 						strides=[1,1,1,1],
 						padding='VALID',
 						is_training=self.is_training,
-						bnorm=False)
+						bnorm=self.batchnorm)
 		
 		# --- maxpool along scale and rotation		
 		# layer2 = tf.stack( [ tf.reduce_max(layer2[:,:,:,:,i], reduction_indices=[0])
@@ -105,8 +101,8 @@ class RFNN(object):
 						# )
 		# net = tf.reshape(layer2, [-1, layer2.get_shape()[2].value,
 								  # layer2.get_shape()[3].value, layer2.get_shape()[0].value])
-		layer2 = tf.stack(layer2)
-		net = tf.stack(tf.reduce_max(layer2, reduction_indices=[0]))
+		net = tf.stack(layer2)
+		net = tf.stack(tf.reduce_max(net, reduction_indices=[0]))
 		print(net.get_shape())
 		
 		# ==== Layer 2b ====		
@@ -118,7 +114,7 @@ class RFNN(object):
 						strides=[1,2,2,1],
 						padding='VALID',
 						is_training=self.is_training,
-						bnorm=False)
+						bnorm=self.batchnorm)
 			
 		# ==== MaxPool2 ====
 		# net = [ tf.nn.max_pool(layer3[i], ksize=[1,3,3,1], strides=[1,2,2,1], padding="VALID") 
@@ -161,13 +157,13 @@ class RFNN(object):
 		# ==== Layer 1 ====
 		with tf.variable_scope('ConvLayer1'):
 			self.alphas_L1, self.biases_L1, layer1, w_L1 = _rfnn_conv_layer_3d(
-								input=X,
-								basis=self.basis_L1,
-								omaps=self.maps[0],
-								strides=[1,2,2,2,1],
-								padding='VALID',
-								is_training=self.is_training,
-								bnorm=self.batchnorm)
+						input=X,
+						basis=self.basis_L1,
+						omaps=self.maps[0],
+						strides=[1,2,2,2,1],
+						padding='VALID',
+						is_training=self.is_training,
+						bnorm=self.batchnorm)
 		
 		# ==== MaxPool1 ====
 		# net = [ tf.nn.max_pool(layer1[i], ksize=[1,3,3,1], strides=[1,2,2,1], padding="VALID")
