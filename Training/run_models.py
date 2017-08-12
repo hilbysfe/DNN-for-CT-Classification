@@ -1,11 +1,11 @@
 import os
 
 os.system("python train_model.py \
-	--learning_rate	0.05 \
+	--learning_rate	0.01 \
 	--max_epochs 10 \
 	--batch_size 32 \
 	--pretraining False \
-	--xvalidation_folds 10 \
+	--xvalidation_folds 5 \
 	--normalization True \
 	--batch_normalization False \
 \

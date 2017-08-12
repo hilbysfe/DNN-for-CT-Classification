@@ -6,7 +6,42 @@ import numpy as np
 import openpyxl as ox
 import operator
 import pickle
+import tensorflow as tf
+import re
 
+def _add_loss_summaries(total_loss):
+
+	# Compute the moving average of all individual losses and the total loss.
+	loss_averages = tf.train.ExponentialMovingAverage(0.9, name='avg')
+	losses = tf.get_collection('losses')
+	loss_averages_op = loss_averages.apply(losses + [total_loss])
+
+	# Attach a scalar summary to all individual losses and the total loss; do the
+	# same for the averaged version of the losses.
+	for l in losses + [total_loss]:
+		# Name each loss as '(raw)' and name the moving average version of the loss
+		# as the original loss name.
+		tf.summary.scalar(l.op.name + ' (raw)', l)
+		tf.summary.scalar(l.op.name, loss_averages.average(l))
+
+	return loss_averages_op
+
+
+def _activation_summary(x):
+	tensor_name = x.op.name
+	tf.summary.histogram(tensor_name + '/activations', x)
+	
+def _variable_summaries(var, name):
+	"""Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
+	with tf.name_scope('summaries'):
+		mean = tf.reduce_mean(var)
+		tf.scalar_summary('mean/' + var.op.name, mean)
+		with tf.name_scope('stddev'):
+			stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+		tf.scalar_summary('stddev/' + var.op.name, stddev)
+		tf.scalar_summary('max/' + var.op.name, tf.reduce_max(var))
+		tf.scalar_summary('min/' + var.op.name, tf.reduce_min(var))
+		tf.histogram_summary(var.op.name, var)
 
 def online_std(files):
 	n = 0
@@ -45,7 +80,7 @@ def dense_to_one_hot(labels_dense, num_classes):
 	return labels_one_hot
 
 
-def read_dataset(datapath, labelpath, test_ratio=0.15, dense_labels=False):
+def read_dataset(datapath, labelpath, test_ratio=0.15):
 	"""
 	Function to read up images and labels.
 	Store only paths as images wouldn't fit to memory.
@@ -90,7 +125,11 @@ def read_dataset(datapath, labelpath, test_ratio=0.15, dense_labels=False):
 	print('Balanced set contains %i patients' % num_examples)
 	smallest_class = dict(zip(classes, uni))[np.min(classes)]
 
+	# --- Select subsets keeping balance ---
+	test_size = int(num_examples*test_ratio)
 	indices = []
+	test_patIDs = []
+	training_patIDs = []
 	for i in range(num_classes):
 		indices_class_i = np.where(all_labels == i)[0]
 		if i != smallest_class:
@@ -99,25 +138,15 @@ def read_dataset(datapath, labelpath, test_ratio=0.15, dense_labels=False):
 			indices_class_i = indices_class_i[perm[:np.min(classes)]]
 
 		indices = np.append(indices, indices_class_i)
-
-	# --- Shuffle ---
-	indices = [int(x) for x in indices]
-	np.random.shuffle(indices)
-	all_labels = all_labels[indices]
-	all_images = all_images[indices]
-	all_patients = np.array(patients)[indices]
-
-	if not dense_labels:
-		all_labels = dense_to_one_hot(all_labels, 2)
-	
-	# --- Calculate and cut the subsets ---
-	test_size = int(num_examples*test_ratio)
-	
-	training_patIDs = all_patients[test_size:]
-	test_patIDs = all_patients[:test_size]
+		# --- Shuffle ---
+		indices = [int(x) for x in indices]
+		np.random.shuffle(indices)
+		
+		test_patIDs += list(np.array(patients)[indices[:int(test_size/num_classes)]])
+		training_patIDs += list(np.array(patients)[indices[int(test_size/num_classes):]])
 	
 	training_points = dict()
-	test_points = dict()		
+	test_points = dict()	
 	for image in all_images:
 		pat = image.split("/")[-1].split('.')[0]
 		if pat in training_patIDs:
@@ -155,9 +184,10 @@ class DataSet(object):
 
 	def __init__(self, training_images, training_labels, test_images, test_labels, cross_validation_folds=0, normalize=False):
 		print('Init Dataset...')
-		self._Test = SubSet(test_images, test_labels)
+		self._Test = SubSet(test_images, dense_to_one_hot(test_labels, 2))
+		
 		if cross_validation_folds == 0:
-			self._Training = SubSet(training_images, training_labels)
+			self._Training = SubSet(training_images, dense_to_one_hot(training_labels, 2))
 			
 			print('Computing mean and std image...')
 			mean, std = online_std(self._Training.images)
@@ -167,20 +197,54 @@ class DataSet(object):
 			self._Test.setNormalizationParameters(mean, std)
 			
 		else:
+			print('Creating folds...')
+
 			self._current_fold = 0
-			self._fold_size = int(np.floor(len(training_images)/cross_validation_folds))
-			
+			self._fold_size = len(training_labels)/cross_validation_folds
+			images_0 = training_images[np.where(training_labels==0)[0]]
+			images_1 = training_images[np.where(training_labels==1)[0]]
+			labels_0 = np.array([ np.ndarray((2,), buffer=np.array([0, 0])) for i in range(len(images_0)) ])
+			labels_1 = np.array([ np.ndarray((2,), buffer=np.array([1, 0])) for i in range(len(images_0)) ])
 			self._image_folds = []
 			self._label_folds = []
 			offset = 0
 			for i in range(cross_validation_folds-1):
-				self._image_folds.append(training_images[offset:self._fold_size])
-				self._label_folds.append(training_labels[offset:self._fold_size])
+				image_fold = []
+				image_fold += list(images_0[offset:offset+int(self._fold_size/2)])
+				image_fold += list(images_1[offset:offset+int(self._fold_size/2)])
+
+				label_fold = np.zeros((2*int(self._fold_size/2), 2))
+				label_fold[:int(self._fold_size/2),:] = labels_0[offset:offset+int(self._fold_size/2),:]
+				label_fold[int(self._fold_size/2):,:] = labels_1[offset:offset+int(self._fold_size/2),:]
+
+				self._image_folds.append(np.array(image_fold))
+				self._label_folds.append(np.array(label_fold))
+
+				# --- Shuffle ---
+				perm = np.arange(2*int(self._fold_size/2))
+				np.random.shuffle(perm)
+				self._image_folds[i] = self._image_folds[i][perm]
+				self._label_folds[i] = self._label_folds[i][perm]
+
+				offset += int(self._fold_size/2)
 			
-			self._image_folds.append(training_images[offset:])
-			self._label_folds.append(training_labels[offset:])
+			image_fold = []
+			image_fold += list(images_0[offset:])
+			image_fold += list(images_1[offset:])
+
+			label_fold = np.zeros((2*(len(images_0)-offset), 2))
+			label_fold[:len(images_0)-offset,:] = labels_0[offset:]
+			label_fold[len(images_0)-offset:,:] = labels_1[offset:]
+
+			self._image_folds.append(np.array(image_fold))
+			self._label_folds.append(np.array(label_fold))
+
+			# --- Shuffle ---
+			perm = np.arange(len(self._image_folds[cross_validation_folds-1]))
+			np.random.shuffle(perm)
+			self._image_folds[cross_validation_folds-1] = self._image_folds[cross_validation_folds-1][perm]
+			self._label_folds[cross_validation_folds-1] = self._label_folds[cross_validation_folds-1][perm]
 	
-			print('Creating folds...')
 			imageset = []
 			labelset = []
 			for i, fold in enumerate(self._image_folds):
@@ -212,7 +276,7 @@ class DataSet(object):
 
 		print('Init Dataset...done.')
 	
-	def next_fold():
+	def next_fold(self):
 		self._current_fold += 1
 		
 		imageset = []

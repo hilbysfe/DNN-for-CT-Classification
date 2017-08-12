@@ -63,28 +63,19 @@ def accuracy_function(logits, labels):
 	return accuracy, correct_prediction, softmax
 
 
-def loss_function(logits, labels):
-	with tf.variable_scope('Losses') as scope:
+def loss_function(logits, labels, scope):
+	with tf.variable_scope('Losses'):
 		with tf.name_scope('Cross_Entropy_Loss'):
 			cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels, name='cross_entropy_per_example')
 			cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
-
 			tf.add_to_collection('losses', cross_entropy_mean)
-			tf.summary.scalar('cross_entropy', cross_entropy_mean)
-		with tf.name_scope('Regularization_Loss'):
-			reg_loss = tf.cast(tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES), name='reg_loss'), tf.float16)
-
-			tf.add_to_collection('losses', reg_loss)
-			tf.summary.scalar('reg_loss', reg_loss)
 		with tf.name_scope('Total_Loss'):
-			loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
-
-			tf.summary.scalar('total_loss', loss)
-
-	return loss
+			total_loss = tf.add_n(tf.get_collection('losses', scope), name='total_loss')
+			tf.summary.scalar('total_loss', total_loss)
+	return total_loss
 
 
-def train_step(loss, global_step):
+def train_step(total_loss, global_step):
 	# decay_steps = 5*20
 	# LEARNING_RATE_DECAY_FACTOR = 0.5
 
@@ -96,7 +87,36 @@ def train_step(loss, global_step):
 	# staircase=True)
 	# tf.summary.scalar('learning_rate', lr)
 	# train_op = tf.train.AdamOptimizer(FLAGS.learning_rate, epsilon=1e-4).minimize(loss)
-	train_op = tf.train.GradientDescentOptimizer(FLAGS.learning_rate).minimize(loss)
+	# train_op = tf.train.GradientDescentOptimizer(FLAGS.learning_rate).minimize(loss)
+
+
+	# Generate moving averages of all losses and associated summaries.
+	loss_averages_op = utils._add_loss_summaries(total_loss)
+
+	# Compute gradients.
+	with tf.control_dependencies([loss_averages_op]):
+		opt = tf.train.GradientDescentOptimizer(FLAGS.learning_rate)
+		grads = opt.compute_gradients(total_loss)
+
+	# Apply gradients.
+	apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
+
+	# Add histograms for trainable variables.
+	for var in tf.trainable_variables():
+		tf.summary.histogram(var.op.name, var)
+
+	# Add histograms for gradients.
+	for grad, var in grads:
+		if grad is not None:
+			tf.summary.histogram(var.op.name + '/gradients', grad)
+
+	# Track the moving averages of all trainable variables.
+	variable_averages = tf.train.ExponentialMovingAverage(0.9999, global_step)
+	variables_averages_op = variable_averages.apply(tf.trainable_variables())
+
+	with tf.control_dependencies([apply_gradient_op, variables_averages_op]):
+		train_op = tf.no_op(name='train')
+
 	return train_op
 
 
@@ -125,7 +145,7 @@ def train():
 
 	dataset = utils.DataSet(np.array(list(training_points.keys())), np.array(list(training_points.values())),
 				np.array(list(test_points.keys())), np.array(list(test_points.values())),
-				cross_validation_folds=10,
+				cross_validation_folds=FLAGS.xvalidation_folds,
 				normalize = FLAGS.normalization)
 	print('Loading Dataset...done.')
 
