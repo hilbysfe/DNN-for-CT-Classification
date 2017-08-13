@@ -123,26 +123,16 @@ def train():
 					cross_validation_folds=FLAGS.xvalidation_folds,
 					normalize = FLAGS.normalization)
 		
-		train_images, train_labels = dataset.Training.next_batch(dataset.Training.num_examples, bases3d=FLAGS.bases3d)
-		val_images, val_labels = dataset.Validation.next_batch(dataset.Validation.num_examples, bases3d=FLAGS.bases3d)
-		test_images, test_labels = dataset.Test.next_batch(dataset.Test.num_examples, bases3d=FLAGS.bases3d)
-
-		training_batch_queue = tf.contrib.slim.prefetch_queue.prefetch_queue(
-					[train_images, train_labels], capacity=2 * NUM_GPUS)
-		validation_batch_queue = tf.contrib.slim.prefetch_queue.prefetch_queue(
-					[val_images, val_labels], capacity=2 * NUM_GPUS)
-		test_batch_queue = tf.contrib.slim.prefetch_queue.prefetch_queue(
-					[test_images, test_labels], capacity=2 * NUM_GPUS)
 
 		print('Loading Dataset...done.')
 
 		# ====== DEFINE SPACEHOLDERS ======
 		with tf.name_scope('input'):
 			if FLAGS.bases3d:
-				x = tf.placeholder(tf.float16, [None, 512, 512, 30, 1], name='x-input')
+				x = tf.placeholder(tf.float16, [FLAGS.batch_size, 512, 512, 30, 1], name='x-input')
 			else:
-				x = tf.placeholder(tf.float16, [None, 512, 512, 30], name='x-input')
-			y = tf.placeholder(tf.float16, [None, 2], name='y-input')
+				x = tf.placeholder(tf.float16, [FLAGS.batch_size, 512, 512, 30], name='x-input')
+			y = tf.placeholder(tf.float16, [FLAGS.batch_size, 2], name='y-input')
 			is_training = tf.placeholder(tf.bool, name='is-training')
 
 
@@ -211,10 +201,10 @@ def train():
 							print('Pre-training model...done.')
 						else:
 							# Calculate predictions
-							logits = model.inference(image_batch)
+							logits = model.inference(x)
 
-						loss = tower_loss(logits, label_batch, scope)
-						# accuracy, prediction, scores = tower_accuracy(logits, label_batch, scope)
+						loss = tower_loss(logits, y, scope)
+						# accuracy, prediction, scores = tower_accuracy(logits, y, scope)
 
 						# Reuse variables for the next tower.
 						tf.get_variable_scope().reuse_variables()
@@ -276,11 +266,7 @@ def train():
 		# Build the summary operation from the last tower summaries.
 		summary_op = tf.summary.merge(summaries)
 
-		# Build an initialization operation to run below.
-		init = tf.global_variables_initializer()
-
-		# Train
-		training_steps = int(dataset.Training.num_examples / FLAGS.batch_size)
+		
 		# ====== DEFINE SESSION AND OPTIMIZE ======
 		config = tf.ConfigProto(allow_soft_placement=True)
 #		config.gpu_options.allow_growth = True
@@ -290,11 +276,11 @@ def train():
 			print('Training model...')
 
 			for f in range(FLAGS.xvalidation_folds):
+
+				training_steps = int(dataset.Training.num_examples / FLAGS.batch_size)
+			
 				sess.run(tf.global_variables_initializer())
 				
-				# Start the queue runners.
-				tf.train.start_queue_runners(sess=sess)
-
 				if FLAGS.pretraining:
 					for assign_op in assign_ops:
 						sess.run(assign_op)
@@ -305,12 +291,26 @@ def train():
 				max_acc = 0
 				for i in range(int(FLAGS.max_epochs * training_steps)):
 					# ------------ TRAIN -------------
+					train_images, train_labels = dataset.Training.next_batch(FLAGS.batch_size, bases3d=FLAGS.bases3d)
+
+					training_batch_queue = tf.contrib.slim.prefetch_queue.prefetch_queue(
+								[train_images, train_labels], capacity=2 * NUM_GPUS)
+					
+					
+					# Start the queue runners.
+					tf.train.start_queue_runners(sess=sess)
+					
 					_, loss_value = sess.run([train_op, loss], feed_dict=feed_dict(0))
 
 					assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
 
 					if i % (FLAGS.eval_freq * training_steps) == 0 or i == int(FLAGS.max_epochs * training_steps):
 						# ------------ VALIDATON -------------
+						val_images, val_labels = dataset.Validation.next_batch(FLAGS.batch_size, bases3d=FLAGS.bases3d)
+						
+						validation_batch_queue = tf.contrib.slim.prefetch_queue.prefetch_queue(
+								[val_images, val_labels], capacity=2 * NUM_GPUS)
+						
 						tot_acc = 0.0
 						tot_loss = 0.0
 						steps = int(math.floor(dataset.Validation.num_examples/FLAGS.batch_size))
