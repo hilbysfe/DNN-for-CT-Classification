@@ -6,7 +6,7 @@ os.system("python train_model.py \
 	--batch_size 32 \
 	--pretraining False \
 	--xvalidation_folds 5 \
-	--normalization True \
+	--normalization False \
 	--batch_normalization False \
 \
 	--sigmas 1.5 \

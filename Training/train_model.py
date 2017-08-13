@@ -10,6 +10,7 @@ import numpy as np
 import math
 import shutil
 import pickle
+from six.moves import xrange
 
 
 from Utils import utils
@@ -34,6 +35,8 @@ MODEL_DEFAULT = 'RFNN_2d'
 
 CHECKPOINT_DIR_DEFAULT = './checkpoints'
 LOG_DIR_DEFAULT = './logs/'
+
+NUM_GPUS = 4
 
 
 def get_kernels():
@@ -63,7 +66,7 @@ def accuracy_function(logits, labels):
 	return accuracy, correct_prediction, softmax
 
 
-def loss_function(logits, labels, scope):
+def tower_loss(logits, labels, scope):
 	with tf.variable_scope('Losses'):
 		with tf.name_scope('Cross_Entropy_Loss'):
 			cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels, name='cross_entropy_per_example')
@@ -74,209 +77,274 @@ def loss_function(logits, labels, scope):
 			tf.summary.scalar('total_loss', total_loss)
 	return total_loss
 
+def average_gradients(tower_grads):
+	
+	average_grads = []
+	for grad_and_vars in zip(*tower_grads):
+		# Note that each grad_and_vars looks like the following:
+		#   ((grad0_gpu0, var0_gpu0), ... , (grad0_gpuN, var0_gpuN))
+		grads = []
+		for g, _ in grad_and_vars:
+			# Add 0 dimension to the gradients to represent the tower.
+			expanded_g = tf.expand_dims(g, 0)
 
-def train_step(total_loss, global_step):
-	# decay_steps = 5*20
-	# LEARNING_RATE_DECAY_FACTOR = 0.5
+			# Append on a 'tower' dimension which we will average over below.
+			grads.append(expanded_g)
 
-	# # Decay the learning rate exponentially based on the number of steps.
-	# lr = tf.train.exponential_decay(FLAGS.learning_rate,
-	# global_step,
-	# decay_steps,
-	# LEARNING_RATE_DECAY_FACTOR,
-	# staircase=True)
-	# tf.summary.scalar('learning_rate', lr)
-	# train_op = tf.train.AdamOptimizer(FLAGS.learning_rate, epsilon=1e-4).minimize(loss)
-	# train_op = tf.train.GradientDescentOptimizer(FLAGS.learning_rate).minimize(loss)
+		# Average over the 'tower' dimension.
+		grad = tf.concat(axis=0, values=grads)
+		grad = tf.reduce_mean(grad, 0)
 
+		# Keep in mind that the Variables are redundant because they are shared
+		# across towers. So .. we will just return the first tower's pointer to
+		# the Variable.
+		v = grad_and_vars[0][1]
+		grad_and_var = (grad, v)
+		average_grads.append(grad_and_var)
 
-	# Generate moving averages of all losses and associated summaries.
-	loss_averages_op = utils._add_loss_summaries(total_loss)
-
-	# Compute gradients.
-	with tf.control_dependencies([loss_averages_op]):
-		opt = tf.train.GradientDescentOptimizer(FLAGS.learning_rate)
-		grads = opt.compute_gradients(total_loss)
-
-	# Apply gradients.
-	apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
-
-	# Add histograms for trainable variables.
-	for var in tf.trainable_variables():
-		tf.summary.histogram(var.op.name, var)
-
-	# Add histograms for gradients.
-	for grad, var in grads:
-		if grad is not None:
-			tf.summary.histogram(var.op.name + '/gradients', grad)
-
-	# Track the moving averages of all trainable variables.
-	variable_averages = tf.train.ExponentialMovingAverage(0.9999, global_step)
-	variables_averages_op = variable_averages.apply(tf.trainable_variables())
-
-	with tf.control_dependencies([apply_gradient_op, variables_averages_op]):
-		train_op = tf.no_op(name='train')
-
-	return train_op
-
+	return average_grads
 
 def train():
 	# Set the random seeds for reproducibility. DO NOT CHANGE.
 	tf.set_random_seed(42)
-	global_step = tf.contrib.framework.get_or_create_global_step()
+	with tf.Graph().as_default(), tf.device('/cpu:0'):
+		global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), trainable=False)
 
-	# ====== DEFINE FEED_DICTIONARY ======
-	def feed_dict(flag):
-		if flag == 0:
-			xs, ys = dataset.Training.next_batch(FLAGS.batch_size, bases3d=FLAGS.bases3d)
-		else:
-			if flag == 1:
-				xs, ys = dataset.Validation.next_batch(FLAGS.batch_size, bases3d=FLAGS.bases3d)
+		# ====== LOAD DATASET ======
+		print('Loading Dataset...')
+
+		with open(FLAGS.trainingpath, 'rb') as handle:
+		    training_points = pickle.load(handle)
+		with open(FLAGS.testpath, 'rb') as handle:
+		    test_points = pickle.load(handle)
+
+		dataset = utils.DataSet(np.array(list(training_points.keys())), np.array(list(training_points.values())),
+					np.array(list(test_points.keys())), np.array(list(test_points.values())),
+					cross_validation_folds=FLAGS.xvalidation_folds,
+					normalize = FLAGS.normalization)
+		
+		train_images, train_labels = dataset.Training.next_batch(dataset.Training.num_examples, bases3d=FLAGS.bases3d)
+		val_images, val_labels = dataset.Validation.next_batch(dataset.Validation.num_examples, bases3d=FLAGS.bases3d)
+		test_images, test_labels = dataset.Test.next_batch(dataset.Test.num_examples, bases3d=FLAGS.bases3d)
+
+		training_batch_queue = tf.contrib.slim.prefetch_queue.prefetch_queue(
+					[train_images, train_labels], capacity=2 * NUM_GPUS)
+		validation_batch_queue = tf.contrib.slim.prefetch_queue.prefetch_queue(
+					[val_images, val_labels], capacity=2 * NUM_GPUS)
+		test_batch_queue = tf.contrib.slim.prefetch_queue.prefetch_queue(
+					[test_images, test_labels], capacity=2 * NUM_GPUS)
+
+		print('Loading Dataset...done.')
+
+		# ====== DEFINE SPACEHOLDERS ======
+		with tf.name_scope('input'):
+			if FLAGS.bases3d:
+				x = tf.placeholder(tf.float16, [None, 512, 512, 30, 1], name='x-input')
 			else:
-				xs, ys = dataset.Test.next_batch(dataset.Test.num_examples, bases3d=FLAGS.bases3d)
-		return {x: xs, y_: ys, is_training: flag == 0}
+				x = tf.placeholder(tf.float16, [None, 512, 512, 30], name='x-input')
+			y = tf.placeholder(tf.float16, [None, 2], name='y-input')
+			is_training = tf.placeholder(tf.bool, name='is-training')
 
-	# ====== LOAD DATASET ======
-	print('Loading Dataset...')
-	with open(FLAGS.trainingpath, 'rb') as handle:
-	    training_points = pickle.load(handle)
-	with open(FLAGS.testpath, 'rb') as handle:
-	    test_points = pickle.load(handle)
 
-	dataset = utils.DataSet(np.array(list(training_points.keys())), np.array(list(training_points.values())),
-				np.array(list(test_points.keys())), np.array(list(test_points.values())),
-				cross_validation_folds=FLAGS.xvalidation_folds,
-				normalize = FLAGS.normalization)
-	print('Loading Dataset...done.')
+		# ====== DEFINE FEED_DICTIONARY ======
+		def feed_dict(flag):
+			if flag == 0:
+				xs, ys = training_batch_queue.dequeue()
+			else:
+				if flag == 1:
+					xs, ys = validation_batch_queue.dequeue()
+				else:
+					xs, ys = test_batch_queue.dequeue()
+			return {x: xs, y: ys, is_training: flag == 0}
 
-	# ====== DEFINE SPACEHOLDERS ======
-	with tf.name_scope('input'):
-		if FLAGS.bases3d:
-			x = tf.placeholder(tf.float16, [None, 512, 512, 30, 1], name='x-input')
-		else:
-			x = tf.placeholder(tf.float16, [None, 512, 512, 30], name='x-input')
-		y_ = tf.placeholder(tf.float16, [None, 2], name='y-input')
-		is_training = tf.placeholder(tf.bool, name='is-training')
 
-	# ====== MODEL DEFINITION ======
-	print('Defining model...')
+		# ====== MODEL DEFINITION ======
+		print('Defining model...')
 
-	sigmas = [float(x) for x in FLAGS.sigmas.split(',')]
-	kernels = [int(x) for x in FLAGS.kernels.split(',')]
-	maps = [int(x) for x in FLAGS.maps.split(',')]
-	bases = [int(x) for x in FLAGS.bases.split(',')]
-	model = RFNN(
-		n_classes=2,
-		kernels=kernels,
-		maps=maps,
-		sigmas=sigmas,
-		bases=bases,
-		bases_3d=FLAGS.bases3d,
-		is_training=is_training,
-		batchnorm=FLAGS.batch_normalization
-	)
+		sigmas = [float(x) for x in FLAGS.sigmas.split(',')]
+		kernels = [int(x) for x in FLAGS.kernels.split(',')]
+		maps = [int(x) for x in FLAGS.maps.split(',')]
+		bases = [int(x) for x in FLAGS.bases.split(',')]
 
-	print('Defining model...done.')
+		model = RFNN(
+			n_classes=2,
+			kernels=kernels,
+			maps=maps,
+			sigmas=sigmas,
+			bases=bases,
+			bases_3d=FLAGS.bases3d,
+			is_training=is_training,
+			batchnorm=FLAGS.batch_normalization
+		)
 
-	# ====== UNSUPERVISED PRE-TRAINING ======
-	if FLAGS.pretraining:
-		print('Pre-training model...')
+		print('Defining model...done.')
 
-		network_architecture = \
-			{
-				'Conv_kernels': kernels,
-				'Conv_maps': maps
-			}
-		ae = Autoencoder(network_architecture)
+		# ====== DEFINE LOSS, ACCURACY TENSORS ======
+		print('Defining necessary OPs...')
 
-		assign_ops, net = ae.load_weights(x, FLAGS.pretrained_weights_path, FLAGS.pretrained_biases_path, is_training)
+		# Create an optimizer that performs gradient descent.
+		opt = tf.train.GradientDescentOptimizer(FLAGS.learning_rate)
 
-		# Calculate predictions
-		logits = model.inference(net)
+		# Calculate the gradients for each model tower.
+		tower_grads = []
+		with tf.variable_scope(tf.get_variable_scope()):
+			for i in xrange(NUM_GPUS):
+				with tf.device('/gpu:%d' % i):
+					with tf.name_scope('%s_%d' % ('tower', i)) as scope:
 
-		print('Pre-training model...done.')
-	else:
-		# Calculate predictions
-		logits = model.inference(x)
+						# ====== INFERENCE ======
+						if FLAGS.pretraining:
+							print('Pre-training model...')
 
-	# ====== DEFINE LOSS, ACCURACY TENSORS ======
-	print('Defining necessary OPs...')
-	loss = loss_function(logits, y_)
-	accuracy, prediction, scores = accuracy_function(logits, y_)
+							network_architecture = \
+								{
+									'Conv_kernels': kernels,
+									'Conv_maps': maps
+								}
+							ae = Autoencoder(network_architecture)
 
-	# Call optimizer
-	train_op = train_step(loss, global_step)
+							assign_ops, net = ae.load_weights(x, FLAGS.pretrained_weights_path, FLAGS.pretrained_biases_path, is_training)
 
-	# Create a saver.
-	# saver = tf.train.Saver(tf.all_variables())
+							# Calculate predictions
+							logits = model.inference(net)
 
-	# Merge all the summaries and write them out to log
-	merged = tf.summary.merge_all()
+							print('Pre-training model...done.')
+						else:
+							# Calculate predictions
+							logits = model.inference(image_batch)
 
-	# Print initial kernels
-	# alphas_tensor, kernels_tensor = get_kernels()	
-	# alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])		
-	# np.save('./Kernels/kernel_0.npy', kernels_array)
-	# np.save('./Kernels/alphas_0.npy', alphas)
+						loss = tower_loss(logits, label_batch, scope)
+						# accuracy, prediction, scores = tower_accuracy(logits, label_batch, scope)
 
-	print('Defining necessary OPs...done.')
+						# Reuse variables for the next tower.
+						tf.get_variable_scope().reuse_variables()
+						
+						# Retain the summaries from the final tower.
+						summaries = tf.get_collection(tf.GraphKeys.SUMMARIES, scope)
 
-	# Train
-	training_steps = int(dataset.Training.num_examples / FLAGS.batch_size)
-	# ====== DEFINE SESSION AND OPTIMIZE ======
-	config = tf.ConfigProto(allow_soft_placement=True)
-	config.gpu_options.allow_growth = True
-	with tf.Session(config=config) as sess:
-		print('Training model...')
-		for f in range(FLAGS.xvalidation_folds):
-			tf.global_variables_initializer().run()
+						# Calculate the gradients for the batch of data on this CIFAR tower.
+						grads = opt.compute_gradients(loss)
 
-			if FLAGS.pretraining:
-				for assign_op in assign_ops:
-					sess.run(assign_op)
-					
-			train_writer = tf.summary.FileWriter(FLAGS.log_dir + '/train/' + str(f), sess.graph)
-			test_writer = tf.summary.FileWriter(FLAGS.log_dir + '/test'  + str(f))
+						# Keep track of the gradients across all towers.
+						tower_grads.append(grads)
+		
+		# Calculate the mean of each gradient - synchronization point across towers.
+		grads = average_gradients(tower_grads)
 
-			max_acc = 0
-			for i in range(int(FLAGS.max_epochs * training_steps)):
-				# ------------ TRAIN -------------
-				_ = sess.run([train_op], feed_dict=feed_dict(0))
-				if i % (FLAGS.eval_freq * training_steps) == 0 or i == int(FLAGS.max_epochs * training_steps):
-					# ------------ VALIDATON -------------
-					tot_acc = 0.0
-					tot_loss = 0.0
-					steps = int(math.floor(dataset.Validation.num_examples/FLAGS.batch_size))
-					for step in range(steps):
-						acc_s, loss_s = sess.run([accuracy, loss], feed_dict=feed_dict(1))
-						tot_acc += (acc_s / steps)
-						tot_loss += (loss_s / steps)
-							
-					# Create a new Summary object with your measure
-					summary = tf.Summary()
-					summary.value.add(tag="Accuracy", simple_value=tot_acc)
-					summary.value.add(tag="Loss", simple_value=tot_loss)
+		print('Defining necessary OPs...done.')
+
+		# ====== ADD SUMMARIES ======
+
+		# Gradients
+		for grad, var in grads:
+			if grad is not None:
+				summaries.append(tf.summary.histogram(var.op.name + '/gradients', grad))	
+	
+		# Trainable variables
+		for var in tf.trainable_variables():
+			summaries.append(tf.summary.histogram(var.op.name, var))
+
+
+		# Print initial kernels
+		# alphas_tensor, kernels_tensor = get_kernels()	
+		# alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])		
+		# np.save('./Kernels/kernel_0.npy', kernels_array)
+		# np.save('./Kernels/alphas_0.npy', alphas)
+
+		# ====== UPDATE VARIABLES ======
+
+		print('Defining update OPs...')
+
+		# Apply the gradients to adjust the shared variables.
+		apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
+
+		# Track the moving averages of all trainable variables.
+		variable_averages = tf.train.ExponentialMovingAverage(
+					0.9999, global_step)
+		variables_averages_op = variable_averages.apply(tf.trainable_variables())
+
+		# Group all updates into a single train op.
+		train_op = tf.group(apply_gradient_op, variables_averages_op)
+
+		print('Defining update OPs...done.')
+
+		# ====== SAVING OPS ======
+
+		# Create a saver.
+		saver = tf.train.Saver(tf.global_variables())
+
+		# Build the summary operation from the last tower summaries.
+		summary_op = tf.summary.merge(summaries)
+
+		# Build an initialization operation to run below.
+		init = tf.global_variables_initializer()
+
+		# Train
+		training_steps = int(dataset.Training.num_examples / FLAGS.batch_size)
+		# ====== DEFINE SESSION AND OPTIMIZE ======
+		config = tf.ConfigProto(allow_soft_placement=True)
+#		config.gpu_options.allow_growth = True
+
+		with tf.Session(config=config) as sess:
+
+			print('Training model...')
+
+			for f in range(FLAGS.xvalidation_folds):
+				sess.run(tf.global_variables_initializer())
 				
-					test_writer.add_summary(summary, i)
+				# Start the queue runners.
+				tf.train.start_queue_runners(sess=sess)
 
-					if tot_acc > max_acc:
-						max_acc = tot_acc
-					print('Validation accuracy at step %s: %s' % (i, tot_acc))
+				if FLAGS.pretraining:
+					for assign_op in assign_ops:
+						sess.run(assign_op)
+					
+				train_writer = tf.summary.FileWriter(FLAGS.log_dir + '/train/' + str(f), sess.graph)
+				test_writer = tf.summary.FileWriter(FLAGS.log_dir + '/test'  + str(f))
 
-				if i % (FLAGS.print_freq * training_steps) == 0:
-					# ------------ PRINT -------------
-					summary = sess.run(merged, feed_dict=feed_dict(0))
-					train_writer.add_summary(summary, i)
+				max_acc = 0
+				for i in range(int(FLAGS.max_epochs * training_steps)):
+					# ------------ TRAIN -------------
+					_, loss_value = sess.run([train_op, loss], feed_dict=feed_dict(0))
 
-				# if i % FLAGS.checkpoint_freq == 0: # or i == FLAGS.max_steps:
-				# checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'model.ckpt')
-				# saver.save(sess, checkpoint_path, global_step=i)
+					assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
 
-			train_writer.close()
-			test_writer.close()
-			print('Max validation accuracy in fold %s: %s' % (f,max_acc))
+					if i % (FLAGS.eval_freq * training_steps) == 0 or i == int(FLAGS.max_epochs * training_steps):
+						# ------------ VALIDATON -------------
+						tot_acc = 0.0
+						tot_loss = 0.0
+						steps = int(math.floor(dataset.Validation.num_examples/FLAGS.batch_size))
+						for step in range(steps):
+							acc_s, loss_s = sess.run([accuracy, loss], feed_dict=feed_dict(1))
+							
+							tot_acc += (acc_s / steps)
+							tot_loss += (loss_s / steps)
+							
+						# Create a new Summary object with your measure
+						summary = tf.Summary()
+						summary.value.add(tag="Accuracy", simple_value=tot_acc)
+						summary.value.add(tag="Loss", simple_value=tot_loss)
+				
+						test_writer.add_summary(summary, i)
+
+						if tot_acc > max_acc:
+							max_acc = tot_acc
+						print('Validation accuracy at step %s: %s' % (i, tot_acc))
+
+					if i % (FLAGS.print_freq * training_steps) == 0:
+						# ------------ PRINT -------------
+						summary = sess.run(summary_op, feed_dict=feed_dict(0))
+						train_writer.add_summary(summary, i)
+
+					# if i % FLAGS.checkpoint_freq == 0: # or i == FLAGS.max_steps:
+					# checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'model.ckpt')
+					# saver.save(sess, checkpoint_path, global_step=i)
+
+				train_writer.close()
+				test_writer.close()
+				print('Max validation accuracy in fold %s: %s' % (f,max_acc))
 			
-			dataset.next_fold()
+				dataset.next_fold()
 
 
 

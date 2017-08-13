@@ -93,8 +93,8 @@ class Autoencoder(object):
 			with tf.variable_scope('Encoder'):
 				net = x
 				for i, (kernel, map, strides) in enumerate(zip(self.network_architecture['Conv_kernels'],
-															   self.network_architecture['Conv_maps'],
-															   self.network_architecture['Conv_strides'])):
+										   self.network_architecture['Conv_maps'],
+										   self.network_architecture['Conv_strides'])):
 					with tf.variable_scope('ConvLayer'+str(i+1)):
 						if self.rfnn:
 							alphas, bias, net, k = _rfnn_conv_layer_2d(
