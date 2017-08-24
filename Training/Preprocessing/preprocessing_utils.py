@@ -4,6 +4,23 @@ import os
 from datetime import datetime
 import shutil
 from multiprocessing import Pool
+import scipy.ndimage
+
+
+def resample(data, image, new_spacing=[1,1,1]):
+    # Determine current pixel spacing
+    spacing = np.array([GetSliceThickness(image)] + GetPixelSpacing(image), dtype=np.float32)
+
+    resize_factor = spacing / new_spacing
+    new_real_shape = data.shape * resize_factor
+    new_shape = np.round(new_real_shape)
+    real_resize_factor = new_shape / data.shape
+    new_spacing = spacing / real_resize_factor
+    
+    image = scipy.ndimage.interpolation.zoom(data, real_resize_factor, mode='nearest')
+    
+    return image, new_spacing
+
 
 
 def resample_image(file_in, file_out):
@@ -263,7 +280,6 @@ def SelectBySliceThickness(rootSource, rootTarget, thickness):
 	""""
 	Copies heads only from the thinnest series below the given thickness
 	"""
-
 	patients = os.listdir(rootSource)
 	for patient in patients:
 		if os.path.exists(os.path.join(rootTarget, patient)):
@@ -457,7 +473,6 @@ def MIP_DICOM(patient):
 
 
 def MIP_MHA(patient):
-
 	if not os.path.exists(os.path.join(rootTarget, patient)):
 		try:
 			# Load image
