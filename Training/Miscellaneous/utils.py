@@ -228,7 +228,7 @@ class DataSet(object):
             self._fold_size = len(training_labels)/cross_validation_folds
             images_0 = training_images[np.where(training_labels==0)[0]]
             images_1 = training_images[np.where(training_labels==1)[0]]
-            labels_0 = np.array([ np.ndarray((2,), buffer=np.array([0, 1]), dtype=int) for i in range(len(images_0)) ])
+            labels_0 = np.array([ np.ndarray((2,), buffer=np.array([0, 0]), dtype=int) for i in range(len(images_0)) ])
             labels_1 = np.array([ np.ndarray((2,), buffer=np.array([1, 0]), dtype=int) for i in range(len(images_0)) ])
             self._image_folds = []
             self._label_folds = []
@@ -432,6 +432,7 @@ class SubSet(object):
         if self.Normalization:
             return normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(image_path))) - self._mean
         else:
-            return normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(image_path)))
+            data = sitk.GetArrayFromImage(sitk.ReadImage(image_path))
+            return data
 
 

@@ -14,7 +14,7 @@ import pickle as pickle
 from tensorflow.contrib.learn.python.learn.datasets import base
 
 # Default paths for downloading CIFAR10 data
-CIFAR10_FOLDER = 'cifar10/cifar-10-batches-py'
+CIFAR10_FOLDER = '/home/nicolab/Downloads/cifar-10-batches-py'
 
 def load_cifar10_batch(batch_filename):
   """
@@ -94,14 +94,17 @@ def preprocess_cifar10_data(X_train_raw, Y_train_raw, X_test_raw, Y_test_raw):
   X_test = X_test_raw.copy()
   Y_test = Y_test_raw.copy()
 
-  X_train = np.array([np.divide(x,255.0) for x in X_train])
-  X_test = np.array([np.divide(x,255.0) for x in X_test])
+  X_train = np.array([np.divide(x, 255.0) for x in X_train])
+  X_test = np.array([np.divide(x, 255.0) for x in X_test])
   
   # Substract the mean
-  # mean_image = np.mean(X_train, axis=0)
-  # std_image = np.std(X_train, axis=0)
-  # X_train = np.array([np.divide(x - mean_image, std_image) for x in X_train])
-  # X_test = np.array([np.divide(x - mean_image, std_image) for x in X_test])
+  mean = np.mean(X_train)
+
+#  std_image = np.std(X_train, axis=0)
+#  X_train = np.array([np.divide(x - mean_image, std_image) for x in X_train])
+#  X_test = np.array([np.divide(x - mean_image, std_image) for x in X_test])
+  X_train = np.array([(x - mean) for x in X_train])
+  X_test = np.array([x - mean for x in X_test])
 
   return X_train, Y_train, X_test, Y_test
 

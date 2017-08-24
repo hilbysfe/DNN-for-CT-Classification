@@ -251,10 +251,10 @@ def batch_norm_wrapper(inputs, is_training, is_conv, decay = 0.999):
 	
 	epsilon = 1e-3
 	
-	scale = tf.Variable(tf.ones([inputs.get_shape()[-1]]))
-	beta = tf.Variable(tf.zeros([inputs.get_shape()[-1]]))
-	pop_mean = tf.Variable(tf.zeros([inputs.get_shape()[-1]]), trainable=False)
-	pop_var = tf.Variable(tf.ones([inputs.get_shape()[-1]]), trainable=False)
+	scale = tf.get_variable(name='scale', initializer=tf.constant_initializer(1.0), shape=[inputs.get_shape()[-1]], dtype=tf.float32)
+	beta = tf.get_variable(name='beta', initializer=tf.constant_initializer(0.0), shape=[inputs.get_shape()[-1]], dtype=tf.float32)
+	pop_mean = tf.get_variable(name='pop_mean', initializer=tf.constant_initializer(0.0), shape=[inputs.get_shape()[-1]], trainable=False, dtype=tf.float32)
+	pop_var = tf.get_variable(name='pop_var', initializer=tf.constant_initializer(1.0), shape=[inputs.get_shape()[-1]], trainable=False, dtype=tf.float32)
 
 	def train_case():
 		if is_conv:
@@ -273,5 +273,5 @@ def batch_norm_wrapper(inputs, is_training, is_conv, decay = 0.999):
 		return tf.nn.batch_normalization(inputs,
 			pop_mean, pop_var, beta, scale, epsilon)
 			
-	return tf.cond(is_training, train_case, test_case)
+	return tf.cond(is_training, train_case, test_case, name='Bnorm')
 	
