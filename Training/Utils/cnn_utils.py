@@ -28,24 +28,21 @@ def _conv_layer_2d(input, shape, strides, padding, is_training, bnorm=False):
 		
 	conv_out = tf.nn.relu(conv, name='Activation')
 		
-	# with tf.variable_scope(name + '/visualization'):
-		# # scale weights to [0 1], type is still float
-		# kernel_avg = tf.reduce_mean(kernel, axis=2)
-		# x_min = tf.reduce_min(kernel_avg)
-		# x_max = tf.reduce_max(kernel_avg)
-		# kernel_0_to_1 = (kernel_avg - x_min) / (x_max - x_min)
+	with tf.variable_scope('/visualization'):
+		# scale weights to [0 1], type is still float
+		kernel_avg = tf.reduce_mean(kernel, axis=2)
+		x_min = tf.reduce_min(kernel_avg)
+		x_max = tf.reduce_max(kernel_avg)
+		kernel_0_to_1 = (kernel_avg - x_min) / (x_max - x_min)
 		
-		# # to tf.image_summary format [batch_size, height, width, channels]
-		# kernel_transposed = tf.transpose(kernel_0_to_1, [2, 0, 1])
-		# kernel_transposed = tf.expand_dims(kernel_transposed, axis=3)
-		# batch = kernel_transposed.get_shape()[0].value
+		# to tf.image_summary format [batch_size, height, width, channels]
+		kernel_transposed = tf.transpose(kernel_0_to_1, [2, 0, 1])
+		kernel_transposed = tf.expand_dims(kernel_transposed, axis=3)
+		batch = kernel_transposed.get_shape()[0].value
 					
-		# tf.summary.image('/filters', kernel_transposed, max_outputs=batch)			
+		tf.summary.image('/filters', kernel_transposed, max_outputs=batch)			
 	
-	if bnorm:
-		return conv_out, kernel
-	else:
-		return conv_out, kernel, biases
+		return conv_out
 
 def _conv_layer_2d_with_kernel(input, kernel, strides, padding, is_training, name, bnorm=False):
 	# No bias when BN

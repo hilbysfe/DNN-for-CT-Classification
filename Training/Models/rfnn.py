@@ -131,7 +131,7 @@ class RFNN(object):
 			pyx = tf.reshape(net, [-1, dim])
 		print(pyx.get_shape())	
 		
-		return pyx, layer1, layer2, layer3
+		return pyx
 		
 		
 		

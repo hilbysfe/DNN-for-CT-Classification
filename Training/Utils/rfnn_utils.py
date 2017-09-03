@@ -58,6 +58,21 @@ def _rfnn_conv_layer_2d(input, basis, omaps, strides, padding, is_training, bnor
 		
 		kernels.append(kernel)
 		outputs.append(conv_out)
+        
+		with tf.variable_scope('sigma%d' %i):
+			# scale weights to [0 1], type is still float
+			kernel_avg = tf.reduce_mean(kernel, axis=2)
+			x_min = tf.reduce_min(kernel_avg)
+			x_max = tf.reduce_max(kernel_avg)
+			kernel_0_to_1 = (kernel_avg - x_min) / (x_max - x_min)
+
+			# to tf.image_summary format [batch_size, height, width, channels]
+			kernel_transposed = tf.transpose(kernel_0_to_1, [2, 0, 1])
+			kernel_transposed = tf.expand_dims(kernel_transposed, axis=3)
+			batch = kernel_transposed.get_shape()[0].value
+
+			tf.summary.image('filters', kernel_transposed, max_outputs=batch)			
+
 	
 	return alphas, outputs, kernels
 	

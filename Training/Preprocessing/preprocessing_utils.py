@@ -522,27 +522,30 @@ def MIP_MHA(patient):
 		except:
 			print(patient + ' failed.')
 
-def DICOM2MHA(rootSource, rootTarget):
+def DICOM2MHA(patient, rootSource, rootTarget):
+    # Read image
+    DicomFolder = CollectDICOMFolders(os.path.join(rootSource, patient))
+    if len(DicomFolder.keys()) != 1:
+        print(patient + ' failed.')
+        return
+
+    for f in DicomFolder.keys():
+        reader = sitk.ImageSeriesReader()
+        series_found = reader.GetGDCMSeriesIDs(f)
+        if len(series_found) != 1:
+            print(patient + ' more series found.')
+        filenames = reader.GetGDCMSeriesFileNames(f, series_found[0])
+        reader.SetFileNames(filenames)
+        input_image = reader.Execute()
+
+        # Write image
+        if not os._exists(os.path.join(rootTarget, patient)):
+            os.makedirs(os.path.join(rootTarget, patient))
+        sitk.WriteImage(input_image, os.path.join(rootTarget, patient, patient + '.mha'))
+
+        print(patient + ' done.')
+            
+def DICOM2MHA_ALL(rootSource, rootTarget):
 	patients = os.listdir(rootSource)
-	for patient in patients:
-		# Read image
-		DicomFolder = preprocessing_utils.CollectDICOMFolders(os.path.join(rootSource, patient))
-		if len(DicomFolder.keys()) != 1:
-			print(patient + ' failed.')
-			continue
-		for f in DicomFolder.keys():
-			reader = sitk.ImageSeriesReader()
-			series_found = reader.GetGDCMSeriesIDs(f)
-			if len(series_found) != 1:
-				print(patient + ' more series found.')
-			filenames = reader.GetGDCMSeriesFileNames(f, series_found[0])
-			reader.SetFileNames(filenames)
-			input_image = reader.Execute()
-
-			# Write image
-			if not os._exists(os.path.join(rootTarget, patient)):
-				os.makedirs(os.path.join(rootTarget, patient))
-			sitk.WriteImage(input_image, os.path.join(rootTarget, patient, patient + '.mha'))
-
-			print(patient + ' done.')
-
+	with Pool() as p:
+		p.starmap(DICOM2MHA, zip(patients, np.repeat(rootSource, len(patients)), np.repeat(rootTarget, len(patients))))

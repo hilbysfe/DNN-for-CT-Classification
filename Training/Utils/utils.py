@@ -433,5 +433,3 @@ class SubSet(object):
             return normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(image_path))) - self._mean
         else:
             return normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(image_path)))
-
-
