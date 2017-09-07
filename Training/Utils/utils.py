@@ -409,9 +409,10 @@ class SubSet(object):
 
         end = self._index_in_epoch
 
-        image_batch = np.array([ self.getImageArray(image_path) for image_path in self._images[start:end]])
+#        image_batch = np.array([ self.getImageArray(image_path) for image_path in self._images[start:end]])
         label_batch = self._labels[start:end]
-
+        image_batch = np.array([ np.zeros((30,512,512)) if t[0]==0 else np.ones((30,512,512)) for t in label_batch])
+        
         image_batch = np.swapaxes(image_batch, 1, 2)
         image_batch = np.swapaxes(image_batch, 2, 3)
 
