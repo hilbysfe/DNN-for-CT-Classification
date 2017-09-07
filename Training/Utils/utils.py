@@ -9,8 +9,8 @@ import pickle
 import tensorflow as tf
 import re
 
-MIN_BOUND = -1000.0
-MAX_BOUND = 400.0
+MIN_BOUND = 0.0
+MAX_BOUND = 200.0
 
 def _add_loss_summaries(total_loss):
 
