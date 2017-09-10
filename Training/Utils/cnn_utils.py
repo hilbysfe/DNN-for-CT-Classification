@@ -35,12 +35,16 @@ def _conv_layer_2d(input, shape, strides, padding, is_training, bnorm=False):
 		x_max = tf.reduce_max(kernel_avg)
 		kernel_0_to_1 = (kernel_avg - x_min) / (x_max - x_min)
 		
-		# to tf.image_summary format [batch_size, height, width, channels]
+		# to tf.image_summary format [channels, height, width]
 		kernel_transposed = tf.transpose(kernel_0_to_1, [2, 0, 1])
 		kernel_transposed = tf.expand_dims(kernel_transposed, axis=3)
-		batch = kernel_transposed.get_shape()[0].value
+		channels = kernel_transposed.get_shape()[0].value
 					
-		tf.summary.image('/filters', kernel_transposed, max_outputs=batch)			
+		tf.summary.image('filters', kernel_transposed, max_outputs=channels)
+        
+		conv_transposed = tf.transpose(conv_out[0], [2, 0, 1])
+		conv_transposed = tf.expand_dims(conv_transposed, axis=3)
+		tf.summary.image('activation', conv_transposed, max_outputs=channels)
 	
 		return conv_out
 
