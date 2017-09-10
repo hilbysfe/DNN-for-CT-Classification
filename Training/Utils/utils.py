@@ -252,8 +252,8 @@ class DataSet(object):
             validation_imgset1 = self._image1_folds[self._current_fold]
             validation_labelset1 = self._label1_folds[self._current_fold]
             
-            self._Training = SubSet(training_imgset0, training_imgset1, training_labelset0, training_labelset1)
-            self._Validation = SubSet(validation_imgset0, validation_imgset1, validation_labelset0, validation_labelset1)
+            self._Training = SubSet(training_imgset0[:20], training_imgset1[:20], training_labelset0[:20], training_labelset1[:20])
+            self._Validation = SubSet(validation_imgset0[:20], validation_imgset1[:20], validation_labelset0[:20], validation_labelset1[:20])
             print('Creating folds...done.')
 
             if normalize:
@@ -394,9 +394,13 @@ class SubSet(object):
         perm = np.arange(batch_size)
         np.random.shuffle(perm)
         
-#        image_batch = np.array([ self.getImageArray(image_path) for image_path in self._images[start:end]])
+        
         label_batch = np.concatenate( (self._labels0[start:end], self._labels1[start:end]) )[perm]
-        image_batch = np.array([ np.zeros((30,512,512)) if t[0]==0 else np.ones((30,512,512)) for t in label_batch])
+        image_batch = np.array(
+            [ self.getImageArray(image0) for image0 in self._images0[start:end]] + 
+            [ self.getImageArray(image1) for image1 in self._images1[start:end]]
+        )[perm]
+#       image_batch = np.array([ np.zeros((30,512,512)) if t[0]==0 else np.ones((30,512,512)) for t in label_batch])
         
         image_batch = np.swapaxes(image_batch, 1, 2)
         image_batch = np.swapaxes(image_batch, 2, 3)
@@ -418,4 +422,6 @@ class SubSet(object):
         if self.Normalization:
             return normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(image_path))) - self._mean
         else:
-            return normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(image_path)))
+            sl = normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(image_path)))[11,:,:]
+            sl = np.expand_dims(sl, axis=0)
+            return np.repeat(sl, 3, axis=0)

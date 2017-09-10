@@ -10,6 +10,7 @@ from Models.ae import Autoencoder
 from Utils.cnn_utils import batch_norm_wrapper
 from Utils.cnn_utils import _conv_layer_2d
 from Utils.cnn_utils import _conv_layer_3d
+from Utils.cnn_utils import _softmax_layer
 
 
 CHECKPOINT_PATH = './ae_models/model.ckpt.meta'
@@ -94,17 +95,28 @@ class CTNET(object):
 				# keep_prob = tf.select(self.is_training, 1-self.dropout_rate_conv, 1)
 				# net = tf.nn.dropout(net, keep_prob)
 		
-							
-		# ==== AVG Pooling ====		
-		k = net.get_shape()[1].value
-		net = tf.nn.avg_pool(net, ksize=[1,k,k,1], strides=[1,1,1,1], padding="VALID")
+		fshape = net.get_shape()
+		dim = fshape[1].value*fshape[2].value*fshape[3].value
+		net = tf.reshape(net, [-1, dim], name='Activation')
+		
 		print(net.get_shape())
 		
+		pyx = _softmax_layer(
+				input=net,
+				shape=[dim, self.n_classes]
+		)
+		
+		# ==== AVG Pooling ====		
+		# k = net.get_shape()[1].value
+		# net = tf.nn.avg_pool(net, ksize=[1,k,k,1], strides=[1,1,1,1], padding="VALID")
+		
+		
 		# ==== Flatten ====		
-		with tf.variable_scope('Flatten'):
-			fshape = net.get_shape()
-			dim = fshape[1].value*fshape[2].value*fshape[3].value
-			pyx = tf.reshape(net, [-1, dim])
+		# with tf.variable_scope('Flatten'):
+		#	fshape = net.get_shape()
+		#	dim = fshape[1].value*fshape[2].value*fshape[3].value
+		#	pyx = tf.reshape(net, [-1, dim])
+		
 		print(pyx.get_shape())			
 		
 		return pyx
