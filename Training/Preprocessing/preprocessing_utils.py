@@ -26,7 +26,7 @@ def resample(data, image, new_spacing=[1,1,1]):
 def resample_image(file_in, file_out):
 	if not os.path.exists(os.path.dirname(file_out)):
 		os.makedirs(os.path.dirname(file_out))
-	os.system("c3d %s -resample 512x512x30 -o %s" %(file_in, file_out))
+	os.system("/home/nicolab/Downloads/c3d-1.0.0-Linux-x86_64/bin/c3d %s -resample 512x512x30 -o %s" %(file_in, file_out))
 	print(file_in.split('/')[-1] + ' done.')
 
 def rotate_images(dataset_path, n):

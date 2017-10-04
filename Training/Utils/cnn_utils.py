@@ -22,7 +22,7 @@ def _conv_layer_2d(input, shape, strides, padding, is_training, bnorm=False):
 	conv = tf.nn.conv2d(input, kernel, strides=strides, padding=padding, name='Pre-Activation')
 	
 	if bnorm:
-		conv = batch_norm_wrapper(conv, is_training, True)
+		conv = batch_norm(conv, is_training)
 	else:
 		conv = tf.nn.bias_add(conv, biases)
 		
@@ -226,7 +226,7 @@ def _full_layer(input, shape, act, is_training, regularizer, bnorm=False):
 		
 	return local
 
-def _softmax_layer(input, shape, bnorm=False):
+def _softmax_layer(input, shape, is_training, bnorm=False):
 	weights = tf.get_variable(
 		'weights', 
 		shape=shape,
@@ -242,7 +242,7 @@ def _softmax_layer(input, shape, bnorm=False):
 		
 	wx = tf.matmul(input, weights, name="Activation")
 	if bnorm:
-		wx = batch_norm_wrapper(wx, is_training, False)
+		wx = batch_norm(wx, is_training)
 	else:
 		wx = tf.nn.bias_add(wx, biases)
 		
@@ -276,3 +276,9 @@ def batch_norm_wrapper(inputs, is_training, is_conv, decay = 0.999):
 			
 	return tf.cond(is_training, train_case, test_case, name='Bnorm')
 	
+def batch_norm(_inputs, is_training):
+	output = tf.contrib.layers.batch_norm(
+			_inputs, scale=True, is_training=is_training,
+			updates_collections=None)
+	return output
+    

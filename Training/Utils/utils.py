@@ -10,7 +10,7 @@ import tensorflow as tf
 import re
 
 MIN_BOUND = 0.0
-MAX_BOUND = 200.0
+MAX_BOUND = 500.0
 
 def _add_loss_summaries(total_loss):
 
@@ -101,7 +101,8 @@ def read_dataset(datapath, labelpath, test_ratio=0.15):
     labels_ws = labels_wb['Registrydatabase']
 
     label_dict = {key[0].value: value[0].value 
-        for (key, value) in zip(labels_ws[followid_attribute], labels_ws[label_attribute]) }
+        for i, (key, value) in enumerate(zip(labels_ws[followid_attribute], labels_ws[label_attribute]))
+                                  if labels_ws['Z'+str(i+2)].value == 3 }
 
     # --- Filter out the ones missing from Database ---
     patients = [ name for name in patients if name in label_dict.keys() ]	
@@ -118,7 +119,44 @@ def read_dataset(datapath, labelpath, test_ratio=0.15):
                                     if name.split('.')[0] in label_dict.keys() and
                                          label_dict[name.split('.')[0]] == 1]
     
-    num_examples = len(class0_images) + len(class1_images)
+    num_examples = 2*min(len(class0_images), len(class1_images))
+
+    # --- Schuffle both classes ---
+    perm = np.arange(len(class0_images))
+    np.random.shuffle(perm)
+    class0_images = np.array(class0_images)[perm]
+    
+    perm = np.arange(len(class1_images))
+    np.random.shuffle(perm)
+    class1_images = np.array(class1_images)[perm]
+    
+    # --- Split into balanced test-set and unbalanced training ---
+    test_size = int(num_examples*test_ratio)    
+    test_points = dict(
+        zip(np.concatenate((class0_images[:int(test_size/2)], class1_images[:int(test_size/2)])),
+            np.concatenate((np.zeros((int(test_size/2),), dtype=np.int), np.ones((int(test_size/2),), dtype=np.int)))))
+    
+    training_points = dict(
+        zip(np.concatenate((class0_images[int(test_size/2):], class1_images[int(test_size/2):])),
+            np.concatenate((np.zeros((len(class0_images)-int(test_size/2),), dtype=np.int), np.ones((len(class1_images)-int(test_size/2),), dtype=np.int)))))
+    
+    return training_points, test_points
+
+def read_dataset_NCCT_CTA(datapath_NCCT, datapath_CTA, test_ratio=0.15):
+    """
+    Function to read up images for the task of NCCT-CTA distiguishing.
+    Store only paths as images wouldn't fit to memory.
+    """
+
+    # --- Collect images to classes ---
+    class0_images = [os.path.join(root, name)
+                              for root, dirs, files in os.walk(datapath_NCCT)
+                              for name in files if name.endswith(".mha")]
+    class1_images = [os.path.join(root, name)
+                              for root, dirs, files in os.walk(datapath_CTA)
+                              for name in files if name.endswith(".mha")]
+    
+    num_examples = 2*min(len(class0_images), len(class1_images))
 
     # --- Schuffle both classes ---
     perm = np.arange(len(class0_images))
@@ -142,6 +180,7 @@ def read_dataset(datapath, labelpath, test_ratio=0.15):
     return training_points, test_points
 
 
+
 def split_dataset(datapath, labelpath, output_path):
 
     training_points, test_points = read_dataset(datapath, labelpath)
@@ -154,7 +193,21 @@ def split_dataset(datapath, labelpath, output_path):
     with open(os.path.join(output_path, 'test_points.npy'), 'wb') as handle:
         pickle.dump(test_points, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    return training_points, test_points	
+    return training_points, test_points
+
+def split_dataset_NCCT_CTA(datapath_NCCT, datapath_CTA, output_path):
+
+    training_points, test_points = read_dataset_NCCT_CTA(datapath_NCCT, datapath_CTA)
+
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+
+    with open(os.path.join(output_path, 'training_points.npy'), 'wb') as handle:
+        pickle.dump(training_points, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(os.path.join(output_path, 'test_points.npy'), 'wb') as handle:
+        pickle.dump(test_points, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    return training_points, test_points
 
 class DataSet(object):
 
@@ -252,8 +305,8 @@ class DataSet(object):
             validation_imgset1 = self._image1_folds[self._current_fold]
             validation_labelset1 = self._label1_folds[self._current_fold]
             
-            self._Training = SubSet(training_imgset0[:20], training_imgset1[:20], training_labelset0[:20], training_labelset1[:20])
-            self._Validation = SubSet(validation_imgset0[:20], validation_imgset1[:20], validation_labelset0[:20], validation_labelset1[:20])
+            self._Training = SubSet(training_imgset0, training_imgset1, training_labelset0, training_labelset1)
+            self._Validation = SubSet(validation_imgset0, validation_imgset1, validation_labelset0, validation_labelset1)
             print('Creating folds...done.')
 
             if normalize:
@@ -381,12 +434,10 @@ class SubSet(object):
             perm = np.arange(self._num_examples)
             np.random.shuffle(perm)
             self._images0 = self._images0[perm]
-            self._labels0 = self._labels0[perm]
             self._images1 = self._images1[perm]
-            self._labels1 = self._labels1[perm]
 
             start = 0
-            self._index_in_epoch = batch_size
+            self._index_in_epoch = int(batch_size/2)
 
 
         end = self._index_in_epoch
@@ -400,8 +451,8 @@ class SubSet(object):
             [ self.getImageArray(image0) for image0 in self._images0[start:end]] + 
             [ self.getImageArray(image1) for image1 in self._images1[start:end]]
         )[perm]
-#       image_batch = np.array([ np.zeros((30,512,512)) if t[0]==0 else np.ones((30,512,512)) for t in label_batch])
-        
+#        image_batch = np.array([ np.zeros((3,512,512)) if t[0]==0 else np.ones((3,512,512)) for t in label_batch])
+    
         image_batch = np.swapaxes(image_batch, 1, 2)
         image_batch = np.swapaxes(image_batch, 2, 3)
 
