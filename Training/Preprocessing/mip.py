@@ -6,6 +6,14 @@ import shutil
 from multiprocessing import Pool
 import scipy.ndimage
 
+
+def GetZLocation(file):
+	img = sitk.ReadImage(file)
+	return float(img.GetMetaData('0020|0032').split('\\')[2])
+
+def sort_files(files, map):
+	return sorted(files, key=map)
+
 def MIP_DICOM(patient):
 
 	if not os.path.exists(os.path.join(rootTarget, patient)):
@@ -106,6 +114,8 @@ def MIP_MHA(patient):
 		except:
 			print(patient + ' failed.')
 
+WINDOW = 10
+OVERLAP = 3
 
 rootDicom = ""
 rootTarget = ""
