@@ -94,19 +94,20 @@ def preprocess_cifar10_data(X_train_raw, Y_train_raw, X_test_raw, Y_test_raw):
   X_test = X_test_raw.copy()
   Y_test = Y_test_raw.copy()
 
-  X_train = np.array([np.divide(x, 255.0) for x in X_train])
-  X_test = np.array([np.divide(x, 255.0) for x in X_test])
+  X_train = np.divide(X_train, 255.0)
+  X_test = np.divide(X_test, 255.0)
   
   # Substract the mean
-  mean = np.mean(X_train)
+#  mean = np.mean(X_train)
 
 #  std_image = np.std(X_train, axis=0)
 #  X_train = np.array([np.divide(x - mean_image, std_image) for x in X_train])
 #  X_test = np.array([np.divide(x - mean_image, std_image) for x in X_test])
-  X_train = np.array([(x - mean) for x in X_train])
-  X_test = np.array([x - mean for x in X_test])
+#  X_train = np.array([(x - mean) for x in X_train])
+#  X_test = np.array([x - mean for x in X_test])
 
   return X_train, Y_train, X_test, Y_test
+
 
 def dense_to_one_hot(labels_dense, num_classes):
   """
@@ -121,7 +122,7 @@ def dense_to_one_hot(labels_dense, num_classes):
   num_labels = labels_dense.shape[0]
   index_offset = np.arange(num_labels) * num_classes
   labels_one_hot = np.zeros((num_labels, num_classes))
-  labels_one_hot.flat[index_offset + labels_dense.ravel()] = 16
+  labels_one_hot.flat[index_offset + labels_dense.ravel()] = 1
   return labels_one_hot
 
 class DataSet(object):

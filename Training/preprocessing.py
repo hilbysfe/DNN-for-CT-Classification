@@ -35,11 +35,13 @@ NCCT_SKULL_REGISTRY_RESAMPLED =	r'/home/nicolab/DATA/data/SUPERVISED/REGISTRY/NC
 MIP_REGISTRY = 			r'/home/nicolab/DATA/data/SUPERVISED/REGISTRY/CTA_MIP'
 MIP_SKULL_REGISTRY = 		r'/home/nicolab/DATA/data/SUPERVISED/REGISTRY/CTA_SKULLSTRIPPED_MIP'
 
+CTA_REGISTRY = r'/home/nicolab/DATA/data/SUPERVISED/REGISTRY/CTA_THIN'
+CTA_REGISTRY_RESAMPLED = r'/home/nicolab/DATA/data/SUPERVISED/REGISTRY/CTA_THIN_RESAMPLED'
 
 if __name__ == '__main__':
-	patients = os.listdir(NCCT_SKULL_REGISTRY)
-	inputfiles = [ os.path.join(NCCT_SKULL_REGISTRY, patient, patient + '.mha') for patient in patients]
-	outputfiles = [ os.path.join(NCCT_SKULL_REGISTRY_RESAMPLED, patient, patient + '.mha') for patient in patients]
+	patients = os.listdir(CTA_REGISTRY)
+	inputfiles = [ os.path.join(CTA_REGISTRY, patient, patient + '.mha') for patient in patients]
+	outputfiles = [ os.path.join(CTA_REGISTRY_RESAMPLED, patient, patient + '.mha') for patient in patients]
 	with Pool() as p:
 		p.starmap(preprocessing_utils.resample_image, zip(inputfiles, outputfiles))
 
