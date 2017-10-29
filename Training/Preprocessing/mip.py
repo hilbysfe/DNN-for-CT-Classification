@@ -19,7 +19,7 @@ def MIP_DICOM(patient):
 	# if not os.path.exists(os.path.join(rootTarget, patient)):
 	# try:
 	# Load image
-	DicomFolder = os.path.join(rootDicom, patient)
+	DicomFolder = os.path.join(rootDicom)
 	reader = sitk.ImageSeriesReader()
 	series_found = reader.GetGDCMSeriesIDs(DicomFolder)
 	if len(series_found) != 1:
@@ -120,15 +120,15 @@ def MIP_MHA(patient):
 		except:
 			print(patient + ' failed.')
 
-WINDOW = 10
+WINDOW = 15
 OVERLAP = 3
 
-rootDicom = "C:\\Users\\Adam\\Downloads\\serie1"
-rootTarget = "C:\\Users\\Adam\\Downloads\\serie1"
+rootDicom = r"D:\Adam Hilbert\Data\MRCLEAN_REGISTRY\CTA_BL\R0008\14529377\1.3.6.1.4.1.40744.9.297226749760607436395914976335537367268"
+rootTarget = r"D:\Adam Hilbert\Data\MRCLEAN_REGISTRY\CTA_BL\R0008"
 			
 if __name__ == '__main__':
 
-	patients = "serie1"
+	patients = "R0008"
 
 	MIP_DICOM(patients)
 	
