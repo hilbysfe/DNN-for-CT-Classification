@@ -3,7 +3,6 @@ from sklearn.feature_extracton.image import extract_patches_2d
 from skimage.util.shape import view_as_windows
 
 
-
 def zero_padding(input, pSize):
 	shape = [ s+2*pSize for s in np.shape(input) ]
 	output = np.zeros(shape)

@@ -27,6 +27,7 @@ def MIP_DICOM(patient):
 	filenames = reader.GetGDCMSeriesFileNames(DicomFolder, series_found[0])
 	reader.SetFileNames(filenames)
 	input_image = reader.Execute()
+	spacing = input_image.GetSpacing()
 	input_data = sitk.GetArrayFromImage(input_image)
 	sorted_files = sort_files(filenames, map=GetZLocation)
 
@@ -55,7 +56,8 @@ def MIP_DICOM(patient):
 
 	# Create image
 	mip_image = sitk.GetImageFromArray(np.array(mip_slices))
-
+	mip_image.SetSpacing(spacing)
+	
 	# os.makedirs(os.path.join(rootTarget, patient))
 	# sitk.WriteImage(mip_image, os.path.join(rootTarget, patient, patient + '.mha'))
 	
@@ -109,7 +111,8 @@ def MIP_MHA(patient):
 
 			# Create image
 			mip_image = sitk.GetImageFromArray(np.array(mip_slices))
-
+			mip_image.SetSpacing(spacing)
+			
 			os.makedirs(os.path.join(rootTarget, patient))
 			sitk.WriteImage(mip_image, os.path.join(rootTarget, patient, patient + '.mha'))
 

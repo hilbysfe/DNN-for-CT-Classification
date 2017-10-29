@@ -1,0 +1,79 @@
+// **************** Main Features **************************
+(FixedInternalImagePixelType "int")
+(MovingInternalImagePixelType "int")
+(FixedImageDimension 3)
+(MovingImageDimension 3)
+(UseDirectionCosines "true")
+
+// ***************** Transformation **************************
+(Transform "BSplineTransform")
+(FinalGridSpacingInPhysicalUnits 10) 
+(GridSpacingSchedule 2.0 2.0 2.0 2.0 2.0 2.0 2.0 2.0 2.0 1.0 1.0 1.0)
+(HowToCombineTransforms "Compose")
+// The lower this value, the more flexible the deformation.
+// Low values may improve the accuracy, but may also cause
+// unrealistic deformations. This is a very important setting!
+// We recommend tuning it for every specific application. It is
+// difficult to come up with a good 'default' value.
+(AutomaticTransformInitialization "true")
+(AutomaticTransformInitializationMethod "CenterOfGravity")
+
+// ******************* Similarity measure *********************
+(Metric "AdvancedNormalizedCorrelation")
+(NumberOfHistogramBins 32)
+(ErodeMask "false")
+(RequiredRatioOfValidSamples 0.05)
+
+// ******************** Multiresolution **********************
+(Registration "MultiResolutionRegistration")
+(NumberOfResolutions 4)
+// The downsampling/blurring factors for the image pyramids.
+(FixedImagePyramid "FixedSmoothingImagePyramid")
+(MovingImagePyramid "MovingSmoothingImagePyramid")
+(ImagePyramidSchedule 8 8 8  4 4 4  2 2 2  1 1 1 )
+
+// ******************* Optimizer ****************************
+// Maximum number of iterations in each resolution level:
+// 200-2000 works usually fine for nonrigid registration.
+// The more, the better, but the longer computation time.
+// This is an important parameter!
+(Optimizer "AdaptiveStochasticGradientDescent")
+(MaximumNumberOfIterations 1500)
+// The step size of the optimizer, in mm. By default the voxel size is used.
+(MaximumStepLength 1.00)
+
+// **************** Image sampling **********************
+
+// Number of spatial samples used to compute the mutual
+// information (and its derivative) in each iteration.
+// With an AdaptiveStochasticGradientDescent optimizer,
+// in combination with the two options below, around 2000
+// samples may already suffice.
+(Resampler "DefaultResampler")
+(NumberOfSpatialSamples 3000)
+(NewSamplesEveryIteration "true")
+//(ImageSampler "RandomSparseMask")
+(ImageSampler "RandomCoordinate")
+(MaximumNumberOfSamplingAttempts 10)
+
+// ************* Interpolation and Resampling ****************
+// Order of B-Spline interpolation used during registration/optimisation.
+// It may improve accuracy if you set this to 3. Never use 0.
+// An order of 1 gives linear interpolation. This is in most 
+// applications a good choice.
+//(Interpolator "BSplineInterpolator")
+//(ResampleInterpolator "FinalBSplineInterpolator")
+//(BSplineInterpolationOrder 1)
+//(FinalBSplineInterpolationOrder 3)
+
+(Interpolator "NearestNeighborInterpolator")
+(ResampleInterpolator "FinalNearestNeighborInterpolator")
+(NearestNeighborInterpolationOrder 1)
+(FinalNearestNeighborInterpolationOrder 3)
+
+//output
+(DefaultPixelValue 0)
+(WriteResultImage "true")
+(ResultImagePixelType "int")
+(ResultImageFormat "mhd")
+

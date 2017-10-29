@@ -1,0 +1,55 @@
+// **************** Main Features **************************
+(FixedInternalImagePixelType "int")
+(MovingInternalImagePixelType "int")
+(FixedImageDimension 3)
+(MovingImageDimension 3)
+(UseDirectionCosines "true")
+
+// ***************** Transformation **************************
+(Transform "AffineTransform")
+(AutomaticScalesEstimation "true")
+(AutomaticTransformInitialization "true")
+(HowToCombineTransforms "Compose")
+
+// ******************* Similarity measure *********************
+(Metric "AdvancedNormalizedCorrelation")
+(NumberOfHistogramBins 32)
+(RequiredRatioOfValidSamples 0.05)
+
+// ******************** Multiresolution **********************
+(Registration "MultiResolutionRegistration")
+(NumberOfResolutions 4)
+(FixedImagePyramid "FixedSmoothingImagePyramid")
+(MovingImagePyramid "MovingSmoothingImagePyramid")
+
+
+// ******************* Optimizer ****************************
+(Optimizer "AdaptiveStochasticGradientDescent")
+// Maximum number of iterations in each resolution level:
+// For more robustness, you may increase this to 1000-2000.
+(MaximumNumberOfIterations 1500)
+
+// **************** Image sampling **********************
+(NumberOfSpatialSamples 3000)
+(ErodeMask "false")
+(ImageSampler "RandomCoordinate")
+(NewSamplesEveryIteration "true")
+
+
+// ************* Interpolation and Resampling ****************
+//(Interpolator "BSplineInterpolator")
+(Resampler "DefaultResampler")
+//(ResampleInterpolator "FinalBSplineInterpolator")
+//(BSplineInterpolationOrder 1)
+//(FinalBSplineInterpolationOrder 3)
+
+(Interpolator "NearestNeighborInterpolator")
+(ResampleInterpolator "FinalNearestNeighborInterpolator")
+(NearestNeighborInterpolationOrder 1)
+(FinalNearestNeighborInterpolationOrder 3)
+
+// ************* Output ****************
+(DefaultPixelValue 0)
+(WriteResultImage "true")
+(ResultImagePixelType "int")
+(ResultImageFormat "mhd")
