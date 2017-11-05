@@ -118,7 +118,8 @@ def GetSliceLocation(file):
 	return float(img.GetMetaData('0020|1041'))
 
 
-def GetSliceThickness(img):
+def GetSliceThickness(file):
+	img = sitk.ReadImage(file)
 	return float(img.GetMetaData('0018|0050'))
 
 
@@ -126,11 +127,24 @@ def GetImagePositionPatient(file):
 	img = sitk.ReadImage(file)
 	return list(map(lambda x: float(x), img.GetMetaData('0020|0032').split('\\')))
 
+def GetWindowCenter(file):
+    img = sitk.ReadImage(file)
+    return float(str(img.GetMetaData('0028|1050')).split('\\')[0])
+def GetWindowWidth(file):
+    img = sitk.ReadImage(file)
+    return float(str(img.GetMetaData('0028|1051')).split('\\')[0])
 
 def GetImageOrientationPatient(file):
 	img = sitk.ReadImage(file)
 	return list(map(lambda x: float(x), img.GetMetaData('0020|0037').split('\\')))
 
+def GetSeriesDescription(file):
+    img = sitk.ReadImage(file)
+    return str(img.GetMetaData('0008|103e'))
+
+def GetConvKernel(file):
+    img = sitk.ReadImage(file)
+    return str(img.GetMetaData('0018|1210'))
 
 def GetStudyDate(img):
 	return float(img.GetMetaData('0080|0020'))
@@ -166,8 +180,7 @@ def MoveDirectory(source, target):
 def CopyDirectory(source, target):
 	if not os.path.exists(os.path.join(target, source.split('\\')[-1])):
 		os.makedirs(os.path.join(target, source.split('\\')[-1]))
-		for f in os.listdir(source):
-			shutil.copytree(os.path.join(source, f), os.path.join(target, source.split('\\')[-1], f))
+		shutil.copytree(source, os.path.join(target, source.split('\\')[-1]))
 
 
 def CopyFiles(files, target):
@@ -181,99 +194,75 @@ def CollectDICOMFolders(path):
 	"""
 	Returns dictionary with {folder: number of contained .dcm files} syntax.
 	"""
-	dir_of_all_files = [os.path.abspath(root)
-						for root, dirs, files in os.walk(path)
-						for name in files if name.endswith((".dcm", ".DCM", ".dicom", ".DICOM"))]
-	return {key: count(key, dir_of_all_files) for key in set(dir_of_all_files)}
 
+	dir_of_all_files = { root: [os.path.join(root, name) for name in files if name.endswith((".dcm", ".DCM", ".dicom", ".DICOM"))]
+							for root, dirs, files in os.walk(path)}
+						
+	return dir_of_all_files
 
-def RemoveSagCorLoc(rootSource):
+def DetectLocalizers(dicomFiles):
+	# filter out initializing scans
+	blackList = []
+	for file in dicomFiles:
+		img = sitk.ReadImage(file)
+		if 'LOCALIZER' in GetImageType(img):
+			blackList.append(file)
+
+	return blackList
+
+def Sag_or_Cor(dicomFiles):
 	"""
-	Removes all localizer slices from series, then detects and deletes coronal and sagittal series.
+	Detects and deletes coronal and sagittal series.
 	"""
-	patients = os.listdir(rootSource)
-	for patient in patients:
-		try:
-			level_1_subdir = GetImmediateSubdirectories(os.path.join(rootSource, patient))[0]
-			dicomFolders = CollectDICOMFolders(level_1_subdir)
-			for f in dicomFolders:
-				dicomFiles = [os.path.join(root, name)
-							  for root, dirs, files in os.walk(f)
-							  for name in files if name.endswith((".dcm", ".DCM", ".dicom", ".DICOM"))]
-				# filter out initializing scans
-				blackList = []
-				for file in dicomFiles:
-					img = sitk.ReadImage(file)
-					maxValue = np.power(2, GetBitsStored(img)) / (GetPixelRepresentation(img) + 1) - 1
-					if 'LOCALIZER' in GetImageType(img):  # or np.max(sitk.GetArrayFromImage(img)) == maxValue:
-						# delete localizer image
-						print(file)
-						os.remove(file)
-						blackList.append(file)
+	# filter out not axial series
+	filesSortedX = sort_files(dicomFiles, map=GetXLocation)
+	distanceInX = abs(
+		GetImagePositionPatient(filesSortedX[1])[0] - GetImagePositionPatient(filesSortedX[-1])[0])
+	filesSortedY = sort_files(dicomFiles, map=GetYLocation)
+	distanceInY = abs(
+		GetImagePositionPatient(filesSortedY[1])[1] - GetImagePositionPatient(filesSortedY[-1])[1])
+	filesSortedZ = sort_files(dicomFiles, map=GetZLocation)
+	distanceInZ = abs(
+		GetImagePositionPatient(filesSortedZ[1])[2] - GetImagePositionPatient(filesSortedZ[-1])[2])
 
-				dicomFiles = [f for f in dicomFiles if f not in blackList]
+	return distanceInZ < distanceInX or distanceInZ < distanceInY
+	
 
-				# filter out not axial series
-				filesSortedX = sort_files(dicomFiles, map=GetXLocation)
-				distanceInX = abs(
-					GetImagePositionPatient(filesSortedX[1])[0] - GetImagePositionPatient(filesSortedX[-1])[0])
-				filesSortedY = sort_files(dicomFiles, map=GetYLocation)
-				distanceInY = abs(
-					GetImagePositionPatient(filesSortedY[1])[1] - GetImagePositionPatient(filesSortedY[-1])[1])
-				filesSortedZ = sort_files(dicomFiles, map=GetZLocation)
-				distanceInZ = abs(
-					GetImagePositionPatient(filesSortedZ[1])[2] - GetImagePositionPatient(filesSortedZ[-1])[2])
-
-				if distanceInZ < distanceInX or distanceInZ < distanceInY:
-					# delete cor / sag series
-					shutil.rmtree(f)
-					print(f)
-					continue
-			print(patient + ' done.')
-		except:
-			print(patient + ' failed.')
-
-
-def SelectBaseline(rootSource):
+def SelectBaseline(dir_dict):
 	""""
 	Selects the baseline series
 	"""
-	patients = os.listdir(rootSource)
-	for patient in patients:
-		try:
-			level_1_subdir = GetImmediateSubdirectories(os.path.join(rootSource, patient))[0]
-			dicomFolders = CollectDICOMFolders(level_1_subdir)
-			dates = dict()
-			for f in dicomFolders:
-				dicomFiles = [os.path.join(root, name)
-							  for root, dirs, files in os.walk(f)
-							  for name in files if name.endswith((".dcm", ".DCM", ".dicom", ".DICOM"))]
-				sortedFiles = sort_files(dicomFiles, map=GetZLocation)
+	dates = dict()
+	blacklist = []
+	for folder in dir_dict:		
+		sortedFiles = sort_files(dir_dict[folder], map=GetZLocation)
+		img = sitk.ReadImage(sortedFiles[0])
 
-				img = sitk.ReadImage(sortedFiles[0])
+		d = img.GetMetaData('0008|0020')
+		t = img.GetMetaData('0008|0030')[0:6]
+		if d is not '' and t is not '':
+			date = datetime(int(d[0:4]), int(d[4:6]), int(d[6:]), int(t[0:2]), int(t[2:4]), int(t[4:6]))
+		elif d is not '':
+			date = datetime(int(d[0:4]), int(d[4:6]), int(d[6:]))
 
-				d = img.GetMetaData('0008|0020')
-				t = img.GetMetaData('0008|0030')[0:6]
-				if d is not '' and t is not '':
-					date = datetime(int(d[0:4]), int(d[4:6]), int(d[6:]), int(t[0:2]), int(t[2:4]), int(t[4:6]))
-				elif d is not '':
-					date = datetime(int(d[0:4]), int(d[4:6]), int(d[6:]))
+		if date not in dates.keys():
+			dates[date] = []
+		dates[date].append(folder)
 
-				if date not in dates.keys():
-					dates[date] = []
-				dates[date].append(f)
+	# Pick baseline series
+	min_date = min(dates.keys())
+	for date, folder in dates.items():
+		if date != min_date:
+			for f in folder:
+				blacklist.append(f)
+	
+	# Remove not baseline series
+	for f in blacklist:
+		del dir_dict[f]
 
-			min_date = min(dates.keys())
-			for date, folders in dates.items():
-				if date != min_date:
-					for folder in folders:
-						print(folder)
-						shutil.rmtree(folder)
-		except:
-			print(patient + ' failed.')
-			continue
+	return dir_dict
 
-		print(patient + ' done.')
+	
 
 
 def SelectBySliceThickness(rootSource, rootTarget, thickness):
