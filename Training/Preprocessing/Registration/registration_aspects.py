@@ -25,7 +25,7 @@ def _find_main_axis(image):
     x2, y2 = axis2
     return x1, y1, x2, y2
 
-def register(scan, atlas, atlasBrain, artery, cta = True, scanBrain=""):
+def register(scan, atlas, atlasBrain, aspects, cta = True, scanBrain=""):
 	scanFolder = os.path.dirname(scan)
 
 	if scanBrain == "":
@@ -48,7 +48,7 @@ def register(scan, atlas, atlasBrain, artery, cta = True, scanBrain=""):
 	atlas_brain_mask = sitk.ReadImage(atlasBrain)
 
 	# Load ASPECTS atlas
-	artery_image = sitk.ReadImage(artery)
+	aspects_image = sitk.ReadImage(aspects)
 
 	# Resample atlas to image dimensions
 	resample = sitk.ResampleImageFilter()
@@ -63,7 +63,7 @@ def register(scan, atlas, atlasBrain, artery, cta = True, scanBrain=""):
 	resample.SetInterpolator(sitk.sitkNearestNeighbor)
 	atlas = resample.Execute(atlas)	
 
-	sitk.WriteImage(atlas, os.path.join(scanFolder, "ResampledAtlas.mha"))
+	#sitk.WriteImage(atlas, os.path.join(scanFolder, "ResampledAtlas.mha"))
 
 	# Resample atlas_mask to image dimensions
 	resample = sitk.ResampleImageFilter()
@@ -74,21 +74,21 @@ def register(scan, atlas, atlasBrain, artery, cta = True, scanBrain=""):
 	resample.SetInterpolator(sitk.sitkNearestNeighbor)
 	atlas_brain_mask = resample.Execute(atlas_brain_mask)	
 
-	sitk.WriteImage(atlas_brain_mask, os.path.join(scanFolder, "ResampledAtlasBrainMask.mha"))
+	#sitk.WriteImage(atlas_brain_mask, os.path.join(scanFolder, "ResampledAtlasBrainMask.mha"))
 
-	# Resample artery to image dimensions
+	# Resample aspects to image dimensions
 	resample = sitk.ResampleImageFilter()
 	resample.SetTransform(sitk.Transform(3, sitk.sitkIdentity))
-	resample.SetReferenceImage(artery_image)
+	resample.SetReferenceImage(aspects_image)
 	resample.SetSize(out_size)
-	in_size = artery_image.GetSize()
-	in_spacing = artery_image.GetSpacing()
+	in_size = aspects_image.GetSize()
+	in_spacing = aspects_image.GetSpacing()
 	outputspacing = [in_spacing[0] * (in_size[0]/out_size[0]), in_spacing[1] * (in_size[1]/out_size[1]), in_spacing[2] * (in_size[2]/out_size[2])]
 	resample.SetOutputSpacing(outputspacing)
 	resample.SetInterpolator(sitk.sitkNearestNeighbor)
-	aspects_image = resample.Execute(artery_image)	
+	aspects_image = resample.Execute(aspects_image)	
 
-	sitk.WriteImage(artery_image, os.path.join(scanFolder, "ResampledArteryAtlas.mha"))
+	#sitk.WriteImage(aspects_image, os.path.join(scanFolder, "ResampledASPECTSMask.mha"))
 	
 	# Initial transform to align images based on center of mass.
 	initial_transform = sitk.CenteredTransformInitializer(atlas_brain_mask,  # fixed image
@@ -113,7 +113,7 @@ def register(scan, atlas, atlasBrain, artery, cta = True, scanBrain=""):
 	shape_info.Execute(moving_image_mask)
 	centroid = shape_info.GetCentroid(1)
 	centroid_index = sitk.Image.TransformPhysicalPointToContinuousIndex(moving_image_mask, centroid)
-	# sitk.WriteImage(moving_image_mask, os.path.join(scanFolder, "BeforeInitialAlignmentBrainMask.mha"))
+	#sitk.WriteImage(moving_image_mask, os.path.join(scanFolder, "BeforeInitialAlignmentBrainMask.mha"))
 	
 	# Align Z plane using PCA.
 	#plane_image = moving_image_mask[:, :, int(centroid_index[2])]
@@ -151,7 +151,7 @@ def register(scan, atlas, atlasBrain, artery, cta = True, scanBrain=""):
 	rotation = sitk.Euler3DTransform(centroid, 0.0, 0.0, best_angle)
 	moving_image_mask = sitk.Resample(moving_image_mask, moving_image_mask, rotation, sitk.sitkNearestNeighbor, 0.0)
 	composed_transformation.AddTransform(rotation)
-	# sitk.WriteImage(moving_image_mask, os.path.join(scanFolder, "InitialAlignmentBrainMaskZ.mha"))
+	#sitk.WriteImage(moving_image_mask, os.path.join(scanFolder, "InitialAlignmentBrainMaskZ.mha"))
 
 	# Align Y plane using symmetry detection.
 	reference_plane = int(centroid_index[1])
@@ -178,9 +178,11 @@ def register(scan, atlas, atlasBrain, artery, cta = True, scanBrain=""):
 	rotation = sitk.Euler3DTransform(centroid, 0.0, -best_angle, 0.0)
 	moving_image_mask = sitk.Resample(moving_image_mask, moving_image_mask, rotation, sitk.sitkNearestNeighbor, 0.0)
 	composed_transformation.AddTransform(rotation)
-	# sitk.WriteImage(moving_image_mask, os.path.join(scanFolder, "InitialAlignmentBrainMaskY.mha"))
+	#sitk.WriteImage(moving_image_mask, os.path.join(scanFolder, "InitialAlignmentBrainMaskY.mha"))
 
 	# Align X plane using sagittal heuristics.
+	# reference_plane = int(centroid_index[0])
+	# plane_image = moving_image_mask[reference_plane, :, :]
 	angle = -1.0  # Approximately -60 degrees.
 	best_angle = 0.0
 	step = 0.01
@@ -200,7 +202,7 @@ def register(scan, atlas, atlasBrain, artery, cta = True, scanBrain=""):
 	rotation = sitk.Euler3DTransform(centroid, best_angle, 0.0, 0.0)
 	moving_image_mask = sitk.Resample(moving_image_mask, moving_image_mask, rotation, sitk.sitkNearestNeighbor, 0.0)
 	composed_transformation.AddTransform(rotation)
-	# sitk.WriteImage(moving_image_mask, os.path.join(scanFolder, "InitialAlignmentBrainMaskX.mha"))
+	#sitk.WriteImage(moving_image_mask, os.path.join(scanFolder, "InitialAlignmentBrainMaskX.mha"))
 		
 
     # Resample images after initial alignment.
@@ -221,6 +223,7 @@ def register(scan, atlas, atlasBrain, artery, cta = True, scanBrain=""):
 	sitk.WriteImage(moving_image_mask, os.path.join(scanFolder, "InitialAlignmentBrainMask.mha"))
 	sitk.WriteImage(moving_image, os.path.join(scanFolder, "InitialAlignment.mha"))
 	
+
 	# Perform rigid registration.
 	#parameter_map = sitk.GetDefaultParameterMap("rigid")
 	#parameter_map["ResampleInterpolator"] = ["FinalNearestNeighborInterpolator"]
@@ -295,7 +298,7 @@ def register(scan, atlas, atlasBrain, artery, cta = True, scanBrain=""):
 	elastix_filter.SetParameterMap(parameter_map)
 	elastix_filter.Execute()
 	affine_result_mask = elastix_filter.GetResultImage()
-	sitk.WriteImage(affine_result_mask, os.path.join(scanFolder, "AffineRegisteredAtlasMask.mha"))
+	#sitk.WriteImage(affine_result_mask, os.path.join(scanFolder, "AffineRegisteredAtlasMask.mha"))
 
 	transformix_filter = sitk.SimpleTransformix()
 	transformix_filter.SetMovingImage(atlas)
@@ -310,20 +313,20 @@ def register(scan, atlas, atlasBrain, artery, cta = True, scanBrain=""):
 	transformix_filter.SetTransformParameterMap(parameter_map)
 	transformix_filter.Execute()
 	affine_result_atlas = transformix_filter.GetResultImage()
-	sitk.WriteImage(affine_result_atlas, os.path.join(scanFolder, "AffineRegisteredAtlas.mha"))
+	#sitk.WriteImage(affine_result_atlas, os.path.join(scanFolder, "AffineRegisteredAtlas.mha"))
 
 	transformix_filter = sitk.SimpleTransformix()
-	transformix_filter.SetMovingImage(artery_image)
+	transformix_filter.SetMovingImage(aspects_image)
 	transformix_filter.SetLogToConsole(False)  # True to visualize progress.
 	transformix_filter.SetLogToFile(False)
 	parameter_map = elastix_filter.GetTransformParameterMap()[0]
-	parameter_map["ResampleInterpolator"] = ["FinalBSplineInterpolator"]
-	parameter_map["FinalBSplineInterpolationOrder"] = ["3"]
-	parameter_map["ResultImagePixelType"] = ["float"]
+	parameter_map["ResampleInterpolator"] = ["FinalNearestNeighborInterpolator"]
+	parameter_map["FinalBSplineInterpolationOrder"] = ["1"]
+	parameter_map["ResultImagePixelType"] = ["short"]
 	transformix_filter.SetTransformParameterMap(parameter_map)
 	transformix_filter.Execute()
-	affine_result_artery = transformix_filter.GetResultImage()
-	sitk.WriteImage(affine_result_artery, os.path.join(scanFolder, "AffineRegisteredArtery.mha"))
+	affine_result_aspects = transformix_filter.GetResultImage()
+	#sitk.WriteImage(affine_result_aspects, os.path.join(scanFolder, "AffineRegisteredASPECTS.mha"))
 
 	# Perform non-rigid registration.
 	parameter_map = sitk.GetDefaultParameterMap("bspline")
@@ -340,80 +343,88 @@ def register(scan, atlas, atlasBrain, artery, cta = True, scanBrain=""):
 	elastix_filter.SetParameterMap(parameter_map)
 	elastix_filter.Execute()
 	bspline_result_atlas = elastix_filter.GetResultImage()
-	sitk.WriteImage(bspline_result_atlas, os.path.join(scanFolder, "BSplineRegisteredAtlas.mha"))
+	#sitk.WriteImage(bspline_result_atlas, os.path.join(scanFolder, "BSplineRegisteredAtlas.mha"))
 
 	# Transform brainmask
+	#transformix_filter = sitk.SimpleTransformix()
+	#transformix_filter.SetMovingImage(affine_result_mask)
+	#transformix_filter.SetLogToConsole(False)  # True to visualize progress.
+	#transformix_filter.SetLogToFile(False)
+	#parameter_map = elastix_filter.GetTransformParameterMap()[0]
+	#parameter_map["ResampleInterpolator"] = ["FinalNearestNeighborInterpolator"]
+	#parameter_map["FinalBSplineInterpolationOrder"] = ["1"]
+	#parameter_map["ResultImagePixelType"] = ["unsigned char"]
+	#transformix_filter.SetTransformParameterMap(parameter_map)
+	#transformix_filter.Execute()
+	#bspline_result_mask = transformix_filter.GetResultImage()
+	#sitk.WriteImage(bspline_result_mask, os.path.join(scanFolder, "BsplineRegisteredAtlasMask.mha"))
+
+	# Transform aspects
 	transformix_filter = sitk.SimpleTransformix()
-	transformix_filter.SetMovingImage(affine_result_mask)
+	transformix_filter.SetMovingImage(affine_result_aspects)
 	transformix_filter.SetLogToConsole(False)  # True to visualize progress.
 	transformix_filter.SetLogToFile(False)
 	parameter_map = elastix_filter.GetTransformParameterMap()[0]
 	parameter_map["ResampleInterpolator"] = ["FinalNearestNeighborInterpolator"]
 	parameter_map["FinalBSplineInterpolationOrder"] = ["1"]
-	parameter_map["ResultImagePixelType"] = ["unsigned char"]
+	parameter_map["ResultImagePixelType"] = ["short"]
 	transformix_filter.SetTransformParameterMap(parameter_map)
 	transformix_filter.Execute()
-	bspline_result_mask = transformix_filter.GetResultImage()
-	sitk.WriteImage(bspline_result_mask, os.path.join(scanFolder, "BsplineRegisteredAtlasMask.mha"))
-
-	# Transform aspects
-	transformix_filter = sitk.SimpleTransformix()
-	transformix_filter.SetMovingImage(affine_result_artery)
-	transformix_filter.SetLogToConsole(False)  # True to visualize progress.
-	transformix_filter.SetLogToFile(False)
-	parameter_map = elastix_filter.GetTransformParameterMap()[0]
-	parameter_map["ResampleInterpolator"] = ["FinalBSplineInterpolator"]
-	parameter_map["FinalBSplineInterpolationOrder"] = ["3"]
-	parameter_map["ResultImagePixelType"] = ["float"]
-	transformix_filter.SetTransformParameterMap(parameter_map)
-	transformix_filter.Execute()
-	bspline_result_artery = transformix_filter.GetResultImage()
-	sitk.WriteImage(bspline_result_artery, os.path.join(scanFolder, "BsplineRegisteredArtery.mha"))
+	bspline_result_aspects = transformix_filter.GetResultImage()
+	sitk.WriteImage(bspline_result_aspects, os.path.join(scanFolder, "BsplineRegisteredASPECTS.mha"))
 
 
 
-DATADIR = r'D:/Adam Hilbert/Data/artery_test/Scan.mha'
+DATADIR = r'D:/Adam Hilbert/Data/ASPECTS_TestData/ValidationSetThick_Registry/R0001/Scan.mha'
+DATADIR2 = r'D:/Adam Hilbert/Data/ASPECTS_TestData/ValidationSetThick/MrClean0480/Scan2.mha'
 # DATADIR = r'C:/Users/Adam/Registry/NCCT_BL/ST_THIN/R0001/Scan.mha'
 # ATLAS = "D:/Adam Hilbert/Data/ASPECTS_TestData/Additional/atlas.nii"
-ATLAS = "D:/Adam Hilbert/Data/Atlases/MNI_atlas.nii"
+ATLAS = "D:/Adam Hilbert/Data/ASPECTS_TestData/Additional/Brainatlas.mha"
 # BRAINATLAS = "D:/Adam Hilbert/Data/ASPECTS_TestData/Additional/brain_mask.nii"
-BRAINATLAS = "D:/Adam Hilbert/Data/Atlases/brain_mask.nii"
-ARTERY = "D:/Adam Hilbert/Data/Atlases/artery_atlas.nii"
+BRAINATLAS = "D:/Adam Hilbert/Data/ASPECTS_TestData/Additional/Brainmask.mha"
+ASPECTS = "D:/Adam Hilbert/Data/ASPECTS_TestData/Additional/ASPECTS_areas_original.mhd"
 
-validation_root = r'C:\Users\Adam\Registry\ASPECTS_test\Test_12112017'
+validation_root = r'D:/Adam Hilbert/Data/ASPECTS_TestData/ValidationSetThick_Registry'
 
 if __name__ == '__main__':
 	# Command line arguments
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument('--scan', type=str, default=DATADIR,
-						help='Path to scan.')
+	#parser.add_argument('--scan', type=str, default=DATADIR,
+	#					help='Path to scan.')
 	parser.add_argument('--atlas', type=str, default=ATLAS,
 						help='Reference atlas to register the patient\'s brain to.')
 	parser.add_argument('--brainatlas', type=str, default=BRAINATLAS,
 						help='Brain segment of Reference atlas.')
-	parser.add_argument('--artery', type=str, default=ARTERY,
-						help='Artery atlas.')
+	parser.add_argument('--aspects', type=str, default=ASPECTS,
+						help='Aspects atlas.')
 
 	flags, _ = parser.parse_known_args()
 
-	register(
-			scan=flags.scan,
-			atlas=flags.atlas,
-			atlasBrain=flags.brainatlas,
-			artery=flags.artery,
-			cta = True)
+	#register(
+	#			scan=flags.scan,
+	#			atlas=flags.atlas,
+	#			atlasBrain=flags.brainatlas,
+	#			aspects=flags.aspects,
+	#			cta = False)
 	
-	#validation_scans = [ [os.path.join(root, name) for name in files if name.endswith(".mha")][0]
-	#						for root, dirs, files in os.walk(validation_root) if len(files) == 1]
+
+
+	validation_scans = [ [os.path.join(root, name) for name in files if name.endswith("Scan.mha")][0]
+							for root, dirs, files in os.walk(validation_root) if len(files) > 0]
+	#print(validation_scans)
 	
-	#for scan in validation_scans:
-	#	print(scan.split('\\')[-2] + " running...")
-	#	register(
-	#		scan=scan,
-	#		atlas=flags.atlas,
-	#		atlasBrain=flags.brainatlas,
-	#		aspects=flags.aspects,
-	#		cta = False)
-	#	print(scan.split('\\')[-2] + " done.")
+	for scan in validation_scans:
+		print(scan.split('\\')[-2] + " running...")
+		try:
+			register(
+				scan=scan,
+				atlas=flags.atlas,
+				atlasBrain=flags.brainatlas,
+				aspects=flags.aspects,
+				cta = False)
+			print(scan.split('\\')[-2] + " done.")
+		except:
+			print(scan.split('\\')[-2] + " failed.")
+			continue
 

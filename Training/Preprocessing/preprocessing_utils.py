@@ -8,18 +8,19 @@ import scipy.ndimage
 
 
 def resample(data, image, new_spacing=[1,1,1]):
-    # Determine current pixel spacing
-    spacing = np.array([GetSliceThickness(image)] + GetPixelSpacing(image), dtype=np.float32)
-
-    resize_factor = spacing / new_spacing
-    new_real_shape = data.shape * resize_factor
-    new_shape = np.round(new_real_shape)
-    real_resize_factor = new_shape / data.shape
-    new_spacing = spacing / real_resize_factor
-    
-    image = scipy.ndimage.interpolation.zoom(data, real_resize_factor, mode='nearest')
-    
-    return image, new_spacing
+	# Determine current pixel spacing
+	spacing = np.array([0.8, 0.455, 0.455]) # np.array(GetPixelSpacing(image), dtype=np.float32)
+	print(spacing)
+	
+	resize_factor = spacing / new_spacing
+	new_real_shape = data.shape * resize_factor
+	new_shape = np.round(new_real_shape)
+	real_resize_factor = new_shape / data.shape
+	new_spacing = spacing / real_resize_factor
+	
+	image = scipy.ndimage.interpolation.zoom(data, real_resize_factor, mode='nearest')
+	
+	return image, new_spacing
 
 
 
@@ -128,23 +129,23 @@ def GetImagePositionPatient(file):
 	return list(map(lambda x: float(x), img.GetMetaData('0020|0032').split('\\')))
 
 def GetWindowCenter(file):
-    img = sitk.ReadImage(file)
-    return float(str(img.GetMetaData('0028|1050')).split('\\')[0])
+	img = sitk.ReadImage(file)
+	return float(str(img.GetMetaData('0028|1050')).split('\\')[0])
 def GetWindowWidth(file):
-    img = sitk.ReadImage(file)
-    return float(str(img.GetMetaData('0028|1051')).split('\\')[0])
+	img = sitk.ReadImage(file)
+	return float(str(img.GetMetaData('0028|1051')).split('\\')[0])
 
 def GetImageOrientationPatient(file):
 	img = sitk.ReadImage(file)
 	return list(map(lambda x: float(x), img.GetMetaData('0020|0037').split('\\')))
 
 def GetSeriesDescription(file):
-    img = sitk.ReadImage(file)
-    return str(img.GetMetaData('0008|103e'))
+	img = sitk.ReadImage(file)
+	return str(img.GetMetaData('0008|103e'))
 
 def GetConvKernel(file):
-    img = sitk.ReadImage(file)
-    return str(img.GetMetaData('0018|1210'))
+	img = sitk.ReadImage(file)
+	return str(img.GetMetaData('0018|1210'))
 
 def GetStudyDate(img):
 	return float(img.GetMetaData('0080|0020'))
@@ -196,7 +197,7 @@ def CollectDICOMFolders(path):
 	"""
 
 	dir_of_all_files = { root: [os.path.join(root, name) for name in files if name.endswith((".dcm", ".DCM", ".dicom", ".DICOM"))]
-							for root, dirs, files in os.walk(path)}
+							for root, dirs, files in os.walk(path) if len(files) > 0}
 						
 	return dir_of_all_files
 
@@ -411,29 +412,30 @@ def CropHead(folder):
 
 	return headFiles
 
-def DICOM2MHA(patient, rootSource, rootTarget):
-    # Read image
-    DicomFolder = CollectDICOMFolders(os.path.join(rootSource, patient))
-    if len(DicomFolder.keys()) != 1:
-        print(patient + ' failed.')
-        return
+def DICOM2MHA(patient, dicomfolder, rootTarget):
+	# Read image
+#	DicomFolder = CollectDICOMFolders(os.path.join(rootSource, patient))
+#	if len(DicomFolder.keys()) != 1:
+#		print(patient + ' failed.')
+#		return
 
-    for f in DicomFolder.keys():
-        reader = sitk.ImageSeriesReader()
-        series_found = reader.GetGDCMSeriesIDs(f)
-        if len(series_found) != 1:
-            print(patient + ' more series found.')
-        filenames = reader.GetGDCMSeriesFileNames(f, series_found[0])
-        reader.SetFileNames(filenames)
-        input_image = reader.Execute()
+#	for f in DicomFolder.keys():
+	reader = sitk.ImageSeriesReader()
+	series_found = reader.GetGDCMSeriesIDs(dicomfolder)
+	if len(series_found) != 1:
+		print(patient + ' more series found.')
+		return
+	filenames = reader.GetGDCMSeriesFileNames(f, series_found[0])
+	reader.SetFileNames(filenames)
+	input_image = reader.Execute()
 
-        # Write image
-        if not os._exists(os.path.join(rootTarget, patient)):
-            os.makedirs(os.path.join(rootTarget, patient))
-        sitk.WriteImage(input_image, os.path.join(rootTarget, patient, patient + '.mha'))
+	# Write image
+	if not os._exists(os.path.join(rootTarget, patient)):
+		os.makedirs(os.path.join(rootTarget, patient))
+	sitk.WriteImage(input_image, os.path.join(rootTarget, patient, Scan + '.mha'))
 
-        print(patient + ' done.')
-            
+	print(patient + ' done.')
+			
 def DICOM2MHA_ALL(rootSource, rootTarget):
 	patients = os.listdir(rootSource)
 	with Pool() as p:

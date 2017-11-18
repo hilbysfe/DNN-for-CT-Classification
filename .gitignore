@@ -21,3 +21,10 @@ Training/weights.npy
 Training/pretrained_weights/
 /.project
 Training/MNIST_data/
+Training/Preprocessing/Registration/TransformParameters.0.txt
+Training/Preprocessing/Registration/IterationInfo.0.R0.txt
+Training/Preprocessing/Registration/transformix.log
+Training/Preprocessing/Registration/IterationInfo.0.R3.txt
+Training/Preprocessing/Registration/IterationInfo.0.R2.txt
+Training/Preprocessing/Registration/IterationInfo.0.R1.txt
+Training/Output.txt
