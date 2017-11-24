@@ -29,7 +29,7 @@ def register(scan, atlas, atlasBrain, aspects, cta = True, scanBrain=""):
 	scanFolder = os.path.dirname(scan)
 
 	if scanBrain == "":
-		scanBrain = os.path.join(scanFolder, "BrainMask.mha")
+		scanBrain = os.path.join(scanFolder, "ScanBrain.mha")
 		if not os.path.exists(scanBrain):
 			# Skull stripping part.
 			image = sitk.ReadImage(scan)
@@ -103,8 +103,6 @@ def register(scan, atlas, atlasBrain, aspects, cta = True, scanBrain=""):
 										0.0,
 										sitk.sitkUInt8)
 
-	#moving_image_mask = cta_brain_mask
-	#moving_image = cta
 
 	composed_transformation = sitk.Transform(3, sitk.sitkComposite)
 	composed_transformation.AddTransform(initial_transform)
@@ -188,16 +186,16 @@ def register(scan, atlas, atlasBrain, aspects, cta = True, scanBrain=""):
 	step = 0.01
 	image_width = plane_image.GetSize()[0]
 	coords = numpy.nonzero(sitk.GetArrayFromImage(moving_image_mask))
-	min_gap = min(coords[1]) + (image_width - max(coords[1]))
+	max_gap = max(coords[1])
 	rotation_center = (centroid[1], centroid[2])
 	while angle <= 1.0:
 		rotation2d = sitk.Euler2DTransform((centroid[1], centroid[2]), angle)
 		rotated_plane = sitk.Resample(plane_image, plane_image, rotation2d, sitk.sitkNearestNeighbor, 0.0)
 		coords = numpy.nonzero(sitk.GetArrayFromImage(rotated_plane))
-		gap = min(coords[1]) + (image_width - max(coords[1]))
-		if gap < min_gap:
+		gap = max(coords[1])
+		if gap > max_gap:
 			best_angle = angle
-			min_gap = gap
+			max_gap = gap
 		angle += step
 	rotation = sitk.Euler3DTransform(centroid, best_angle, 0.0, 0.0)
 	moving_image_mask = sitk.Resample(moving_image_mask, moving_image_mask, rotation, sitk.sitkNearestNeighbor, 0.0)
@@ -375,56 +373,48 @@ def register(scan, atlas, atlasBrain, aspects, cta = True, scanBrain=""):
 
 
 
-DATADIR = r'D:/Adam Hilbert/Data/ASPECTS_TestData/ValidationSetThick_Registry/R0001/Scan.mha'
-DATADIR2 = r'D:/Adam Hilbert/Data/ASPECTS_TestData/ValidationSetThick/MrClean0480/Scan2.mha'
-# DATADIR = r'C:/Users/Adam/Registry/NCCT_BL/ST_THIN/R0001/Scan.mha'
-# ATLAS = "D:/Adam Hilbert/Data/ASPECTS_TestData/Additional/atlas.nii"
-ATLAS = "D:/Adam Hilbert/Data/ASPECTS_TestData/Additional/Brainatlas.mha"
-# BRAINATLAS = "D:/Adam Hilbert/Data/ASPECTS_TestData/Additional/brain_mask.nii"
-BRAINATLAS = "D:/Adam Hilbert/Data/ASPECTS_TestData/Additional/Brainmask.mha"
-ASPECTS = "D:/Adam Hilbert/Data/ASPECTS_TestData/Additional/ASPECTS_areas_original.mhd"
-
-validation_root = r'D:/Adam Hilbert/Data/ASPECTS_TestData/ValidationSetThick_Registry'
+DATADIR = r'C:/Users/Adam/Desktop/MrClean0001/Scan.mha'
+ASSETS = r"D:/Adam Hilbert/CT_Classification/code/Training/Preprocessing/Registration/assets"
 
 if __name__ == '__main__':
 	# Command line arguments
 	parser = argparse.ArgumentParser()
 
-	#parser.add_argument('--scan', type=str, default=DATADIR,
-	#					help='Path to scan.')
-	parser.add_argument('--atlas', type=str, default=ATLAS,
-						help='Reference atlas to register the patient\'s brain to.')
-	parser.add_argument('--brainatlas', type=str, default=BRAINATLAS,
-						help='Brain segment of Reference atlas.')
-	parser.add_argument('--aspects', type=str, default=ASPECTS,
-						help='Aspects atlas.')
+	parser.add_argument('--scan', type=str, default=DATADIR,
+						help='Path to scan.')
+	parser.add_argument('--assets', type=str, default=ASSETS,
+						help='Path to all necessary images.')
 
 	flags, _ = parser.parse_known_args()
 
-	#register(
-	#			scan=flags.scan,
+	ATLAS = os.path.join(flags.assets, "Brainatlas.mha")
+	BRAINATLAS = os.path.join(flags.assets, "Brainmask.mha")
+	ASPECTS = os.path.join(flags.assets, "ASPECTS.mha")
+
+	register(
+				scan=flags.scan,
+				atlas=ATLAS,
+				atlasBrain=BRAINATLAS,
+				aspects=ASPECTS,
+				cta = False)
+	
+
+
+	#validation_scans = [ [os.path.join(root, name) for name in files if name.endswith("Scan.mha")][0]
+	#						for root, dirs, files in os.walk(validation_root) if len(files) > 0]
+	#print(validation_scans)
+	
+	#for scan in validation_scans:
+	#	print(scan.split('\\')[-2] + " running...")
+	#	try:
+	#		register(
+	#			scan=scan,
 	#			atlas=flags.atlas,
 	#			atlasBrain=flags.brainatlas,
 	#			aspects=flags.aspects,
 	#			cta = False)
-	
-
-
-	validation_scans = [ [os.path.join(root, name) for name in files if name.endswith("Scan.mha")][0]
-							for root, dirs, files in os.walk(validation_root) if len(files) > 0]
-	#print(validation_scans)
-	
-	for scan in validation_scans:
-		print(scan.split('\\')[-2] + " running...")
-		try:
-			register(
-				scan=scan,
-				atlas=flags.atlas,
-				atlasBrain=flags.brainatlas,
-				aspects=flags.aspects,
-				cta = False)
-			print(scan.split('\\')[-2] + " done.")
-		except:
-			print(scan.split('\\')[-2] + " failed.")
-			continue
+	#		print(scan.split('\\')[-2] + " done.")
+	#	except:
+	#		print(scan.split('\\')[-2] + " failed.")
+	#		continue
 

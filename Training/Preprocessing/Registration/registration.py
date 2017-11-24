@@ -186,16 +186,16 @@ def register(scan, atlas, atlasBrain, artery, cta = True, scanBrain=""):
 	step = 0.01
 	image_width = plane_image.GetSize()[0]
 	coords = numpy.nonzero(sitk.GetArrayFromImage(moving_image_mask))
-	min_gap = min(coords[1]) + (image_width - max(coords[1]))
+	max_gap = max(coords[1])
 	rotation_center = (centroid[1], centroid[2])
 	while angle <= 1.0:
 		rotation2d = sitk.Euler2DTransform((centroid[1], centroid[2]), angle)
 		rotated_plane = sitk.Resample(plane_image, plane_image, rotation2d, sitk.sitkNearestNeighbor, 0.0)
 		coords = numpy.nonzero(sitk.GetArrayFromImage(rotated_plane))
-		gap = min(coords[1]) + (image_width - max(coords[1]))
-		if gap < min_gap:
+		gap = max(coords[1])
+		if gap > max_gap:
 			best_angle = angle
-			min_gap = gap
+			max_gap = gap
 		angle += step
 	rotation = sitk.Euler3DTransform(centroid, best_angle, 0.0, 0.0)
 	moving_image_mask = sitk.Resample(moving_image_mask, moving_image_mask, rotation, sitk.sitkNearestNeighbor, 0.0)
@@ -372,8 +372,8 @@ def register(scan, atlas, atlasBrain, artery, cta = True, scanBrain=""):
 
 
 
-DATADIR = r'D:/Adam Hilbert/Data/artery_test/Scan.mha'
-# DATADIR = r'C:/Users/Adam/Registry/NCCT_BL/ST_THIN/R0001/Scan.mha'
+#DATADIR = r'D:/Adam Hilbert/Data/artery_test/Scan.mha'
+DATADIR = r"D:\Adam Hilbert\Data\tes\scan.mha"
 # ATLAS = "D:/Adam Hilbert/Data/ASPECTS_TestData/Additional/atlas.nii"
 ATLAS = "D:/Adam Hilbert/Data/Atlases/MNI_atlas.nii"
 # BRAINATLAS = "D:/Adam Hilbert/Data/ASPECTS_TestData/Additional/brain_mask.nii"

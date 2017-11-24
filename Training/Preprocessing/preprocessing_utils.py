@@ -7,11 +7,7 @@ from multiprocessing import Pool
 import scipy.ndimage
 
 
-def resample(data, image, new_spacing=[1,1,1]):
-	# Determine current pixel spacing
-	spacing = np.array([0.8, 0.455, 0.455]) # np.array(GetPixelSpacing(image), dtype=np.float32)
-	print(spacing)
-	
+def resample(data, spacing, new_spacing=[1,1,1]):
 	resize_factor = spacing / new_spacing
 	new_real_shape = data.shape * resize_factor
 	new_shape = np.round(new_real_shape)
@@ -21,8 +17,6 @@ def resample(data, image, new_spacing=[1,1,1]):
 	image = scipy.ndimage.interpolation.zoom(data, real_resize_factor, mode='nearest')
 	
 	return image, new_spacing
-
-
 
 def resample_image(file_in, file_out):
 	if not os.path.exists(os.path.dirname(file_out)):
@@ -119,8 +113,8 @@ def GetSliceLocation(file):
 	return float(img.GetMetaData('0020|1041'))
 
 
-def GetSliceThickness(file):
-	img = sitk.ReadImage(file)
+def GetSliceThickness(img):
+	#img = sitk.ReadImage(file)
 	return float(img.GetMetaData('0018|0050'))
 
 
