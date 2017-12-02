@@ -25,23 +25,47 @@ def _find_main_axis(image):
     x2, y2 = axis2
     return x1, y1, x2, y2
 
-def register(scan, atlas, atlasBrain, aspects, cta = True, scanBrain=""):
-	scanFolder = os.path.dirname(scan)
+def register(scanPath, atlas, atlasBrain, aspects, outputFolder="", cta = True, scanBrain=""):
+	if os.path.isfile(scanPath):
+		scanFolder = os.path.dirname(scanPath)
+		scan = sitk.ReadImage(scanPath)
+	else:
+		scanFolder = scanPath
+		reader = sitk.ImageSeriesReader()
+		series_found = reader.GetGDCMSeriesIDs(scanFolder)
+		if len(series_found) != 1:
+			print('More series found in a single folder.')
+			return
+		filenames = reader.GetGDCMSeriesFileNames(scanFolder, series_found[0])
+		reader.SetFileNames(filenames)
+		scan = reader.Execute()
+
+	# --- Define output files ---
+	if outputFolder == "":
+		initialAlignmentMask = os.path.join(scanFolder, "InitialAlignmentBrainMask.mha")
+		initialAlignment = os.path.join(scanFolder, "InitialAlignment.mha")
+		bsplineAspects = os.path.join(scanFolder, "BsplineRegisteredASPECTS.mha")
+	else:
+		if not os.path.exists(outputFolder):
+			os.makedirs(outputFolder)
+		initialAlignmentMask = os.path.join(outputFolder, "InitialAlignmentBrainMask.mha")
+		initialAlignment = os.path.join(outputFolder, "InitialAlignment.mha")
+		bsplineAspects = os.path.join(outputFolder, "BsplineRegisteredASPECTS.mha")
 
 	if scanBrain == "":
-		scanBrain = os.path.join(scanFolder, "ScanBrain.mha")
+		if outputFolder == "":
+			scanBrain = os.path.join(scanFolder, "ScanBrain.mha")
+		else:
+			scanBrain = os.path.join(outputFolder, "ScanBrain.mha")
 		if not os.path.exists(scanBrain):
 			# Skull stripping part.
-			image = sitk.ReadImage(scan)
 			if cta:
-				image = bs.segment_brain(image, -20, 330, 350)
+				scan_brain_mask = bs.segment_brain(scan, -20, 330, 350)
 			else:
-				image = bs.segment_brain(image, -20, 140, 160)		
-			sitk.WriteImage(image, scanBrain)
-
-	# Load CTA and its brain mask.
-	cta = sitk.Cast(sitk.ReadImage(scan), sitk.sitkFloat32)
-	cta_brain_mask = sitk.ReadImage(scanBrain)
+				scan_brain_mask = bs.segment_brain(scan, -20, 140, 160)		
+			sitk.WriteImage(scan_brain_mask, scanBrain)
+		else:
+			scan_brain_mask = sitk.ReadImage(scanBrain)
 
 	# Load atlas and atlas brain mask.
 	atlas = sitk.Cast(sitk.ReadImage(atlas), sitk.sitkFloat32)
@@ -54,7 +78,7 @@ def register(scan, atlas, atlasBrain, aspects, cta = True, scanBrain=""):
 	resample = sitk.ResampleImageFilter()
 	resample.SetTransform(sitk.Transform(3, sitk.sitkIdentity))
 	resample.SetReferenceImage(atlas)
-	out_size = cta.GetSize()
+	out_size = scan.GetSize()
 	in_size = atlas.GetSize()
 	resample.SetSize(out_size)
 	in_spacing = atlas.GetSpacing()
@@ -92,11 +116,11 @@ def register(scan, atlas, atlasBrain, aspects, cta = True, scanBrain=""):
 	
 	# Initial transform to align images based on center of mass.
 	initial_transform = sitk.CenteredTransformInitializer(atlas_brain_mask,  # fixed image
-															cta_brain_mask,  # moving image
+															scan_brain_mask,  # moving image
 															sitk.Euler3DTransform(),
 															sitk.CenteredTransformInitializerFilter.MOMENTS)
 
-	moving_image_mask = sitk.Resample(cta_brain_mask,  # moving image
+	moving_image_mask = sitk.Resample(scan_brain_mask,  # moving image
 										atlas_brain_mask,  # fixed image
 										initial_transform,
 										sitk.sitkNearestNeighbor,
@@ -125,14 +149,15 @@ def register(scan, atlas, atlasBrain, aspects, cta = True, scanBrain=""):
 	#composed_transformation.AddTransform(rotation)
 	#sitk.WriteImage(moving_image_mask, os.path.join(scanFolder, "InitialAlignmentBrainMaskZ.mha"))
 
-	reference_plane = int(centroid_index[2])
+	#reference_plane = int(centroid_index[2])
+	reference_plane = int(numpy.argmax(numpy.sum(sitk.GetArrayFromImage(moving_image_mask), (1,2))))
 	plane_image = moving_image_mask[:, :, reference_plane]
 	angle = -1.3  # Approximately -75 degrees.
 	best_angle = 0.0
 	step = 0.01
-	image_width = plane_image.GetSize()[0]
+	image_width = moving_image_mask.GetSize()[0]
 	half_image_width = int(image_width / 2)
-	min_diff = image_width * plane_image.GetSize()[1]
+	min_diff = image_width * moving_image_mask.GetSize()[1]
 	rotation_center = (centroid[0], centroid[1])
 	while angle <= 1.3:
 		rotation2d = sitk.Euler2DTransform((centroid[0], centroid[1]), angle)
@@ -141,7 +166,7 @@ def register(scan, atlas, atlasBrain, aspects, cta = True, scanBrain=""):
 		right_side = sitk.GetArrayFromImage(rotated_plane[half_image_width:image_width, :])
 		right_side = numpy.flip(right_side, 1)
 		diff_sides = numpy.square(right_side - left_side)
-		count_diff = numpy.count_nonzero(diff_sides)
+		count_diff = numpy.sum(diff_sides)
 		if count_diff < min_diff:
 			best_angle = angle
 			min_diff = count_diff
@@ -152,7 +177,8 @@ def register(scan, atlas, atlasBrain, aspects, cta = True, scanBrain=""):
 	#sitk.WriteImage(moving_image_mask, os.path.join(scanFolder, "InitialAlignmentBrainMaskZ.mha"))
 
 	# Align Y plane using symmetry detection.
-	reference_plane = int(centroid_index[1])
+	#reference_plane = int(centroid_index[1])
+	reference_plane = int(numpy.argmax(numpy.sum(sitk.GetArrayFromImage(moving_image_mask), (0,1))))
 	plane_image = moving_image_mask[:, reference_plane, :]
 	angle = -0.8  # Approximately -45 degrees.
 	best_angle = 0.0
@@ -168,7 +194,7 @@ def register(scan, atlas, atlasBrain, aspects, cta = True, scanBrain=""):
 		right_side = sitk.GetArrayFromImage(rotated_plane[half_image_width:image_width, :])
 		right_side = numpy.flip(right_side, 1)
 		diff_sides = numpy.square(right_side - left_side)
-		count_diff = numpy.count_nonzero(diff_sides)
+		count_diff = numpy.sum(diff_sides)
 		if count_diff < min_diff:
 			best_angle = angle
 			min_diff = count_diff
@@ -204,22 +230,22 @@ def register(scan, atlas, atlasBrain, aspects, cta = True, scanBrain=""):
 		
 
     # Resample images after initial alignment.
-	moving_image_mask = sitk.Resample(cta_brain_mask,
+	moving_image_mask = sitk.Resample(scan_brain_mask,
 										atlas_brain_mask,
 										composed_transformation,
 										sitk.sitkNearestNeighbor,
 										0.0,
 										sitk.sitkUInt8)
 
-	moving_image = sitk.Resample(cta,
+	moving_image = sitk.Resample(scan,
 									atlas,
 									composed_transformation,
 									sitk.sitkBSpline,
 									0.0,
 									sitk.sitkFloat32)
 
-	sitk.WriteImage(moving_image_mask, os.path.join(scanFolder, "InitialAlignmentBrainMask.mha"))
-	sitk.WriteImage(moving_image, os.path.join(scanFolder, "InitialAlignment.mha"))
+	sitk.WriteImage(moving_image_mask, initialAlignmentMask)
+	sitk.WriteImage(moving_image, initialAlignment)
 	
 
 	# Perform rigid registration.
@@ -369,21 +395,22 @@ def register(scan, atlas, atlasBrain, aspects, cta = True, scanBrain=""):
 	transformix_filter.SetTransformParameterMap(parameter_map)
 	transformix_filter.Execute()
 	bspline_result_aspects = transformix_filter.GetResultImage()
-	sitk.WriteImage(bspline_result_aspects, os.path.join(scanFolder, "BsplineRegisteredASPECTS.mha"))
+	sitk.WriteImage(bspline_result_aspects, bsplineAspects)
 
-
-
-DATADIR = r'C:/Users/Adam/Desktop/MrClean0001/Scan.mha'
-ASSETS = r"D:/Adam Hilbert/CT_Classification/code/Training/Preprocessing/Registration/assets"
+	
+DATADIR = r'C:\Users\Adam\Desktop\MrClean0001'
+ASSETS = r"D:\Adam Hilbert\Data\Atlases"
 
 if __name__ == '__main__':
 	# Command line arguments
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument('--scan', type=str, default=DATADIR,
-						help='Path to scan.')
-	parser.add_argument('--assets', type=str, default=ASSETS,
+	parser.add_argument('--scan', type=str, default="",
+						help='Path to scan. Folder in case of DICOM / filename in case of meta-file format.')
+	parser.add_argument('--assets', type=str, default="",
 						help='Path to all necessary images.')
+	parser.add_argument('--output', type=str, default="",
+						help='Output folder results should be saved in.')
 
 	flags, _ = parser.parse_known_args()
 
@@ -392,10 +419,11 @@ if __name__ == '__main__':
 	ASPECTS = os.path.join(flags.assets, "ASPECTS.mha")
 
 	register(
-				scan=flags.scan,
+				scanPath=flags.scan,
 				atlas=ATLAS,
 				atlasBrain=BRAINATLAS,
 				aspects=ASPECTS,
+				outputFolder = flags.output,
 				cta = False)
 	
 
@@ -407,12 +435,13 @@ if __name__ == '__main__':
 	#for scan in validation_scans:
 	#	print(scan.split('\\')[-2] + " running...")
 	#	try:
-	#		register(
-	#			scan=scan,
-	#			atlas=flags.atlas,
-	#			atlasBrain=flags.brainatlas,
-	#			aspects=flags.aspects,
-	#			cta = False)
+			#register(
+			#	scanPath=flags.scan,
+			#	atlas=ATLAS,
+			#	atlasBrain=BRAINATLAS,
+			#	aspects=ASPECTS,
+			#	outputFolder = flags.output,
+			#	cta = False)
 	#		print(scan.split('\\')[-2] + " done.")
 	#	except:
 	#		print(scan.split('\\')[-2] + " failed.")

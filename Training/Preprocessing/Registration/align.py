@@ -101,14 +101,14 @@ def align(scan, scanBrain, atlas, atlasBrain, cta = False):
 	#composed_transformation.AddTransform(rotation)
 	#sitk.WriteImage(moving_image_mask, os.path.join(scanFolder, "InitialAlignmentBrainMaskZ.mha"))
 
-	reference_plane = int(centroid_index[2])
+	reference_plane = int(numpy.argmax(numpy.sum(sitk.GetArrayFromImage(moving_image_mask), (1,2))))
 	plane_image = moving_image_mask[:, :, reference_plane]
 	angle = -1.3  # Approximately -75 degrees.
 	best_angle = 0.0
 	step = 0.01
-	image_width = plane_image.GetSize()[0]
+	image_width = moving_image_mask.GetSize()[0]
 	half_image_width = int(image_width / 2)
-	min_diff = image_width * plane_image.GetSize()[1]
+	min_diff = image_width * moving_image_mask.GetSize()[1]
 	rotation_center = (centroid[0], centroid[1])
 	while angle <= 1.3:
 		rotation2d = sitk.Euler2DTransform((centroid[0], centroid[1]), angle)
@@ -117,7 +117,7 @@ def align(scan, scanBrain, atlas, atlasBrain, cta = False):
 		right_side = sitk.GetArrayFromImage(rotated_plane[half_image_width:2*half_image_width, :])
 		right_side = numpy.flip(right_side, 1)
 		diff_sides = numpy.square(right_side - left_side)
-		count_diff = numpy.count_nonzero(diff_sides)
+		count_diff = numpy.sum(diff_sides)
 		if count_diff < min_diff:
 			best_angle = angle
 			min_diff = count_diff
@@ -128,7 +128,8 @@ def align(scan, scanBrain, atlas, atlasBrain, cta = False):
 	# sitk.WriteImage(moving_image_mask, os.path.join(scanFolder, "InitialAlignmentBrainMaskZ.mha"))
 
 	# Align Y plane using symmetry detection.
-	reference_plane = int(centroid_index[1])
+	#reference_plane = int(centroid_index[1])
+	reference_plane = int(numpy.argmax(numpy.sum(sitk.GetArrayFromImage(moving_image_mask), (0,1))))
 	plane_image = moving_image_mask[:, reference_plane, :]
 	angle = -0.8  # Approximately -45 degrees.
 	best_angle = 0.0
@@ -205,25 +206,30 @@ ATLAS = "D:/Adam Hilbert/Data/Atlases/MNI_atlas.nii"
 BRAINATLAS = "D:/Adam Hilbert/Data/Atlases/brain_mask.nii"
 ARTERY = "D:/Adam Hilbert/Data/Atlases/artery_atlas.nii"
 
+ASSETS = r"D:\Adam Hilbert\Data\Atlases"
+
 validation_root = r'C:\Users\Adam\Registry\ASPECTS_test\Test_12112017'
 
 if __name__ == '__main__':
 	# Command line arguments
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument('--scan', type=str, default=DATADIR,
+	parser.add_argument('--scan', type=str, default="",
 						help='Path to scan.')
-	parser.add_argument('--atlas', type=str, default=ATLAS,
+	parser.add_argument('--atlas', type=str, default="",
 						help='Reference atlas to register the patient\'s brain to.')
-	parser.add_argument('--brainatlas', type=str, default=BRAINATLAS,
+	parser.add_argument('--brainatlas', type=str, default="",
 						help='Brain segment of Reference atlas.')
 	
 	flags, _ = parser.parse_known_args()
 
+	ATLAS = os.path.join(flags.assets, "Brainatlas.mha")
+	BRAINATLAS = os.path.join(flags.assets, "Brainmask.mha")
+
 	align(
 			scan=flags.scan,
-			atlas=flags.atlas,
-			atlasBrain=flags.brainatlas,
+			atlas=ATLAS,
+			atlasBrain=BRAINATLAS,
 			cta = False)
 	
 	#validation_scans = [ [os.path.join(root, name) for name in files if name.endswith(".mha")][0]

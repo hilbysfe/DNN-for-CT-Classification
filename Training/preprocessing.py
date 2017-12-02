@@ -213,6 +213,9 @@ def softtissue_selection(patient, threshold):
 
 def pipeline_NCCT(patient, rootSource, rootTarget):
 	try:
+		if os.path.exists(os.path.join(rootTarget, patient)):
+			return
+
 		# Select thinnest series
 		thicknesses = [float(thickness) for thickness in os.listdir(os.path.join(rootSource, patient))]
 	
@@ -328,11 +331,10 @@ def pipeline_CTA(patient, rootTarget):
 	# Resample to unit pixelspacing
 	scan = preprocessing_utils.resample(sitk.GetArrayFromImage(scan), pixelSpacing)
 	brainmask = preprocessing_utils.resample(sitk.GetArrayFromImage(brainmask), pixelSpacing)
-
-
+	
 
 ATLAS = r"D:/Adam Hilbert/Data/Atlases/MNI_atlas.nii"
-BRAINATLAS = r"D:/Adam Hilbert/Data/Atlases/brain_mask.nii"
+BRAINATLAS = r"D:/Adam Hilbert/Data/Atlases/MNI_brainmask.nii"
 
 if __name__ == '__main__':
 	patients = os.listdir(NCCT_ST)
