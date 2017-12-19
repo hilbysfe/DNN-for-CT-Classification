@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from Utils.cnn_utils import _conv_layer_2d
-from Utils.cnn_utils import _conv_layer_pure_2d
+from Utils.cnn_utils import _conv_layer_pure_3d
 from Utils.cnn_utils import _deconv_layer_2d
 from Utils.cnn_utils import _deconv_layer_tied
 
@@ -97,7 +97,7 @@ class DenseNet(object):
 			# ReLU
 			output = tf.nn.relu(output)
 			# convolution
-			output = _conv_layer_pure_2d(output, shape=[kernel_size, kernel_size, int(output.get_shape()[-1]), out_features])
+			output = _conv_layer_pure_3d(output, shape=[kernel_size, kernel_size, kernel_size, int(output.get_shape()[-1]), out_features])
 			# dropout(in case of training and in case it is no 1.0)
 			output = self.dropout(output)
 		return output
@@ -110,7 +110,7 @@ class DenseNet(object):
 			output = tf.nn.relu(output)
 			inter_features = out_features * 4
 			# 1x1 convolution
-			output = _conv_layer_pure_2d(output, shape=[1, 1, int(output.get_shape()[-1]), inter_features], padding='VALID')
+			output = _conv_layer_pure_3d(output, shape=[1, 1, 1, int(output.get_shape()[-1]), inter_features], padding='VALID')
 		output = self.dropout(output)
 		return output
 

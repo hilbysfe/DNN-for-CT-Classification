@@ -6,7 +6,6 @@ import shutil
 from multiprocessing import Pool
 import scipy.ndimage
 
-
 def resample(data, spacing, new_spacing=[1,1,1]):
 	resize_factor = spacing / new_spacing
 	new_real_shape = data.shape * resize_factor
@@ -174,7 +173,7 @@ def MoveDirectory(source, target):
 
 def CopyDirectory(source, target):
 	if not os.path.exists(os.path.join(target, source.split('\\')[-1])):
-		os.makedirs(os.path.join(target, source.split('\\')[-1]))
+#		os.makedirs(os.path.join(target, source.split('\\')[-1]))
 		shutil.copytree(source, os.path.join(target, source.split('\\')[-1]))
 
 
