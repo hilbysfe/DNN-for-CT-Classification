@@ -14,6 +14,35 @@ def GetZLocation(file):
 def sort_files(files, map):
 	return sorted(files, key=map)
 
+
+def MIP(input_image, window, overlap):
+	# if not os.path.exists(os.path.join(rootTarget, patient)):
+	# try:
+
+	spacing = input_image.GetSpacing()
+	input_data = sitk.GetArrayFromImage(input_image)
+
+	# Compute MIP
+	mip_slices = []
+	offset = 0
+	while offset < input_data.shape[0]:
+		chunk = input_data[offset:min(offset+window, input_data.shape[0]), :, :]
+		new_slice = np.max(chunk, axis=0)
+		mip_slices.append(new_slice)
+		offset += (window - overlap)
+
+	# Create image
+	mip_image = sitk.GetImageFromArray(np.array(mip_slices)[:, ::-1, ::-1])
+	mip_image.SetSpacing((spacing[0], spacing[1], spacing[2]*float(window - overlap)))
+
+	# os.makedirs(os.path.join(rootTarget, patient))
+	# sitk.WriteImage(mip_image, os.path.join(rootTarget, patient, patient + '.mha'))
+
+#	os.makedirs(os.path.join(rootTarget, "mip"))
+#	sitk.WriteImage(mip_image, os.path.join(rootTarget, "mip", patient + '.mha'))
+
+	return mip_image
+
 def MIP_DICOM(patient):
 
 	# if not os.path.exists(os.path.join(rootTarget, patient)):

@@ -112,8 +112,8 @@ def GetSliceLocation(file):
 	return float(img.GetMetaData('0020|1041'))
 
 
-def GetSliceThickness(img):
-	#img = sitk.ReadImage(file)
+def GetSliceThickness(file):
+	img = sitk.ReadImage(file)
 	return float(img.GetMetaData('0018|0050'))
 
 
@@ -135,6 +135,9 @@ def GetImageOrientationPatient(file):
 def GetSeriesDescription(file):
 	img = sitk.ReadImage(file)
 	return str(img.GetMetaData('0008|103e'))
+def GetImageType(file):
+	img = sitk.ReadImage(file)
+	return str(img.GetMetaData('0008|0008'))
 
 def GetConvKernel(file):
 	img = sitk.ReadImage(file)
@@ -146,11 +149,6 @@ def GetStudyDate(img):
 
 def GetStudyTime(img):
 	return float(img.GetMetaData('0080|0030'))
-
-
-def GetImageType(img):
-	return img.GetMetaData('0008|0008')
-
 
 def GetPixelRepresentation(img):
 	return int(img.GetMetaData('0028|0103'))
