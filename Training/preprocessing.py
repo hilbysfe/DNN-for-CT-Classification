@@ -6,7 +6,6 @@ import shutil
 from multiprocessing import Pool
 from itertools import repeat
 
-
 from Preprocessing import mip
 from Preprocessing import preprocessing_utils
 from Preprocessing.Registration import align
@@ -42,9 +41,11 @@ MIP_SKULL_REGISTRY = r'/home/nicolab/DATA/data/SUPERVISED/REGISTRY/CTA_SKULLSTRI
 CTA_REGISTRY = r'E:\MRCLEAN_REGISTRY\CTA_BL'
 CTA_ST = r'D:\Adam Hilbert\Data\Registry\CTA_BL\CTA_ST'
 CTA_THINNEST = r'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_THINNEST'
+CTA_THINNEST_RESIZED = r'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_THINNEST_RESIZED'
 CTA_MIP = r'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_MIP'
+CTA_MIP_RESIZED = r'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_MIP_RESIZED'
 CTA_SKULLSTRIPPED = r'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_MIP_SKULLSTRIPPED'
-
+CTA_SKULLSTRIPPED_RESIZED = r'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_MIP_SKULLSTRIPPED_RESIZED2'
 
 NCCT = r'C:\Users\Adam\Registry\NCCT_BL\all'
 NCCT_ST = r'E:\MRCLEAN_REGISTRY\NCCT_BL_ST'
@@ -218,7 +219,8 @@ def softtissue_selection(patient, rootSource, rootTarget):
 		for folder in baselines:
 			# Select upper 20 cm
 			max_loc = preprocessing_utils.GetZLocation(baselines[folder][-1])
-			files_to_copy = [file for file in baselines[folder] if preprocessing_utils.GetZLocation(file) > max_loc-200]
+			files_to_copy = [file for file in baselines[folder] if
+							 preprocessing_utils.GetZLocation(file) > max_loc - 200]
 			#			print(os.path.join(NCCT_ST, patient, str(sliceMap[folder])))
 			if not os.path.exists(os.path.join(rootTarget, patient, str(sliceMap[folder]))):
 				preprocessing_utils.CopyFiles(files_to_copy,
@@ -231,9 +233,9 @@ def softtissue_selection(patient, rootSource, rootTarget):
 
 def pipeline_NCCT(patient, rootSource, rootTarget):
 	#	try:
-#	if os.path.exists(os.path.join(rootTarget, patient)) and len(os.listdir(os.path.join(rootTarget, patient))) == 0:
-#		shutil.rmtree(os.path.join(rootTarget, patient))
-#		return
+	#	if os.path.exists(os.path.join(rootTarget, patient)) and len(os.listdir(os.path.join(rootTarget, patient))) == 0:
+	#		shutil.rmtree(os.path.join(rootTarget, patient))
+	#		return
 
 	# Create output dict if not existing
 	if not os.path.exists(os.path.join(rootTarget, patient)):
@@ -341,7 +343,8 @@ def pipeline_NCCT(patient, rootSource, rootTarget):
 
 def pipeline_CTA(patient, rootSource, rootTargetCTA, rootTargetMIP, rootTargetMIPBrain):
 	try:
-		if os.path.exists(os.path.join(rootTargetCTA, patient)): # and len(os.listdir(os.path.join(rootTarget, patient))) == 0:
+		if os.path.exists(
+				os.path.join(rootTargetCTA, patient)):  # and len(os.listdir(os.path.join(rootTarget, patient))) == 0:
 			return
 
 		# Create output dict if not existing
@@ -397,18 +400,18 @@ def pipeline_CTA(patient, rootSource, rootTargetCTA, rootTargetMIP, rootTargetMI
 											   np.array([pixelSpacing[2], pixelSpacing[0], pixelSpacing[1]]))
 		scan = sitk.GetImageFromArray(scan)
 
-		# Write resulting image and brain mask
-		#		sitk.WriteImage(scan, os.path.join(rootTarget, patient, 'ScanResampled.mha'))
-
 		# Set orientation back
 		scan.SetDirection(direction)
 		scan.SetOrigin(origin)
+
+		# Write resulting image and brain mask
+		sitk.WriteImage(scan, os.path.join(rootTargetCTA, patient, 'ScanResampled.mha'))
 
 		# Segment brain
 		scanBrain = os.path.join(rootTargetCTA, patient, 'BrainMask.mha')
 		if not os.path.exists(scanBrain):
 			brain_mask = bs.segment_brain(scan, -20, 330, 350)
-			# sitk.WriteImage(brain_mask, scanBrain)
+		# sitk.WriteImage(brain_mask, scanBrain)
 		else:
 			brain_mask = sitk.ReadImage(scanBrain)
 
@@ -469,97 +472,99 @@ def select_biggest_dimensions(patients, root):
 	min_z = 1000
 
 	for patient in patients:
-		if not os.path.exists(os.path.join(root, patient, "Skullstripped.mha")):
+		if not os.path.exists(os.path.join(root, patient, "MIP.mha")):
 			print(patient)
 			continue
-		data = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(root, patient, "Skullstripped.mha")))
+		data = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(root, patient, "MIP.mha")))
 		coords = np.nonzero(data)
-		# if max(coords[2]) > max_x:
-		# 	max_x = max(coords[2])
-		# 	p_mx = patient
-		# if max(coords[1]) > max_y:
-		# 	max_y = max(coords[1])
-		# 	p_my = patient
-		# if max(coords[0]) > max_z:
-		# 	max_z = max(coords[0])
-		# 	p_mz = patient
+		if max(coords[2]) > max_x:
+			max_x = max(coords[2])
+			p_mx = patient
+		if max(coords[1]) > max_y:
+			max_y = max(coords[1])
+			p_my = patient
+		if max(coords[0]) > max_z:
+			max_z = max(coords[0])
+			p_mz = patient
 
 		if min(coords[2]) < min_x:
 			min_x = min(coords[2])
 			p_ix = patient
-	# if min(coords[1]) < min_y:
-	# 	min_y = min(coords[1])
-	# 	p_iy = patient
-	# if min(coords[0]) < min_z:
-	# 	min_z = min(coords[0])
-	# 	p_iz = patient
+		if min(coords[1]) < min_y:
+			min_y = min(coords[1])
+			p_iy = patient
+		if min(coords[0]) < min_z:
+			min_z = min(coords[0])
+			p_iz = patient
 
-	print(str(min_x) + " " + str(p_ix))
+	#	print(str(min_y) + " " + str(p_iy))
+	#	print(str(max_z) + " " + str(p_mz))
 
-
-# print(str(min_x) + " " + str(min_y) + " " + str(min_z))
-# print(str(p_ix) + " " + str(p_iy) + " " + str(p_iz))
-# print(str(max_x) + " " + str(max_y) + " " + str(max_z))
-# print(str(p_mx) + " " + str(p_my) + " " + str(p_mz))
-
-
-def resize_image(patient, NCCT_THINNEST_SIZE, rootSource, rootTarget):
-	#	try:
-	if os.path.exists(os.path.join(rootTarget, patient + ".mha")):
-		return
-	img = sitk.ReadImage(os.path.join(rootSource, patient, "Skullstripped.mha"))
-	data = sitk.GetArrayFromImage(img)[:, ::-1, :]
-	new_data = np.zeros(NCCT_THINNEST_SIZE)
-	if data.shape[0] > NCCT_THINNEST_SIZE[0] and data.shape[1] < NCCT_THINNEST_SIZE[1]:
-		new_data[
-		:,
-		int(np.floor((NCCT_THINNEST_SIZE[1] - data.shape[1]) / 2)): NCCT_THINNEST_SIZE[1] - int(
-			np.ceil((NCCT_THINNEST_SIZE[1] - data.shape[1]) / 2)),
-		int(np.floor((NCCT_THINNEST_SIZE[2] - data.shape[2]) / 2)): NCCT_THINNEST_SIZE[2] - int(
-			np.ceil((NCCT_THINNEST_SIZE[2] - data.shape[2]) / 2))
-		] = data[int(data.shape[0] / 2) - int(np.floor(NCCT_THINNEST_SIZE[0] / 2)):int(data.shape[0] / 2) + int(
-			np.ceil(NCCT_THINNEST_SIZE[0] / 2)), :, :]
-	if data.shape[1] > NCCT_THINNEST_SIZE[1] and data.shape[0] < NCCT_THINNEST_SIZE[0]:
-		new_data[
-		int(np.floor((NCCT_THINNEST_SIZE[0] - data.shape[0]) / 2)): NCCT_THINNEST_SIZE[0] - int(
-			np.ceil((NCCT_THINNEST_SIZE[0] - data.shape[0]) / 2)),
-		:, :
-		] = data[:,
-			int(data.shape[1] / 2) - int(np.floor(NCCT_THINNEST_SIZE[1] / 2)):int(
-				np.ceil(data.shape[1] / 2) + int(NCCT_THINNEST_SIZE[1] / 2)),
-			int(data.shape[2] / 2) - int(np.floor(NCCT_THINNEST_SIZE[2] / 2)):int(
-				np.ceil(data.shape[2] / 2) + int(NCCT_THINNEST_SIZE[2] / 2))
-			]
-	if data.shape[1] > NCCT_THINNEST_SIZE[1] and data.shape[0] > NCCT_THINNEST_SIZE[0]:
-		new_data = data[
-				   int(data.shape[0] / 2) - int(np.floor(NCCT_THINNEST_SIZE[0] / 2)):int(
-					   np.ceil(data.shape[0] / 2) + int(NCCT_THINNEST_SIZE[0] / 2)),
-				   int(data.shape[1] / 2) - int(np.floor(NCCT_THINNEST_SIZE[1] / 2)):int(
-					   np.ceil(data.shape[1] / 2) + int(NCCT_THINNEST_SIZE[1] / 2)),
-				   int(data.shape[2] / 2) - int(np.floor(NCCT_THINNEST_SIZE[2] / 2)):int(
-					   np.ceil(data.shape[2] / 2) + int(NCCT_THINNEST_SIZE[2] / 2))
-				   ]
-	if data.shape[1] < NCCT_THINNEST_SIZE[1] and data.shape[0] < NCCT_THINNEST_SIZE[0]:
-		new_data[
-		int(np.floor((NCCT_THINNEST_SIZE[0] - data.shape[0]) / 2)): NCCT_THINNEST_SIZE[0] - int(
-			np.ceil((NCCT_THINNEST_SIZE[0] - data.shape[0]) / 2)),
-		int(np.floor((NCCT_THINNEST_SIZE[1] - data.shape[1]) / 2)): NCCT_THINNEST_SIZE[1] - int(
-			np.ceil((NCCT_THINNEST_SIZE[1] - data.shape[1]) / 2)),
-		int(np.floor((NCCT_THINNEST_SIZE[2] - data.shape[2]) / 2)): NCCT_THINNEST_SIZE[2] - int(
-			np.ceil((NCCT_THINNEST_SIZE[2] - data.shape[2]) / 2))
-		] = data
-	new_img = sitk.Cast(sitk.GetImageFromArray(new_data), sitk.sitkInt16)
-	new_img.SetSpacing(img.GetSpacing())
-	#		new_img.AddMetaData("0010|0020", patient)
-
-	#		writer = sitk.ImageFileWriter()
-	#		writer.SetFileName(os.path.join(rootTarget, patient + ".dcm"))
-	#		writer.Execute(new_img)
-	sitk.WriteImage(new_img, os.path.join(rootTarget, patient + ".mha"))
+	print(str(min_x) + " " + str(min_y) + " " + str(min_z))
+	print(str(p_ix) + " " + str(p_iy) + " " + str(p_iz))
+	print(str(max_x) + " " + str(max_y) + " " + str(max_z))
+	print(str(p_mx) + " " + str(p_my) + " " + str(p_mz))
 
 
-#	except:
-#		print(patient + " failed.")
+def resize_image(patient, SIZE, rootSource, rootTarget):
+	try:
+		if os.path.exists(os.path.join(rootTarget, patient + ".mha")):
+			return
+		if len(os.listdir(os.path.join(rootSource, patient))) == 0:
+			shutil.rmtree(os.path.join(rootSource, patient))
+
+		img = sitk.ReadImage(os.path.join(rootSource, patient, "MIP.mha"))
+		data = sitk.GetArrayFromImage(img)
+		new_data = np.zeros(SIZE)
+		if data.shape[0] > SIZE[0] and data.shape[1] < SIZE[1]:
+			new_data[
+			:,
+			int(np.floor((SIZE[1] - data.shape[1]) / 2)): SIZE[1] - int(
+				np.ceil((SIZE[1] - data.shape[1]) / 2)),
+			int(np.floor((SIZE[2] - data.shape[2]) / 2)): SIZE[2] - int(
+				np.ceil((SIZE[2] - data.shape[2]) / 2))
+			] = data[int(np.floor((data.shape[0] - SIZE[0]) / 2)):
+					data.shape[0] - int(np.ceil((data.shape[0] - SIZE[0]) / 2)), :, :]
+		if data.shape[1] > SIZE[1] and data.shape[0] < SIZE[0]:
+			new_data[
+			int(np.floor((SIZE[0] - data.shape[0]) / 2)): SIZE[0] - int(
+				np.ceil((SIZE[0] - data.shape[0]) / 2)),
+			:, :
+			] = data[:,
+					int(np.floor((data.shape[1] - SIZE[1]) / 2)):
+						data.shape[1] - int(np.ceil((data.shape[1] - SIZE[1]) / 2)),
+					int(np.floor((data.shape[2] - SIZE[2]) / 2)):
+						data.shape[2] - int(np.ceil((data.shape[2] - SIZE[2]) / 2))
+					]
+		if data.shape[1] > SIZE[1] and data.shape[0] > SIZE[0]:
+			new_data = data[
+				int(np.floor((data.shape[0] - SIZE[0]) / 2)):
+					data.shape[0] - int(np.ceil((data.shape[0] - SIZE[0]) / 2)),
+				int(np.floor((data.shape[1] - SIZE[1]) / 2)):
+					data.shape[1] - int(np.ceil((data.shape[1] - SIZE[1]) / 2)),
+				int(np.floor((data.shape[2] - SIZE[2]) / 2)):
+					data.shape[2] - int(np.ceil((data.shape[2] - SIZE[2]) / 2))
+				]
+		if data.shape[1] < SIZE[1] and data.shape[0] < SIZE[0]:
+			new_data[
+			int(np.floor((SIZE[0] - data.shape[0]) / 2)): SIZE[0] - int(
+				np.ceil((SIZE[0] - data.shape[0]) / 2)),
+			int(np.floor((SIZE[1] - data.shape[1]) / 2)): SIZE[1] - int(
+				np.ceil((SIZE[1] - data.shape[1]) / 2)),
+			int(np.floor((SIZE[2] - data.shape[2]) / 2)): SIZE[2] - int(
+				np.ceil((SIZE[2] - data.shape[2]) / 2))
+			] = data
+		new_img = sitk.Cast(sitk.GetImageFromArray(new_data), sitk.sitkInt16)
+		new_img.SetSpacing(img.GetSpacing())
+		#		new_img.AddMetaData("0010|0020", patient)
+
+		#		writer = sitk.ImageFileWriter()
+		#		writer.SetFileName(os.path.join(rootTarget, patient + ".dcm"))
+		#		writer.Execute(new_img)
+		sitk.WriteImage(new_img, os.path.join(rootTarget, patient + ".mha"))
+
+	except:
+		print(patient + " failed.")
 
 def copy_resampled_by_slice_thickness(patient, threshold, rootOriginal, rootSource, rootTarget):
 	# Select thinnest series
@@ -579,33 +584,69 @@ def copy_resampled_by_slice_thickness(patient, threshold, rootOriginal, rootSour
 
 
 def remove_MIP(patient, rootSource):
-#	try:
-		# Collect all folder below patient folder which contains DICOM
-		folder_dict = preprocessing_utils.CollectDICOMFolders(os.path.join(rootSource, patient))
-		for folder in folder_dict:
-			dicomFiles = folder_dict[folder]
+	#	try:
+	# Collect all folder below patient folder which contains DICOM
+	folder_dict = preprocessing_utils.CollectDICOMFolders(os.path.join(rootSource, patient))
+	for folder in folder_dict:
+		dicomFiles = folder_dict[folder]
 
-			if "MIP" in preprocessing_utils.GetSeriesDescription(dicomFiles[0]) or \
+		if "MIP" in preprocessing_utils.GetSeriesDescription(dicomFiles[0]) or \
 				"mip" in preprocessing_utils.GetSeriesDescription(dicomFiles[0]) or \
 				"MIP" in preprocessing_utils.GetImageType(dicomFiles[0]) or \
 				"mip" in preprocessing_utils.GetImageType(dicomFiles[0]):
-				shutil.rmtree(folder)
-				print(patient + " deleted.")
+			shutil.rmtree(folder)
+			print(patient + " deleted.")
+
+
 #	except:
 #		print(patient + " failed.")
 
 def remove_badCT(patient, rootSource):
-#	try:
-		# Collect all folder below patient folder which contains DICOM
-		folder_dict = preprocessing_utils.CollectDICOMFolders(os.path.join(rootSource, patient))
-		for folder in folder_dict:
-			dicomFiles = folder_dict[folder]
+	#	try:
+	# Collect all folder below patient folder which contains DICOM
+	folder_dict = preprocessing_utils.CollectDICOMFolders(os.path.join(rootSource, patient))
+	for folder in folder_dict:
+		dicomFiles = folder_dict[folder]
 
-			if "H20f" in preprocessing_utils.GetSeriesDescription(dicomFiles[0]) or \
+		if "H20f" in preprocessing_utils.GetSeriesDescription(dicomFiles[0]) or \
 				"h20f" in preprocessing_utils.GetSeriesDescription(dicomFiles[0]) or \
 				"H20f" in preprocessing_utils.GetConvKernel(dicomFiles[0]) or \
 				"h20f" in preprocessing_utils.GetConvKernel(dicomFiles[0]):
-				shutil.rmtree(folder)
+			shutil.rmtree(folder)
+
+
+def skullstrip(patient, rootSource, rootTarget):
+#	try:
+		scan = sitk.ReadImage(os.path.join(rootSource, patient))
+		scanBrain = os.path.join(rootTarget, patient)
+		if not os.path.exists(scanBrain):
+			brain_mask = bs.segment_brain(scan, -20, 330, 350)
+
+		if np.sum(sitk.GetArrayFromImage(brain_mask)) == 0:
+			print(patient + " Skullstrip failed.")
+			return
+
+		# Save orientation
+		direction = scan.GetDirection()
+		origin = scan.GetOrigin()
+		spacing = scan.GetSpacing()
+
+		# Create skullstripped image (again)
+		input_data = sitk.GetArrayFromImage(scan)
+		mask_data = sitk.GetArrayFromImage(brain_mask)
+		brain_data = np.multiply(input_data, mask_data)
+		scan = sitk.GetImageFromArray(brain_data)
+
+		scan.SetSpacing(spacing)
+		scan.SetDirection(direction)
+		scan.SetOrigin(origin)
+
+		sitk.WriteImage(scan, scanBrain)
+
+		print(patient + " done.")
+#	except:
+#		print(patient + " failed.")
+
 
 ATLAS = r"E:/Atlases/MNI_atlas.nii"
 BRAINATLAS = r"E:/Atlases/MNI_brainmask.nii"
@@ -636,9 +677,9 @@ if __name__ == '__main__':
 	# print(end - start)
 
 	# Run pipeline for whole dataset
-#		patients = os.listdir(CTA_ST)
-#		with Pool() as p:
-#			p.starmap(pipeline_NCCT, zip(patients, repeat(CTA_ST), repeat(CTA_ST)))
+	#		patients = os.listdir(CTA_ST)
+	#		with Pool() as p:
+	#			p.starmap(pipeline_NCCT, zip(patients, repeat(CTA_ST), repeat(CTA_ST)))
 
 	# Run resize for whole dataset
 	#	patients = os.listdir(NCCT_THINNEST)
@@ -656,23 +697,42 @@ if __name__ == '__main__':
 	# 		p.starmap(copy_resampled_by_slice_thickness, zip(patients, repeat(threshold), repeat(NCCT_ST), repeat(NCCT_THINNEST), repeat(NCCT_THIN)))
 
 	# Select soft tissue for CTAs
-#	patients = os.listdir(CTA_ST)
-#	softtissue_selection("R0001", CTA_REGISTRY, CTA_ST)
-#	with Pool() as p:
-#		p.starmap(softtissue_selection, zip(patients, repeat(CTA_REGISTRY), repeat(CTA_ST)))
+	#	patients = os.listdir(CTA_ST)
+	#	softtissue_selection("R0001", CTA_REGISTRY, CTA_ST)
+	#	with Pool() as p:
+	#		p.starmap(softtissue_selection, zip(patients, repeat(CTA_REGISTRY), repeat(CTA_ST)))
 
 	# Remove MIPs from CTA series
-#	patients = os.listdir(CTA_ST)
-#	remove_MIP("R1098", CTA_ST)
-#	with Pool() as p:
-#		p.starmap(remove_MIP, zip(patients, repeat(CTA_ST)))
+	#	patients = os.listdir(CTA_ST)
+	#	remove_MIP("R1098", CTA_ST)
+	#	with Pool() as p:
+	#		p.starmap(remove_MIP, zip(patients, repeat(CTA_ST)))
 
 	# Run pipeline for whole dataset
-#		start = time.time()
-	patients = os.listdir(CTA_ST)
-#		pipeline_CTA("R0001", CTA_ST, CTA_THINNEST, CTA_MIP, CTA_SKULLSTRIPPED)
-#		end = time.time()
-#		print(end - start)
+	#		start = time.time()
+	#	patients = os.listdir(CTA_ST)
+	#		pipeline_CTA("R1744", CTA_ST, CTA_THINNEST, CTA_MIP, CTA_SKULLSTRIPPED)
+	#		end = time.time()
+	#		print(end - start)
 
+	#	with Pool() as p:
+	#		p.starmap(pipeline_CTA, zip(patients, repeat(CTA_ST), repeat(CTA_THINNEST), repeat(CTA_MIP), repeat(CTA_SKULLSTRIPPED)))
+
+	# Select biggest dimensions
+	#	patients = os.listdir(CTA_SKULLSTRIPPED)
+	#	select_biggest_dimensions(patients, CTA_SKULLSTRIPPED)
+
+	# Run resize for whole dataset
+#	patients = os.listdir(CTA_THINNEST)
+#	CTA_THINNEST_SIZE = (318, 433, 433)
+#	CTA_MIP_SIZE = (67, 495, 495)
+#	CTA_MIP_SKULL_SIZE = (53, 432, 432)
+#	resize_image('R1536', CTA_THINNEST_SIZE, CTA_THINNEST, CTA_THINNEST_RESIZED)
+#	with Pool() as p:
+#		p.starmap(resize_image, zip(patients, repeat(CTA_MIP_SKULL_SIZE), repeat(CTA_SKULLSTRIPPED), repeat(CTA_SKULLSTRIPPED_RESIZED)))
+
+	# Skullstripp MIPs
+	patients = os.listdir(CTA_MIP_RESIZED)
+#	skullstrip("R0001", CTA_MIP_RESIZED, CTA_SKULLSTRIPPED_RESIZED)
 	with Pool() as p:
-		p.starmap(pipeline_CTA, zip(patients, repeat(CTA_ST), repeat(CTA_THINNEST), repeat(CTA_MIP), repeat(CTA_SKULLSTRIPPED)))
+		p.starmap(skullstrip, zip(patients, repeat(CTA_MIP_RESIZED), repeat(CTA_SKULLSTRIPPED_RESIZED)))
