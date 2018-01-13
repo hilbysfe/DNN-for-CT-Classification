@@ -1,356 +1,366 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
-import argparse
-import os
-import tensorflow as tf
-import numpy as np
-from sklearn.metrics import auc
-import math
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
-
-import cifar10_utils
-import shutil
+from cifar import cifar10_utils
 
 from Utils import utils
 from Models.rfnn import RFNN
-from Models.alexnet import Alexnet
-from Models.inception import Inception
-from Models.c3d import C3D
-from Models.alexnet import alexnet_v2_arg_scope
 from Models.ctnet import CTNET
+from Models.densenet import DenseNet
+from Models.RFNN_densenet import RFNNDenseNet
 from Models.ae import Autoencoder
 
-LEARNING_RATE_DEFAULT = 0.005
-BATCH_SIZE_DEFAULT = 128
-MAX_EPOCHS_DEFAULT = 70
-EVAL_FREQ_DEFAULT = 3
-PRINT_FREQ_DEFAULT = 3
-SIGMAS_DEFAULT = "3.5, 1.5, 1.5"
-KERNELS_DEFAULT = "11,3,3"
-MAPS_DEFAULT = "64,64,64"
-MAXPOOLS_DEFAULT = "3,3,3,3"
-L2 = 0.0005
-HDROP = 0.0
-CDROP = 0.0
-DATASET_NAME = 'Normalized_Resampled_128x128x30'
-MODEL_DEFAULT = 'RFNN_2d'
-LOG_DIR_DEFAULT = './logs/'
-PRETRAINING = False
-CHECKPOINT_PATH = './ae_models/model.ckpt'
+from Utils.training_utils import tower_loss
+from Utils.training_utils import average_gradients
+from Utils.training_utils import tower_loss_dense
+from Utils.training_utils import tower_accuracy
 
-def get_kernels():	
-	
-	# kernel0 = tf.get_default_graph().get_tensor_by_name("ConvLayer1/weights:0")
-	kernel0 = tf.get_default_graph().get_tensor_by_name("AutoEncoder/Encoder/ConvLayer_0/weights:0")
-	print(kernel0.get_shape())
-	# kernel1 = tf.get_default_graph().get_tensor_by_name("ConvLayer1/weights_1:0")
-	# kernel2 = tf.get_default_graph().get_tensor_by_name("ConvLayer1/weights_2:0")
-	
-	# alphas = tf.get_default_graph().get_tensor_by_name("L1_alphas:0")
-	# alphas = tf.get_default_graph().get_tensor_by_name("ConvLayer2/weights:0")
-	kernel_avg0 = tf.reduce_mean(kernel0, axis=2)
-	# kernel_avg1 = tf.reduce_mean(kernel1, axis=2)
-	# kernel_avg2 = tf.reduce_mean(kernel2, axis=2)
-	
-	# to tf.image_summary format [batch_size, height, width, channels]
-	kernel_transposed0 = tf.transpose(kernel_avg0, [2, 0, 1])
-	# kernel_transposed1 = tf.transpose(kernel_avg1, [2, 0, 1])
-	# kernel_transposed2 = tf.transpose(kernel_avg2, [2, 0, 1])
-		
-	# return alphas, tf.pack([kernel_transposed0, kernel_transposed1, kernel_transposed2])
-	
-	return kernel_transposed0
+import numpy as np
+import tensorflow as tf
+import pickle
+import os
 
-def accuracy_function(logits, labels):	
-	softmax = tf.nn.softmax(logits)
-	with tf.name_scope('correct_prediction'):
-		correct_prediction = tf.equal(tf.argmax(softmax, 1), tf.argmax(labels, 1))
-	with tf.name_scope('Accuracy'):
-		accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-	tf.summary.scalar('Accuracy', accuracy)
-
-	return accuracy, correct_prediction, softmax
-
-def loss_function(logits, labels):	
-	with tf.variable_scope('Losses') as scope:		
-		with tf.name_scope('Cross_Entropy_Loss'):
-			cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels, name='cross_entropy_per_example')
-			cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
-			
-			tf.add_to_collection('losses', cross_entropy_mean)		
-			tf.summary.scalar('cross_entropy', cross_entropy_mean)
-		with tf.name_scope('Regularization_Loss'):
-			reg_loss = tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES), name='reg_loss')
-			
-			tf.add_to_collection('losses', reg_loss)
-			tf.summary.scalar('reg_loss', reg_loss)
-		with tf.name_scope('Total_Loss'):
-			loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
-			
-			tf.summary.scalar('total_loss', loss)
-
-	return loss	
-
-def train_step(loss, global_step):
-	# decay_steps = 390*50
-	# LEARNING_RATE_DECAY_FACTOR = 0.5
-
-	# Decay the learning rate exponentially based on the number of steps.
-	# lr = tf.train.exponential_decay(FLAGS.learning_rate,
-                                  # global_step,
-                                  # decay_steps,
-                                  # LEARNING_RATE_DECAY_FACTOR,
-                                  # staircase=True)
-	# tf.summary.scalar('learning_rate', lr)
-	train_op = tf.train.AdamOptimizer(FLAGS.learning_rate).minimize(loss, global_step=global_step)
-	return train_op
-	
-	
-def train():
+def train_cifar(FLAGS, NUM_GPUS):
 	# Set the random seeds for reproducibility. DO NOT CHANGE.
 	tf.set_random_seed(42)
-	global_step = tf.contrib.framework.get_or_create_global_step()
-	# np.random.seed(42)
-		
-	def feed_dict(train):
-		if train:
-			xs, ys = cifar10_dataset.train.next_batch(FLAGS.batch_size)
-		else:
-			xs, ys = cifar10_dataset.test.images, cifar10_dataset.test.labels
-		return {x: xs, y_: ys, is_training: train}	
-	
-	# Load data
-	cifar10_dataset = cifar10_utils.get_cifar10('./cifar10/cifar-10-batches-py')
-	
-	# Input placeholders
-	with tf.name_scope('input'):
-		x = tf.placeholder(tf.float32, [None, 32, 32, 3], name='x-input')
-		y_ = tf.placeholder(tf.float32, [None, 10], name='y-input')
-		is_training = tf.placeholder(tf.bool, name='is-training')
+	with tf.Graph().as_default():
+		with tf.device('/cpu:0'):
 
-	
-	# Model definition
-	if 'RFNN' in FLAGS.model_name:
-		sigmas = [float(x) for x in FLAGS.sigmas.split(',')]
-	kernels = [int(x) for x in FLAGS.kernels.split(',')]
-	maps = [int(x) for x in FLAGS.maps.split(',')]
-	if 'CTNET' in FLAGS.model_name:
-		maxpools = [int(x) for x in FLAGS.maxpool_kernels.split(',')]
-	model = {
-				'RFNN_2d' 		: lambda: RFNN(
-									n_classes = 10,
-									kernels=kernels,
-									maps = maps,
-									is_training = is_training,
-									sigmas=sigmas,
-									bases_3d = False
-									),
-				'CTNET'			: lambda: CTNET(
-									n_classes=10,
-									kernels = kernels,
-									maps = maps,
-									maxpool_kernels = maxpools,
-									l2 = FLAGS.l2,
-									is_training = is_training,
-									dropout_rate_conv = FLAGS.cdrop,
-									dropout_rate_hidden = FLAGS.hdrop,
-									conv3d = False,
-									pretraining = FLAGS.pretraining
-									)
-			}[FLAGS.model_name]
-	
-	if FLAGS.pretraining:
-		network_architecture = \
-		{
-			'Conv_kernels':FLAGS.kernels,
-			'Conv_maps':FLAGS.maps
-		}  	
-		ae = Autoencoder(network_architecture)
-		
-		assign_ops, net = ae.load_weights(x, FLAGS.pretrained_weights_path, FLAGS.pretrained_biases_path, is_training)
-				
-		# Calculate predictions
-		logits = model().inference(net)	
-	else:
-		# Calculate predictions
-		logits = model().inference(x)	
-		
-	loss = loss_function(logits, y_)
-	accuracy, prediction, scores = accuracy_function(logits, y_)
+			global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), trainable=False)
 
-	# Call optimizer
-	train_op = train_step(loss, global_step)
-		
-	# Merge all the summaries and write them out to log
-	merged = tf.summary.merge_all()
-	
-	# Print initial kernels
-	# alphas_tensor, kernels_tensor = get_kernels()	
-	# alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])		
-	# np.save('./Kernels/kernel_0.npy', kernels_array)
-	# np.save('./Kernels/alphas_0.npy', alphas)
-	
-	# Train
-	max_acc = 0
-	training_steps = int(cifar10_dataset.train.num_examples/FLAGS.batch_size)
-	
-	# Define session
-	with tf.Session() as sess:
-		tf.global_variables_initializer().run()
-		
-		if FLAGS.pretraining:
-			for assign_op in assign_ops:
-				sess.run(assign_op)
-				
-		# -------- Show kernels -----------
-		# kernels = sess.run(get_kernels())
-		
-		# gs = gridspec.GridSpec(8,8)
-		# gs.update(wspace=0.05, hspace=0.05)		
-		# plt.figure(figsize=(8,8))
-		# for i in range(8):
-			# for j in range(8):
-				# plt.subplot(gs[8*i + j])
-				# plt.imshow(kernels[8*i + j,:,:], cmap='gray')
-				# plt.axis('off')
-		# plt.show()
-		
-		train_writer = tf.summary.FileWriter(FLAGS.log_dir + '/train',	sess.graph)
-		test_writer = tf.summary.FileWriter(FLAGS.log_dir + '/test')
-		# if pretraining with autoencoder
-		# if FLAGS.pretraining:
-			# saver = tf.train.Saver(tf.global_variables())
-			# saver.restore(sess, CHECKPOINT_PATH)	
-			# print('AE loaded.')
-	
-		for i in range(int(FLAGS.max_epochs*training_steps)):
-			# ------------ TRAIN -------------
-			_ = sess.run([train_op], feed_dict=feed_dict(True))
-			if i % (FLAGS.eval_freq*training_steps) == 0:				
-				# ------------ VALIDATON -------------
-				summary, tot_acc = sess.run([merged, accuracy], feed_dict=feed_dict(False))			
-				test_writer.add_summary(summary, i)
-				
-				if tot_acc > max_acc:
-					max_acc = tot_acc
-				print('Validation accuracy at step %s: %s' % (i, tot_acc))
-			
-			if i % (FLAGS.print_freq*training_steps) == 0:
-				# ------------ PRINT -------------
-				summary = sess.run(merged, feed_dict=feed_dict(True))
-				train_writer.add_summary(summary, i)
+			# ====== LOAD DATASET ======
+			print('Loading Dataset...')
+			#            cifar10_dataset = cifar10_utils.get_cifar10('/home/nicolab/Downloads/cifar-10-batches-py')
+			cifar10_dataset = cifar10_utils.get_cifar10(
+				'D:\Adam Hilbert\CT_Classification\code\Training\cifar10\cifar-10-batches-py')
+			print('Loading Dataset...done.')
 
-		print('Max accuracy : %s' % (max_acc))
-		train_writer.close()
-		test_writer.close()
-	
-	# Print final kernels
-	# alphas_tensor, kernels_tensor = get_kernels()	
-	# alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])		
-	# np.save('./Kernels/kernel_final.npy', kernels_array)
-	# np.save('./Kernels/alphas_final.npy', alphas)
-	
-		
-		# -------- Show kernels -----------
-		# kernels = sess.run(get_kernels())
-		
-		# gs = gridspec.GridSpec(8,8)
-		# gs.update(wspace=0.05, hspace=0.05)		
-		# plt.figure(figsize=(8,8))
-		# for i in range(8):
-			# for j in range(8):
-				# plt.subplot(gs[8*i + j])
-				# plt.imshow(kernels[8*i + j,:,:], cmap='gray')
-				# plt.axis('off')
-		# plt.show()
-		
+			# ====== DEFINE SPACEHOLDERS ======
+			with tf.name_scope('input'):
+				image_batch = tf.placeholder(tf.float32, [NUM_GPUS, FLAGS.batch_size, 32, 32, 3], name='x-input')
+				label_batch = tf.placeholder(tf.float32, [NUM_GPUS, FLAGS.batch_size, 10], name='y-input')
+				is_training = tf.placeholder(tf.bool, name='is-training')
+				learning_rate = tf.placeholder(tf.float32, shape=[], name='learning_rate')
 
-def initialize_folders():
-	"""
-	Initializes all folders in FLAGS variable.
-	"""
-	if not tf.gfile.Exists(FLAGS.log_dir):
-		tf.gfile.MakeDirs(FLAGS.log_dir)
-	else:
-		shutil.rmtree(FLAGS.log_dir)
-		tf.gfile.MakeDirs(FLAGS.log_dir)
+			# ====== DEFINE FEED_DICTIONARY ======
+			def feed_dict(flag):
+				xs = []
+				ys = []
+				if flag == 0:
+					for i in np.arange(NUM_GPUS):
+						xi, yi = cifar10_dataset.train.next_batch(FLAGS.batch_size)
+						xs.append(xi)
+						ys.append(yi)
+				elif flag == 1:
+					for i in np.arange(NUM_GPUS):
+						xi, yi = cifar10_dataset.test.next_batch(FLAGS.batch_size)
+						xs.append(xi)
+						ys.append(yi)
+				return {image_batch: xs, label_batch: ys, is_training: flag == 0}
 
-	# if not tf.gfile.Exists(FLAGS.checkpoint_dir):
-		# tf.gfile.MakeDirs(FLAGS.checkpoint_dir)
+			# ====== MODEL DEFINITION ======
+			print('Defining model...')
 
-def print_flags():
-	"""
-	Prints all entries in FLAGS variable.
-	"""
-	for key, value in vars(FLAGS).items():
-		print(key + ' : ' + str(value))
+			sigmas = [float(x) for x in FLAGS.sigmas.split(',')]
+			kernels = [int(x) for x in FLAGS.kernels.split(',')]
+			maps = [int(x) for x in FLAGS.maps.split(',')]
+			strides = [int(x) for x in FLAGS.strides.split(',')]
 
-def main(_):
-	
-	print_flags()
+			#            model = RFNN(
+			#                n_classes=10,
+			#                kernels=kernels,
+			#                maps=maps,
+			#                sigmas=sigmas,
+			#                bases=bases,
+			#                bases_3d=FLAGS.bases3d,
+			#                is_training=is_training,
+			#                batchnorm=FLAGS.batch_normalization
+			#            )
+			#            model = CTNET(
+			#                n_classes=10,
+			#                kernels=kernels,
+			#                maps=maps,
+			#                strides=strides,
+			#                pretraining=False,
+			#                is_training = is_training,
+			#                conv3d=False,
+			#                bnorm=FLAGS.batch_normalization)
 
-	initialize_folders()
-	# Check if pre-training requested and has been done
-	if FLAGS.pretraining:
-		if FLAGS.pretrained_weights_path == "":
-			print("------------------ Pre-training with AutoEncoder --------------------")
-			os.system("python train_ae.py --weights_path ./pretrained_weights/weights.npy --max_epochs 100")
-			FLAGS.pretrained_weights_path = "./pretrained_weights/weights.npy"
-		else:
-			print("weights existing")
-	
-	train()
-	
-def str2bool(s):
-	if s == "True":
-		return True
-	else:
-		return False
-	
-if __name__ == '__main__':
-	
-	# Command line arguments
-	parser = argparse.ArgumentParser()
+			# model = DenseNet(
+			# 	growth_rate=FLAGS.growth_rate,
+			# 	depth=FLAGS.depth,
+			# 	total_blocks=FLAGS.total_blocks,
+			# 	keep_prob=FLAGS.keep_prob,
+			# 	model_type=FLAGS.model_type,
+			# 	is_training=is_training,
+			# 	init_kernel=FLAGS.init_kernel,
+			# 	comp_kernel=FLAGS.comp_kernel,
+			# 	reduction=FLAGS.reduction,
+			# 	bc_mode=FLAGS.bc_mode,
+			# 	n_classes=10
+			# )
 
-	parser.add_argument('--learning_rate', type = float, default = LEARNING_RATE_DEFAULT,
-						help='Learning rate')	
-	parser.add_argument('--max_epochs', type = int, default = MAX_EPOCHS_DEFAULT,
-						help='Number of steps to run trainer.')
-	parser.add_argument('--batch_size', type = int, default = BATCH_SIZE_DEFAULT,
-						help='Batch size to run trainer.')
-	parser.add_argument('--print_freq', type = int, default = PRINT_FREQ_DEFAULT,
-						help='Frequency of evaluation on the train set')
-	parser.add_argument('--eval_freq', type = int, default = EVAL_FREQ_DEFAULT,
-						help='Frequency of evaluation on the test set')
-	parser.add_argument('--log_dir', type = str, default = LOG_DIR_DEFAULT,
-						help='Logging directory')
-	parser.add_argument('--model_name', type = str, default = MODEL_DEFAULT,
-						help='Model name')
-	parser.add_argument('--sigmas', type = str, default = SIGMAS_DEFAULT,
-						help='Sigmas for RFNN')
-	parser.add_argument('--kernels', type = str, default = KERNELS_DEFAULT,
-						help='Kernel sizes of convolution')									
-	parser.add_argument('--maps', type = str, default = MAPS_DEFAULT,
-						help='Amount of kernel maps of convolution')	
-	parser.add_argument('--maxpool_kernels', type = str, default = MAXPOOLS_DEFAULT,
-						help='Kernelsize of maxpool layers')			
-	parser.add_argument('--hdrop', type = float, default = HDROP,
-						help='Hiddenlayer dropout')	
-	parser.add_argument('--cdrop', type = float, default = CDROP,
-						help='Convlayer dropout')		
-	parser.add_argument('--l2', type = float, default = L2,
-						help='Convlayer L2')		
-	parser.add_argument('--dataset_name', type = str, default = DATASET_NAME,
-						help='Name of the dataset')				
-	parser.add_argument('--pretraining', type = str2bool, default = PRETRAINING,
-						help='Specify pretraining with Autoencoder')		
-	parser.add_argument('--pretrained_weights_path', type = str, default = "",
-						help='Path to pretrained weights')								
-						
-						
-	FLAGS, unparsed = parser.parse_known_args()
+			model = RFNNDenseNet(
+				growth_rate=FLAGS.growth_rate,
+				depth=FLAGS.depth,
+				total_blocks=FLAGS.total_blocks,
+				keep_prob=FLAGS.keep_prob,
+				model_type=FLAGS.model_type,
+				is_training=is_training,
+				init_kernel=FLAGS.init_kernel,
+				comp_kernel=FLAGS.comp_kernel,
+				sigmas=sigmas,
+				init_order=FLAGS.init_order,
+				comp_order=FLAGS.comp_order,
+				reduction=FLAGS.reduction,
+				bc_mode=FLAGS.bc_mode,
+				n_classes=10
+			)
+			print('Defining model...done.')
 
-	tf.app.run()
+			# ====== DEFINE LOSS, ACCURACY TENSORS ======
+			print('Defining necessary OPs...')
+
+			#            opt = tf.train.GradientDescentOptimizer(FLAGS.learning_rate)
+			opt = tf.train.MomentumOptimizer(
+				FLAGS.learning_rate, FLAGS.nesterov_momentum, use_nesterov=True)
+
+			# === DEFINE QUEUE OPS ===
+			batch_queue = tf.FIFOQueue(
+				capacity=NUM_GPUS,
+				dtypes=[tf.float32, tf.float32],
+				shapes=[(FLAGS.batch_size, 32, 32, 3), (FLAGS.batch_size, 10)]
+			)
+			batch_enqueue = batch_queue.enqueue_many([image_batch, label_batch])
+			close_queue = batch_queue.close()
+
+		# Calculate the gradients for each model tower.
+		tower_grads = []
+		tower_losses = []
+		tower_accuracies = []
+		with tf.variable_scope(tf.get_variable_scope()):
+			for i in range(NUM_GPUS):
+
+				x, y = batch_queue.dequeue()
+
+				with tf.device('/gpu:%d' % i):
+					with tf.name_scope('%s_%d' % ('tower', i)) as scope:
+						# ====== INFERENCE ======
+						if FLAGS.pretraining:
+							print('Pre-training model...')
+
+							network_architecture = \
+								{
+									'Conv_kernels': kernels,
+									'Conv_maps': maps
+								}
+							ae = Autoencoder(network_architecture)
+
+							assign_ops, net = ae.load_weights(x, FLAGS.pretrained_weights_path,
+															  FLAGS.pretrained_biases_path, is_training)
+
+							# Calculate predictions
+							logits = model.inference(net)
+
+							print('Pre-training model...done.')
+						else:
+							# Calculate predictions
+							logits = model.inference(x)
+
+						loss = tower_loss_dense(logits, y, FLAGS.weight_decay, scope)
+						accuracy = tower_accuracy(logits, y, scope)
+						#                        exp_signal = exp_GB(signal, FLAGS.alpha)
+
+						# Reuse variables for the next tower.
+						tf.get_variable_scope().reuse_variables()
+
+						# Retain the summaries from the final tower.
+						summaries = tf.get_collection(tf.GraphKeys.SUMMARIES, scope)
+
+						# Calculate the gradients for the batch of data on this tower.
+						grads = opt.compute_gradients(loss)
+
+						# Keep track of the gradients across all towers.
+						tower_grads.append(grads)
+						tower_losses.append(loss)
+						tower_accuracies.append(accuracy)
+		with tf.device('/cpu:0'):
+
+			# Calculate the mean of each gradient - synchronization point across towers.
+			avg_grads = average_gradients(tower_grads)
+			avg_loss = tf.reduce_mean(tower_losses, 0)
+			avg_accuracy = tf.reduce_mean(tower_accuracies, 0)
+
+			print('Defining necessary OPs...done.')
+
+			# ====== ADD SUMMARIES ======
+
+			# Gradients
+			for grad, var in avg_grads:
+				if grad is not None:
+					summaries.append(tf.summary.histogram(var.op.name + '/gradients', grad))
+
+			# Trainable variables
+			for var in tf.trainable_variables():
+				summaries.append(tf.summary.histogram(var.op.name, var))
+
+			# Print initial kernels
+			# alphas_tensor, kernels_tensor = get_kernels()
+			# alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])
+			# np.save('./Kernels/kernel_0.npy', kernels_array)
+			# np.save('./Kernels/alphas_0.npy', alphas)
+
+			# ====== UPDATE VARIABLES ======
+
+			print('Defining update OPs...')
+
+			# Apply the gradients to adjust the shared variables.
+			train_op = opt.apply_gradients(avg_grads, global_step=global_step)
+
+			# Track the moving averages of all trainable variables.
+			#            variable_averages = tf.train.ExponentialMovingAverage(
+			#                        0.9999, global_step)
+			#            variables_averages_op = variable_averages.apply(tf.trainable_variables())
+
+			# Group all updates into a single train op.
+			#            train_op = tf.group(apply_gradient_op, variables_averages_op)
+
+			print('Defining update OPs...done.')
+
+			# ====== SAVING OPS ======
+
+			# Create a saver.
+			saver = tf.train.Saver(tf.global_variables())
+
+			# Build the summary operation from the last tower summaries.
+			summary_op = tf.summary.merge(summaries)
+
+			# ====== DEFINE SESSION AND OPTIMIZE ======
+			config = tf.ConfigProto(allow_soft_placement=True)
+			config.gpu_options.allow_growth = True
+
+		with tf.Session(config=config) as sess:
+
+			print('Training model...')
+			for f in range(1):
+				try:
+					training_steps = int(cifar10_dataset.train.num_examples / (NUM_GPUS * FLAGS.batch_size))
+					sess.run(tf.global_variables_initializer())
+
+					lr = FLAGS.learning_rate
+
+					#                    print([n.name for n in tf.get_default_graph().as_graph_def().node
+					#                               if 'ConvLayer1' in n.name and 'alphas' in n.name])
+
+					# Show initial kernels from 1st layer
+					#                    alphas_t, kernels_t = get_kernels(1)
+					#                    alphas, kernels = sess.run([alphas_t, kernels_t])
+					#                    show_kernels(kernels)
+
+					# Create a coordinator, launch the queue runner threads.
+					coord = tf.train.Coordinator()
+					tf.train.start_queue_runners(sess, coord=coord)
+
+					# Init writers
+					train_writer = tf.summary.FileWriter(FLAGS.log_dir + '/train/' + str(f), sess.graph)
+					test_writer = tf.summary.FileWriter(FLAGS.log_dir + '/test/' + str(f))
+
+					# ======== LSUV INIT WEIGHTS WITH A FORWARD PASS ==========
+					print("Initializing weights with LSUV...")
+
+					for l in range(len(model.alphas)):
+						var = 0.0
+						t_i = 0
+						while abs(var - 1.0) >= FLAGS.tol_var and t_i < FLAGS.t_max:
+							sess.run(batch_enqueue, feed_dict=feed_dict(0))
+							alphas, b_l = sess.run([model.alphas[l], model.conv_act[l]], feed_dict={is_training: False})
+							var = np.var(b_l)
+							sess.run(model.alphas[l].assign(alphas/np.sqrt(var)))
+							t_i += 1
+					print("Initializing weights with LSUV...done.")
+
+					max_acc = 0
+					for i in range(int(FLAGS.max_epochs * training_steps)):
+
+						if coord.should_stop():
+							break
+
+						# ----- Reduce learning rate ------
+						if i == FLAGS.reduce_lr_epoch_1 * training_steps:
+							lr = lr / 10
+						if i == FLAGS.reduce_lr_epoch_2 * training_steps:
+							lr = lr / 10
+
+						# ------------ TRAIN -------------
+						if i % (FLAGS.print_freq * training_steps) == 0:
+							# ------------ PRINT -------------
+							sess.run(batch_enqueue, feed_dict=feed_dict(0))
+							_, summaries, loss_value, acc_value = \
+								sess.run([train_op, summary_op, avg_loss, avg_accuracy],
+										 feed_dict={is_training: True, learning_rate: lr})
+
+							summary = tf.Summary()
+							summary.value.add(tag="Accuracy", simple_value=acc_value)
+							summary.value.add(tag="Loss", simple_value=loss_value)
+							summary.value.add(tag="Learning_rate", simple_value=lr)
+
+							train_writer.add_summary(summaries, i)
+							train_writer.add_summary(summary, i)
+						else:
+							sess.run(batch_enqueue, feed_dict=feed_dict(0))
+							_, loss_value = sess.run([train_op, avg_loss],
+													 feed_dict={is_training: True, learning_rate: lr})
+
+						assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
+
+						# ------------ VALIDATON -------------
+						if i % (FLAGS.eval_freq * training_steps) == 0 or i == int(FLAGS.max_epochs * training_steps):
+							validation_steps = int(cifar10_dataset.test.num_examples / (FLAGS.batch_size * NUM_GPUS))
+							tot_acc = 0.0
+							tot_loss = 0.0
+							for step in range(validation_steps):
+								sess.run(batch_enqueue, feed_dict=feed_dict(1))
+								acc_s, loss_s = sess.run([avg_accuracy, avg_loss], feed_dict={is_training: False})
+								tot_acc += (acc_s / validation_steps)
+								tot_loss += (loss_s / validation_steps)
+
+							#                                print(sm)
+							#                                print(y_)
+
+							summary = tf.Summary()
+							summary.value.add(tag="Accuracy", simple_value=tot_acc)
+							summary.value.add(tag="Loss", simple_value=tot_loss)
+
+							test_writer.add_summary(summary, i)
+
+							#						if tot_acc > max_acc:
+							#							max_acc = tot_acc
+							#						print('Validation accuracy at step %s: %s' % (i, tot_acc))
+							print('Validation loss at step %s: %s' % (i, tot_loss))
+
+					# if i % FLAGS.checkpoint_freq == 0: # or i == FLAGS.max_steps:
+					# checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'model.ckpt')
+					# saver.save(sess, checkpoint_path, global_step=i)
+
+					train_writer.close()
+					test_writer.close()
+					print('Max validation accuracy in fold %s: %s' % (f, max_acc))
+
+				# Show final kernels from 1st layer
+				#                    alphas_t, kernels_t = get_kernels(1)
+				#                    alphas, kernels = sess.run([alphas_t, kernels_t])
+				#                    show_kernels(kernels)
+
+				except Exception as e:
+					# Report exceptions to the coordinator.
+					coord.request_stop(e)
+				finally:
+					# Terminate threads
+					coord.request_stop()
+					coord.join()
+			sess.run(close_queue)
+
+# Print final kernels
+# alphas_tensor, kernels_tensor = get_kernels()
+# alphas, kernels_array = sess.run([alphas_tensor, kernels_tensor])
+# np.save('./Kernels/kernel_final.npy', kernels_array)
+# np.save('./Kernels/alphas_final.npy', alphas)
+

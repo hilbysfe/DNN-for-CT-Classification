@@ -1,20 +1,31 @@
 import numpy as np
 import tensorflow as tf
 
-from Utils.cnn_utils import _conv_layer_pure_3d
+from Utils.rfnn_utils import init_basis_hermite_2D
+from Utils.rfnn_utils import init_basis_hermite_2D_scales
+from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d
+from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_scales_max
+from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_scales_learn
+from Utils.cnn_utils import _conv_layer_pure_2d
 
 TF_VERSION = float('.'.join(tf.__version__.split('.')[:2]))
 
-class DenseNet(object):
+class RFNNDenseNet(object):
 	def __init__(self, growth_rate, depth,
 				 total_blocks, keep_prob,
 				 model_type,
 				 is_training,
 				 init_kernel,
 				 comp_kernel,
+				 sigmas,
+				 init_order,
+				 comp_order,
 				 reduction=1.0,
 				 bc_mode=False,
 				 n_classes=10):
+
+		self.alphas = []
+		self.conv_act = []
 
 		self.n_classes = n_classes
 		self.depth = depth
@@ -33,6 +44,10 @@ class DenseNet(object):
 
 		self.initial_kernel = init_kernel
 		self.comp_kernel = comp_kernel
+
+		self.hermit_initial = init_basis_hermite_2D_scales(self.initial_kernel, sigmas, order=init_order)
+		self.hermit_composite = init_basis_hermite_2D_scales(self.comp_kernel, sigmas, order=comp_order)
+
 
 		if not bc_mode:
 			print("Build %s model with %d blocks, "
@@ -84,7 +99,9 @@ class DenseNet(object):
 			# ReLU
 			output = tf.nn.relu(output)
 			# convolution
-			output = _conv_layer_pure_3d(output, shape=[kernel_size, kernel_size, kernel_size, int(output.get_shape()[-1]), out_features])
+			output, alphas = _rfnn_conv_layer_pure_2d_scales_max(output, self.hermit_composite, out_features)
+			self.alphas.append(alphas)
+			self.conv_act.append(output)
 			# dropout(in case of training and in case it is no 1.0)
 			output = self.dropout(output)
 		return output
@@ -97,7 +114,7 @@ class DenseNet(object):
 			output = tf.nn.relu(output)
 			inter_features = out_features * 4
 			# 1x1 convolution
-			output = _conv_layer_pure_3d(output, shape=[1, 1, 1, int(output.get_shape()[-1]), inter_features], padding='VALID')
+			output = _conv_layer_pure_2d(output, shape=[1, 1, output.get_shape()[-1].value, inter_features], padding='VALID')
 		output = self.dropout(output)
 		return output
 
@@ -203,16 +220,14 @@ class DenseNet(object):
 		initial = tf.constant(0.0, shape=shape)
 		return tf.get_variable(name, initializer=initial)
 
-
 	def inference(self, X):
 		growth_rate = self.growth_rate
 		layers_per_block = self.layers_per_block
 		# first - initial 3 x 3 conv to first_output_features
 		with tf.variable_scope("Initial_convolution"):
-			output = _conv_layer_pure_3d(
-				X,
-				shape=[self.initial_kernel, self.initial_kernel, self.initial_kernel, int(X.get_shape()[-1]), self.first_output_features],
-				padding='SAME')
+			output, alphas = _rfnn_conv_layer_pure_2d_scales_max(X, self.hermit_initial, self.first_output_features)
+			self.alphas.append(alphas)
+			self.conv_act.append(output)
 
 		# add N required blocks
 		for block in range(self.total_blocks):

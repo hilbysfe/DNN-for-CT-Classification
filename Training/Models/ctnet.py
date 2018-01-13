@@ -23,7 +23,7 @@ class CTNET(object):
 		self.n_classes				= n_classes
 		self.is_training			= is_training
 		self.pretraining			= pretraining
-		self.bnorm			= bnorm
+		self.bnorm					= bnorm
 		
 		self.dropout_rate_conv		= dropout_rate_conv
 		self.dropout_rate_hidden	= dropout_rate_hidden

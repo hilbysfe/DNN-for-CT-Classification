@@ -21,18 +21,18 @@ class RFNN(object):
 	def __init__(self, sigmas, kernels, maps, bases, n_classes=2, bases_3d = False, dropout_rate_conv=.2, dropout_rate_hidden=0.7, is_training = True, batchnorm=False):
 	
 		self.n_classes				= n_classes
-		self.dropout_rate_conv			= dropout_rate_conv
-		self.dropout_rate_hidden		= dropout_rate_hidden
+		self.dropout_rate_conv		= dropout_rate_conv
+		self.dropout_rate_hidden	= dropout_rate_hidden
 		self.is_training			= is_training
 		self.batchnorm				= batchnorm
 
-		self.act				= tf.nn.relu
+		self.act					= tf.nn.relu
 				
-		self.hermit				= init_basis_hermite_3D if bases_3d else init_basis_hermite_2D		
+		self.hermit					= init_basis_hermite_3D if bases_3d else init_basis_hermite_2D
 		self.inference				= self.inference_3d if bases_3d else self.inference_2d
 		
-		self.sigmas				= sigmas
-		self.maps				= maps
+		self.sigmas					= sigmas
+		self.maps					= maps
 		
 		#-------------------------
 		# Init Basis and Alphas
