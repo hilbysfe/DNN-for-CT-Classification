@@ -105,7 +105,7 @@ class RFNNDenseNet(object):
 			# ReLU
 			output = tf.nn.relu(output)
 			# convolution
-			output, alphas = _rfnn_conv_layer_pure_2d_scales_learn_bc(output, self.hermit_composite, out_features, self.is_training)
+			output, alphas = _rfnn_conv_layer_pure_2d_scales_learn(output, self.hermit_composite, out_features)
 			self.alphas.append(alphas)
 			self.conv_act.append(output)
 			# dropout(in case of training and in case it is no 1.0)
@@ -231,7 +231,7 @@ class RFNNDenseNet(object):
 		layers_per_block = self.layers_per_block
 		# first - initial 3 x 3 conv to first_output_features
 		with tf.variable_scope("Initial_convolution"):
-			output, alphas = _rfnn_conv_layer_pure_2d_scales_learn_bc(X, self.hermit_initial, self.first_output_features, self.is_training)
+			output, alphas = _rfnn_conv_layer_pure_2d_scales_learn(X, self.hermit_initial, self.first_output_features)
 			self.alphas.append(alphas)
 			self.conv_act.append(output)
 

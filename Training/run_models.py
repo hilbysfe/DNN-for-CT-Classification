@@ -117,12 +117,11 @@ configs = [
 #	[7, 3, 0.1, 12, 0.8, 40, 30, 128, 50, 50, '1.5,1.0,0.5', 3, 3],
 #	[3, 3, 0.1, 12, 0.8, 40, 30, 64, 50, 50, '1.5,1.0,0.5', 3, 3],
 #	[3, 3, 0.1, 12, 0.8, 40, 30, 128, 50, 50, '1.5,1.0,0.5', 3, 3],
-#	[7, 3, 0.01, 12, 0.8, 40, 30, 64, 50, 50, '1.5,1.0,0.5', 3, 3],
+	[7, 3, 0.01, 12, 0.8, 40, 30, 64, 50, 50, '1.5,1.0,0.5', 3, 3],
 	[7, 3, 0.01, 12, 0.8, 40, 30, 128, 50, 50, '1.5,1.0,0.5', 3, 3],
 	[3, 3, 0.01, 12, 0.8, 40, 30, 64, 50, 50, '1.5,1.0,0.5', 3, 3],
 	[3, 3, 0.01, 12, 0.8, 40, 30, 128, 50, 50, '1.5,1.0,0.5', 3, 3]
 
-#	[7, 3, 0.01, 12, 0.8, 40, 30, 128, 50, 50, '1.5,1.0,0.5', 3, 3], csak sima bc
 ]
 
 for config in configs:
@@ -156,7 +155,7 @@ for config in configs:
 					+ str(FLAGS.init_order) + '_' \
 					+ str(FLAGS.comp_order) + '_' \
 					+ str(FLAGS.tol_var) + '_' \
-					+ str(FLAGS.t_max) + '_conv_bcbc'
+					+ str(FLAGS.t_max) + '_conv_bc'
 	#    FLAGS.checkpoint_dir = '/home/nicolab/DATA/checkpoints/NCCT_CTA/DenseNet/' \
 	FLAGS.checkpoint_dir = 'D:\Adam Hilbert\CT_Classification\code\Training\checkpoints\\' \
 						   + str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \

@@ -273,7 +273,7 @@ def _rfnn_conv_layer_pure_2d_scales_learn(input, basis, omaps, strides=[1, 1, 1,
 			initializer=tf.contrib.layers.variance_scaling_initializer(),
 			dtype=tf.float32)
 
-	output = tf.nn.conv2d(merged_outputs, scale_bc, [1, 1, 1, 1], padding='SAME')
+	output = tf.nn.conv2d(merged_outputs, scale_bc, strides=[1, 1, 1, 1], padding='SAME')
 
 	#		with tf.variable_scope('sigma%d' % i):
 	#			# scale weights to [0 1], type is still float
