@@ -243,6 +243,7 @@ def train_cifar(FLAGS, NUM_GPUS):
 			for f in range(1):
 				try:
 					training_steps = int(cifar10_dataset.train.num_examples / (NUM_GPUS * FLAGS.batch_size))
+					validation_steps = int(cifar10_dataset.test.num_examples / (NUM_GPUS *FLAGS.batch_size))
 					sess.run(tf.global_variables_initializer())
 
 					lr = FLAGS.learning_rate
@@ -313,7 +314,6 @@ def train_cifar(FLAGS, NUM_GPUS):
 
 						# ------------ VALIDATON -------------
 						if i % (FLAGS.eval_freq * training_steps) == 0 or i == int(FLAGS.max_epochs * training_steps):
-							validation_steps = int(cifar10_dataset.test.num_examples / (FLAGS.batch_size * NUM_GPUS))
 							tot_acc = 0.0
 							tot_loss = 0.0
 							for step in range(validation_steps):

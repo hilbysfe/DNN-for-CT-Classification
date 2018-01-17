@@ -34,9 +34,15 @@ class DenseNet(object):
 		self.n_classes = n_classes
 		self.depth = depth
 		self.growth_rate = growth_rate
+		self.bc_mode = bc_mode
+
 		# how many features will be received after first convolution
 		# value the same as in the original Torch code
-		self.first_output_features = first_conv_features
+		if self.bc_mode:
+			self.first_output_features = growth_rate * 2
+		else:
+			self.first_output_features = 16
+
 		self.total_blocks = total_blocks
 		self.layers_per_block = (depth - (total_blocks + 1)) // total_blocks
 		self.bc_mode = bc_mode
@@ -72,8 +78,7 @@ class DenseNet(object):
 			total_parameters += variable_parametes
 		print("Total training params: %.1fM" % (total_parameters / 1e6))
 
-	def log_loss_accuracy(self, loss, accuracy, epoch, prefix,
-						  should_print=True):
+	def log_loss_accuracy(self, loss, accuracy, epoch, prefix, should_print=True):
 		if should_print:
 			print("mean cross_entropy: %f, mean accuracy: %f" % (
 				loss, accuracy))
@@ -115,7 +120,6 @@ class DenseNet(object):
 		output = self.dropout(output)
 		return output
 
-
 	def add_internal_layer(self, _input, growth_rate):
 		"""Perform H_l composite function for the layer and after concatenate
 		input with output from composite function.
@@ -135,7 +139,6 @@ class DenseNet(object):
 			output = tf.concat(3, (_input, comp_out))
 		return output
 
-
 	def add_block(self, _input, growth_rate, layers_per_block):
 		"""Add N H_l internal layers"""
 		output = _input
@@ -143,7 +146,6 @@ class DenseNet(object):
 			with tf.variable_scope("layer_%d" % layer):
 				output = self.add_internal_layer(output, growth_rate)
 		return output
-
 
 	def transition_layer(self, _input):
 		"""Call H_l composite function with 1x1 kernel and after average
@@ -156,7 +158,6 @@ class DenseNet(object):
 		# run average pooling
 		output = self.avg_pool(output, k=2)
 		return output
-
 
 	def transition_layer_to_classes(self, _input):
 		"""This is last transition to get probabilities by classes. It perform:
@@ -181,7 +182,6 @@ class DenseNet(object):
 		logits = tf.matmul(output, W) + bias
 		return logits
 
-
 	def conv2d(self, _input, out_features, kernel_size, strides=[1, 1, 1, 1], padding='SAME'):
 		in_features = int(_input.get_shape()[-1])
 		kernel = self.weight_variable_msra(
@@ -190,7 +190,6 @@ class DenseNet(object):
 		output = tf.nn.conv2d(_input, kernel, strides, padding)
 		return output
 
-
 	def avg_pool(self, _input, k):
 		ksize = [1, k, k, 1]
 		strides = [1, k, k, 1]
@@ -198,13 +197,11 @@ class DenseNet(object):
 		output = tf.nn.avg_pool(_input, ksize, strides, padding)
 		return output
 
-
 	def batch_norm(self, _input):
 		output = tf.contrib.layers.batch_norm(
 			_input, scale=True, is_training=self.is_training,
 			updates_collections=None)
 		return output
-
 
 	def dropout(self, _input):
 		if self.keep_prob < 1:
@@ -217,13 +214,11 @@ class DenseNet(object):
 			output = _input
 		return output
 
-
 	def weight_variable_msra(self, shape, name):
 		return tf.get_variable(
 			name=name,
 			shape=shape,
 			initializer=tf.contrib.layers.variance_scaling_initializer())
-
 
 	def weight_variable_xavier(self, shape, name):
 		return tf.get_variable(
@@ -231,21 +226,17 @@ class DenseNet(object):
 			shape=shape,
 			initializer=tf.contrib.layers.xavier_initializer())
 
-
 	def bias_variable(self, shape, name='bias'):
 		initial = tf.constant(0.0, shape=shape)
 		return tf.get_variable(name, initializer=initial)
-
 
 	def inference(self, X):
 		growth_rate = self.growth_rate
 		layers_per_block = self.layers_per_block
 		# first - initial 3 x 3 conv to first_output_features
 		with tf.variable_scope("Initial_convolution"):
-			output = self.conv2d(
-				X,
-				out_features=self.first_output_features,
-				kernel_size=self.initial_kernel)
+			output = _conv_layer_pure_2d(X,
+						shape=[self.initial_kernel, self.initial_kernel, int(X.get_shape()[-1]), self.first_output_features])
 
 		# add N required blocks
 		for block in range(self.total_blocks):

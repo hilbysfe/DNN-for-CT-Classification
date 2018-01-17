@@ -5,7 +5,10 @@ from Utils.rfnn_utils import init_basis_hermite_2D
 from Utils.rfnn_utils import init_basis_hermite_2D_scales
 from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d
 from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_scales_max
+from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_scales_max2
 from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_scales_learn
+from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_scales_learn_bc
+from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_scales_avg
 from Utils.cnn_utils import _conv_layer_pure_2d
 
 TF_VERSION = float('.'.join(tf.__version__.split('.')[:2]))
@@ -30,13 +33,16 @@ class RFNNDenseNet(object):
 		self.n_classes = n_classes
 		self.depth = depth
 		self.growth_rate = growth_rate
+		self.bc_mode = bc_mode
 
 		# how many features will be received after first convolution
 		# value the same as in the original Torch code
-		self.first_output_features = growth_rate * 2
+		if self.bc_mode:
+			self.first_output_features = growth_rate * 2
+		else:
+			self.first_output_features = 16
 		self.total_blocks = total_blocks
 		self.layers_per_block = (depth - (total_blocks + 1)) // total_blocks
-		self.bc_mode = bc_mode
 
 		# compression rate at the transition layers
 		self.reduction = reduction
@@ -99,7 +105,7 @@ class RFNNDenseNet(object):
 			# ReLU
 			output = tf.nn.relu(output)
 			# convolution
-			output, alphas = _rfnn_conv_layer_pure_2d_scales_max(output, self.hermit_composite, out_features)
+			output, alphas = _rfnn_conv_layer_pure_2d_scales_learn_bc(output, self.hermit_composite, out_features, self.is_training)
 			self.alphas.append(alphas)
 			self.conv_act.append(output)
 			# dropout(in case of training and in case it is no 1.0)
@@ -225,7 +231,7 @@ class RFNNDenseNet(object):
 		layers_per_block = self.layers_per_block
 		# first - initial 3 x 3 conv to first_output_features
 		with tf.variable_scope("Initial_convolution"):
-			output, alphas = _rfnn_conv_layer_pure_2d_scales_max(X, self.hermit_initial, self.first_output_features)
+			output, alphas = _rfnn_conv_layer_pure_2d_scales_learn_bc(X, self.hermit_initial, self.first_output_features, self.is_training)
 			self.alphas.append(alphas)
 			self.conv_act.append(output)
 

@@ -84,7 +84,6 @@ def soft_tissue(file):
 		   'b30f' in series or \
 		   (preprocessing_utils.GetWindowCenter(file) < 300.0 and preprocessing_utils.GetWindowWidth(file) < 1000.0)
 
-
 def select_slice(patient, threshold, rootSource, rootTarget):
 	# --- Thick slice
 	# thicknesses = [float(thickness) for thickness in os.listdir(os.path.join(rootSource, patient)) if float(thickness) > threshold]
@@ -124,7 +123,6 @@ def select_slice(patient, threshold, rootSource, rootTarget):
 
 		print(patient + ' done.')
 
-
 def select_thick_slice(patient, rootSource, rootTarget):
 	# Collect all folder below patient folder which contains DICOM
 	folder_dict = preprocessing_utils.CollectDICOMFolders(os.path.join(rootSource, patient))
@@ -154,7 +152,6 @@ def select_thick_slice(patient, rootSource, rootTarget):
 		sitk.WriteImage(input_image, os.path.join(rootTarget, patient, 'Scan.mha'))
 
 		print(patient + ' done.')
-
 
 def softtissue_selection(patient, rootSource, rootTarget):
 	try:
@@ -230,116 +227,112 @@ def softtissue_selection(patient, rootSource, rootTarget):
 	except Exception as e:
 		print(patient + ' failed: %s' % e)
 
-
 def pipeline_NCCT(patient, rootSource, rootTarget):
-	#	try:
-	#	if os.path.exists(os.path.join(rootTarget, patient)) and len(os.listdir(os.path.join(rootTarget, patient))) == 0:
-	#		shutil.rmtree(os.path.join(rootTarget, patient))
-	#		return
+	try:
+		#	if os.path.exists(os.path.join(rootTarget, patient)) and len(os.listdir(os.path.join(rootTarget, patient))) == 0:
+		#		shutil.rmtree(os.path.join(rootTarget, patient))
+		#		return
 
-	# Create output dict if not existing
-	if not os.path.exists(os.path.join(rootTarget, patient)):
-		os.makedirs(os.path.join(rootTarget, patient))
+		# Create output dict if not existing
+		if not os.path.exists(os.path.join(rootTarget, patient)):
+			os.makedirs(os.path.join(rootTarget, patient))
 
-	# Select thinnest series
-	thicknesses = [float(thickness) for thickness in os.listdir(os.path.join(rootSource, patient))]
+		# Select thinnest series
+		thicknesses = [float(thickness) for thickness in os.listdir(os.path.join(rootSource, patient))]
 
-	if len(thicknesses) == 0:
-		print(patient + " no thick slice.")
-		return
-
-	min_thickness = min(thicknesses)
-
-	# Collect all folder below patient folder which contains DICOM
-	folder_dict = preprocessing_utils.CollectDICOMFolders(
-		os.path.join(os.path.join(rootSource, patient), str(min_thickness)))
-
-	if len(folder_dict.keys()) != 1:
-		print(patient + ' more than 1 min thickness series.')
-		return
-
-	# Load image, store important tags
-	for f in folder_dict:
-		reader = sitk.ImageSeriesReader()
-		series_found = reader.GetGDCMSeriesIDs(f)
-		if len(series_found) != 1:
-			print(patient + ' more series found.')
+		if len(thicknesses) == 0:
+			print(patient + " no thick slice.")
 			return
-		filenames = reader.GetGDCMSeriesFileNames(f, series_found[0])
-		reader.SetFileNames(filenames)
-		scan = reader.Execute()
 
-	pixelSpacing = scan.GetSpacing()
+		min_thickness = min(thicknesses)
 
-	# if pixelSpacing[2] > 5.0:
-	# 	print(patient)
-	# 	return
-	# else:
-	# 	return
+		# Collect all folder below patient folder which contains DICOM
+		folder_dict = preprocessing_utils.CollectDICOMFolders(
+			os.path.join(os.path.join(rootSource, patient), str(min_thickness)))
 
-	# Save orientation
-	direction = scan.GetDirection()
-	origin = scan.GetOrigin()
+		if len(folder_dict.keys()) != 1:
+			print(patient + ' more than 1 min thickness series.')
+			return
 
-	# Resample to unit pixelspacing
-	scan, _ = preprocessing_utils.resample(sitk.GetArrayFromImage(scan),
-										   np.array([pixelSpacing[2], pixelSpacing[0], pixelSpacing[1]]))
-	scan = sitk.GetImageFromArray(scan)
+		# Load image, store important tags
+		for f in folder_dict:
+			reader = sitk.ImageSeriesReader()
+			series_found = reader.GetGDCMSeriesIDs(f)
+			if len(series_found) != 1:
+				print(patient + ' more series found.')
+				return
+			filenames = reader.GetGDCMSeriesFileNames(f, series_found[0])
+			reader.SetFileNames(filenames)
+			scan = reader.Execute()
 
-	# Write resulting image and brain mask
-	#		sitk.WriteImage(scan, os.path.join(rootTarget, patient, 'ScanResampled.mha'))
+		pixelSpacing = scan.GetSpacing()
 
-	# Set orientation back
-	scan.SetDirection(direction)
-	scan.SetOrigin(origin)
+		# if pixelSpacing[2] > 5.0:
+		# 	print(patient)
+		# 	return
+		# else:
+		# 	return
 
-	# Segment brain
-	scanBrain = os.path.join(rootTarget, patient, 'BrainMask.mha')
-	if not os.path.exists(scanBrain):
-		brain_mask = bs.segment_brain(scan, -20, 140, 160)
-		sitk.WriteImage(brain_mask, scanBrain)
-	else:
-		brain_mask = sitk.ReadImage(scanBrain)
+		# Save orientation
+		direction = scan.GetDirection()
+		origin = scan.GetOrigin()
 
-	if np.sum(sitk.GetArrayFromImage(brain_mask)) == 0:
-		print(patient + " Skullstrip failed.")
-		return
+		# Resample to unit pixelspacing
+		scan, _ = preprocessing_utils.resample(sitk.GetArrayFromImage(scan),
+											   np.array([pixelSpacing[2], pixelSpacing[0], pixelSpacing[1]]))
+		scan = sitk.GetImageFromArray(scan)
 
-	# Align to center
-	scan, brain_mask, _, _ = align.align(
-		scan=scan,
-		scanBrain=brain_mask,
-		atlas=ATLAS,
-		atlasBrain=BRAINATLAS,
-		rootTarget=rootTarget,
-		patient=patient,
-		cta=False)
+		# Write resulting image and brain mask
+		#		sitk.WriteImage(scan, os.path.join(rootTarget, patient, 'ScanResampled.mha'))
 
-	sitk.WriteImage(scan, os.path.join(rootTarget, patient, 'AlignedScan.mha'))
-	# sitk.WriteImage(brain_mask, os.path.join(rootTarget, 'AlignedBrainMask.mha'))
+		# Set orientation back
+		scan.SetDirection(direction)
+		scan.SetOrigin(origin)
 
-	# Save orientation
-	direction = scan.GetDirection()
-	origin = scan.GetOrigin()
+		# Segment brain
+		scanBrain = os.path.join(rootTarget, patient, 'BrainMask.mha')
+		if not os.path.exists(scanBrain):
+			brain_mask = bs.segment_brain(scan, -20, 140, 160)
+			sitk.WriteImage(brain_mask, scanBrain)
+		else:
+			brain_mask = sitk.ReadImage(scanBrain)
 
-	# Create skullstripped image
-	input_data = sitk.GetArrayFromImage(scan)
-	mask_data = sitk.GetArrayFromImage(brain_mask)
-	brain_data = np.multiply(input_data, mask_data)
-	skullstripped = sitk.GetImageFromArray(brain_data)
+		if np.sum(sitk.GetArrayFromImage(brain_mask)) == 0:
+			print(patient + " Skullstrip failed.")
+			return
 
-	skullstripped.SetSpacing(scan.GetSpacing())
-	skullstripped.SetDirection(direction)
-	skullstripped.SetOrigin(origin)
+		# Align to center
+		scan, brain_mask, _, _ = align.align(
+			scan=scan,
+			scanBrain=brain_mask,
+			atlas=ATLAS,
+			atlasBrain=BRAINATLAS,
+			rootTarget=rootTarget,
+			patient=patient,
+			cta=False)
 
-	sitk.WriteImage(skullstripped, os.path.join(rootTarget, patient, 'Skullstripped.mha'))
+		sitk.WriteImage(scan, os.path.join(rootTarget, patient, 'AlignedScan.mha'))
+		# sitk.WriteImage(brain_mask, os.path.join(rootTarget, 'AlignedBrainMask.mha'))
 
-	print(patient + " done.")
+		# Save orientation
+		direction = scan.GetDirection()
+		origin = scan.GetOrigin()
 
+		# Create skullstripped image
+		input_data = sitk.GetArrayFromImage(scan)
+		mask_data = sitk.GetArrayFromImage(brain_mask)
+		brain_data = np.multiply(input_data, mask_data)
+		skullstripped = sitk.GetImageFromArray(brain_data)
 
-# except:
-# 	print(patient + " failed.")
+		skullstripped.SetSpacing(scan.GetSpacing())
+		skullstripped.SetDirection(direction)
+		skullstripped.SetOrigin(origin)
 
+		sitk.WriteImage(skullstripped, os.path.join(rootTarget, patient, 'Skullstripped.mha'))
+
+		print(patient + " done.")
+	except:
+		print(patient + " failed.")
 
 def pipeline_CTA(patient, rootSource, rootTargetCTA, rootTargetMIP, rootTargetMIPBrain):
 	try:
@@ -462,7 +455,6 @@ def pipeline_CTA(patient, rootSource, rootTargetCTA, rootTargetMIP, rootTargetMI
 	except:
 		print(patient + " failed.")
 
-
 def select_biggest_dimensions(patients, root):
 	max_x = 0
 	max_y = 0
@@ -504,7 +496,6 @@ def select_biggest_dimensions(patients, root):
 	print(str(p_ix) + " " + str(p_iy) + " " + str(p_iz))
 	print(str(max_x) + " " + str(max_y) + " " + str(max_z))
 	print(str(p_mx) + " " + str(p_my) + " " + str(p_mz))
-
 
 def resize_image(patient, SIZE, rootSource, rootTarget):
 	try:

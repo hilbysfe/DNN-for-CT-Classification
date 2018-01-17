@@ -74,7 +74,7 @@ def MetricEvaluate(fixed_image, modified_moving_image):
 	return best_orientation
 
 
-def align(scan, scanBrain, atlas, atlasBrain, rootTarget, patient, cta=False, epochs=2):
+def align(scan, scanBrain, atlas, atlasBrain, rootTarget="", patient="", cta=False, epochs=2):
 
 	# Load atlas and atlas brain mask.
 	atlas = sitk.Cast(sitk.ReadImage(atlas), sitk.sitkFloat32)
