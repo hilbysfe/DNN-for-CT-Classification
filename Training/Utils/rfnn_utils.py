@@ -107,7 +107,6 @@ def _rfnn_conv_layer_pure_2d(input, basis, omaps, strides=[1, 1, 1, 1], padding=
 
 	return output, alphas
 
-
 def _rfnn_conv_layer_pure_2d_scales_max2(input, basis, omaps, strides=[1, 1, 1, 1], padding='SAME'):
 	with tf.device('/cpu:0'):
 		alphas = tf.get_variable(

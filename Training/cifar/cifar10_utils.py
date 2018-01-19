@@ -97,10 +97,9 @@ def preprocess_cifar10_data(X_train_raw, Y_train_raw, X_test_raw, Y_test_raw):
 	X_test = X_test_raw.copy()
 	Y_test = Y_test_raw.copy()
 
-	#  X_train = np.divide(X_train, 255.0)
-	#  X_test = np.divide(X_test, 255.0)
+	X_train = np.divide(X_train, 255.0)
+	X_test = np.divide(X_test, 255.0)
 
-	# Substract the mean
 	mean_0 = np.mean(X_train[:, :, :, 0])
 	mean_1 = np.mean(X_train[:, :, :, 1])
 	mean_2 = np.mean(X_train[:, :, :, 2])

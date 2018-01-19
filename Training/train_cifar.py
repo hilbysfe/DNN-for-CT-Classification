@@ -54,7 +54,13 @@ def train_cifar(FLAGS, NUM_GPUS):
 						xi, yi = cifar10_dataset.test.next_batch(FLAGS.batch_size)
 						xs.append(xi)
 						ys.append(yi)
-				return {image_batch: xs, label_batch: ys, is_training: flag == 0}
+				elif flag == 2:
+					for i in np.arange(NUM_GPUS):
+						xi = cifar10_dataset.train.images[0:FLAGS.batch_size]
+						yi = cifar10_dataset.train.labels[0:FLAGS.batch_size]
+						xs.append(xi)
+						ys.append(yi)
+				return {image_batch: xs, label_batch: ys, is_training: flag == 0 or flag == 2}
 
 			# ====== MODEL DEFINITION ======
 			print('Defining model...')
@@ -266,7 +272,7 @@ def train_cifar(FLAGS, NUM_GPUS):
 
 					# ======== LSUV INIT WEIGHTS WITH A FORWARD PASS ==========
 					print("Initializing weights with LSUV...")
-
+					# Conv layers
 					for l in range(len(model.alphas)):
 						var = 0.0
 						t_i = 0
@@ -274,7 +280,20 @@ def train_cifar(FLAGS, NUM_GPUS):
 							sess.run(batch_enqueue, feed_dict=feed_dict(0))
 							alphas, b_l = sess.run([model.alphas[l], model.conv_act[l]], feed_dict={is_training: False})
 							var = np.var(b_l)
+#							print(var)
 							sess.run(model.alphas[l].assign(alphas/np.sqrt(var)))
+							t_i += 1
+					# Bottleneck layers
+					print("bottleneck")
+					for l in range(len(model.bc_conv_act)):
+						var = 0.0
+						t_i = 0
+						while abs(var - 1.0) >= FLAGS.tol_var and t_i < FLAGS.t_max:
+							sess.run(batch_enqueue, feed_dict=feed_dict(0))
+							w_l, b_l = sess.run([model.bc_weights[l], model.bc_conv_act[l]], feed_dict={is_training: False})
+							var = np.var(b_l)
+#							print(var)
+							sess.run(model.bc_weights[l].assign(w_l / np.sqrt(var)))
 							t_i += 1
 					print("Initializing weights with LSUV...done.")
 

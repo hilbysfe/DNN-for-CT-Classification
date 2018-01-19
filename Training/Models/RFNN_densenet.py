@@ -29,6 +29,8 @@ class RFNNDenseNet(object):
 
 		self.alphas = []
 		self.conv_act = []
+		self.bc_conv_act = []
+		self.bc_weights = []
 
 		self.n_classes = n_classes
 		self.depth = depth
@@ -120,7 +122,9 @@ class RFNNDenseNet(object):
 			output = tf.nn.relu(output)
 			inter_features = out_features * 4
 			# 1x1 convolution
-			output = _conv_layer_pure_2d(output, shape=[1, 1, output.get_shape()[-1].value, inter_features], padding='VALID')
+			output, weights = _conv_layer_pure_2d(output, shape=[1, 1, output.get_shape()[-1].value, inter_features], padding='VALID')
+			self.bc_conv_act.append(output)
+			self.bc_weights.append(weights)
 		output = self.dropout(output)
 		return output
 

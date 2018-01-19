@@ -2,9 +2,15 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="f3902559-4ae2-43a0-8c70-d14a6bef7cc5" name="Default" comment="">
+      <change beforePath="$PROJECT_DIR$/.gitignore" afterPath="$PROJECT_DIR$/.gitignore" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
+      <change beforePath="$PROJECT_DIR$/Training/Miscellaneous/SimpleITK_Test.ipynb" afterPath="$PROJECT_DIR$/Training/Miscellaneous/SimpleITK_Test.ipynb" />
       <change beforePath="$PROJECT_DIR$/Training/Models/RFNN_densenet.py" afterPath="$PROJECT_DIR$/Training/Models/RFNN_densenet.py" />
+      <change beforePath="$PROJECT_DIR$/Training/Utils/cnn_utils.py" afterPath="$PROJECT_DIR$/Training/Utils/cnn_utils.py" />
       <change beforePath="$PROJECT_DIR$/Training/Utils/rfnn_utils.py" afterPath="$PROJECT_DIR$/Training/Utils/rfnn_utils.py" />
+      <change beforePath="$PROJECT_DIR$/Training/cifar/cifar10_utils.py" afterPath="$PROJECT_DIR$/Training/cifar/cifar10_utils.py" />
       <change beforePath="$PROJECT_DIR$/Training/run_models.py" afterPath="$PROJECT_DIR$/Training/run_models.py" />
+      <change beforePath="$PROJECT_DIR$/Training/train_cifar.py" afterPath="$PROJECT_DIR$/Training/train_cifar.py" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
@@ -14,14 +20,14 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="FileEditorManager">
-    <splitter split-orientation="horizontal" split-proportion="0.5103448">
+    <splitter split-orientation="horizontal" split-proportion="0.46684352">
       <split-first>
         <leaf SIDE_TABS_SIZE_LIMIT_KEY="375">
-          <file leaf-file-name="run_models.py" pinned="false" current-in-tab="false">
+          <file leaf-file-name="run_models.py" pinned="false" current-in-tab="true">
             <entry file="file://$PROJECT_DIR$/Training/run_models.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="332">
-                  <caret line="141" column="20" lean-forward="false" selection-start-line="141" selection-start-column="20" selection-end-line="141" selection-end-column="20" />
+                <state relative-caret-position="284">
+                  <caret line="121" column="19" lean-forward="false" selection-start-line="121" selection-start-column="17" selection-end-line="121" selection-end-column="19" />
                   <folding>
                     <element signature="e#0#38#0" expanded="true" />
                     <element signature="e#252#280#0" expanded="false" />
@@ -55,11 +61,11 @@
               </provider>
             </entry>
           </file>
-          <file leaf-file-name="registration_aspects.py" pinned="false" current-in-tab="true">
+          <file leaf-file-name="registration_aspects.py" pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/Training/Preprocessing/Registration/registration_aspects.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="251">
-                  <caret line="98" column="81" lean-forward="false" selection-start-line="98" selection-start-column="81" selection-end-line="98" selection-end-column="81" />
+                <state relative-caret-position="544">
+                  <caret line="42" column="24" lean-forward="false" selection-start-line="42" selection-start-column="24" selection-end-line="42" selection-end-column="24" />
                   <folding>
                     <element signature="e#0#24#0" expanded="true" />
                     <element signature="e#206#540#0" expanded="false" />
@@ -71,7 +77,7 @@
           <file leaf-file-name="align.py" pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/Training/Preprocessing/Registration/align.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="-2329">
+                <state relative-caret-position="1224">
                   <caret line="79" column="0" lean-forward="false" selection-start-line="79" selection-start-column="0" selection-end-line="79" selection-end-column="0" />
                   <folding>
                     <element signature="e#0#24#0" expanded="true" />
@@ -83,11 +89,10 @@
           <file leaf-file-name="train_cifar.py" pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/Training/train_cifar.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="3638">
-                  <caret line="227" column="38" lean-forward="false" selection-start-line="227" selection-start-column="38" selection-end-line="227" selection-end-column="38" />
+                <state relative-caret-position="4709">
+                  <caret line="294" column="38" lean-forward="false" selection-start-line="294" selection-start-column="38" selection-end-line="294" selection-end-column="38" />
                   <folding>
                     <element signature="e#1#32#0" expanded="true" />
-                    <element signature="e#1604#2012#0" expanded="false" />
                   </folding>
                 </state>
               </provider>
@@ -96,25 +101,27 @@
           <file leaf-file-name="rfnn_utils.py" pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/Training/Utils/rfnn_utils.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="323">
-                  <caret line="280" column="49" lean-forward="false" selection-start-line="280" selection-start-column="49" selection-end-line="280" selection-end-column="49" />
+                <state relative-caret-position="357">
+                  <caret line="344" column="45" lean-forward="false" selection-start-line="344" selection-start-column="45" selection-end-line="344" selection-end-column="45" />
                   <folding>
                     <element signature="e#257#792#0" expanded="false" />
                     <element signature="e#886#2405#0" expanded="false" />
                     <element signature="e#2498#3562#0" expanded="false" />
-                    <element signature="e#3667#5588#0" expanded="false" />
-                    <element signature="e#5691#6418#0" expanded="false" />
-                    <element signature="e#6521#8444#0" expanded="false" />
-                    <element signature="e#12231#12966#0" expanded="false" />
-                    <element signature="e#13059#14069#0" expanded="false" />
-                    <element signature="e#14159#14903#0" expanded="false" />
-                    <element signature="e#14956#17086#0" expanded="false" />
-                    <element signature="e#17146#19334#0" expanded="false" />
-                    <element signature="e#19409#22597#0" expanded="false" />
-                    <element signature="e#22650#28168#0" expanded="false" />
-                    <element signature="e#28225#28404#0" expanded="false" />
-                    <element signature="e#28440#28584#0" expanded="false" />
-                    <element signature="e#28599#28636#0" expanded="false" />
+                    <element signature="e#3666#5587#0" expanded="false" />
+                    <element signature="e#5690#6417#0" expanded="false" />
+                    <element signature="e#6520#8443#0" expanded="false" />
+                    <element signature="e#8548#10235#0" expanded="false" />
+                    <element signature="e#10356#12140#0" expanded="false" />
+                    <element signature="e#12230#12965#0" expanded="false" />
+                    <element signature="e#13058#14068#0" expanded="false" />
+                    <element signature="e#14158#14902#0" expanded="false" />
+                    <element signature="e#14955#17085#0" expanded="false" />
+                    <element signature="e#17145#19333#0" expanded="false" />
+                    <element signature="e#19408#22596#0" expanded="false" />
+                    <element signature="e#22649#28167#0" expanded="false" />
+                    <element signature="e#28224#28403#0" expanded="false" />
+                    <element signature="e#28439#28583#0" expanded="false" />
+                    <element signature="e#28598#28635#0" expanded="false" />
                   </folding>
                 </state>
               </provider>
@@ -123,22 +130,21 @@
           <file leaf-file-name="cnn_utils.py" pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/Training/Utils/cnn_utils.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="51">
-                  <caret line="4" column="47" lean-forward="false" selection-start-line="4" selection-start-column="47" selection-end-line="4" selection-end-column="47" />
+                <state relative-caret-position="459">
+                  <caret line="69" column="25" lean-forward="false" selection-start-line="69" selection-start-column="25" selection-end-line="69" selection-end-column="25" />
                   <folding>
                     <element signature="e#231#1509#0" expanded="false" />
-                    <element signature="e#1589#2589#0" expanded="false" />
-                    <element signature="e#2689#3695#0" expanded="false" />
-                    <element signature="e#3806#4672#0" expanded="false" />
-                    <element signature="e#4753#5245#0" expanded="false" />
-                    <element signature="e#5328#5567#0" expanded="false" />
-                    <element signature="e#5668#6059#0" expanded="false" />
-                    <element signature="e#6125#7113#0" expanded="false" />
-                    <element signature="e#7188#7494#0" expanded="false" />
-                    <element signature="e#7572#8081#0" expanded="false" />
-                    <element signature="e#8144#8596#0" expanded="false" />
-                    <element signature="e#8666#9956#0" expanded="false" />
-                    <element signature="e#9997#10126#0" expanded="false" />
+                    <element signature="e#2697#3703#0" expanded="false" />
+                    <element signature="e#3814#4680#0" expanded="false" />
+                    <element signature="e#4761#5253#0" expanded="false" />
+                    <element signature="e#5336#5575#0" expanded="false" />
+                    <element signature="e#5676#6067#0" expanded="false" />
+                    <element signature="e#6133#7121#0" expanded="false" />
+                    <element signature="e#7196#7502#0" expanded="false" />
+                    <element signature="e#7580#8089#0" expanded="false" />
+                    <element signature="e#8152#8604#0" expanded="false" />
+                    <element signature="e#8674#9964#0" expanded="false" />
+                    <element signature="e#10005#10134#0" expanded="false" />
                   </folding>
                 </state>
               </provider>
@@ -151,8 +157,8 @@
           <file leaf-file-name="densenet.py" pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/Training/Models/densenet.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="1394">
-                  <caret line="100" column="16" lean-forward="false" selection-start-line="100" selection-start-column="16" selection-end-line="100" selection-end-column="16" />
+                <state relative-caret-position="221">
+                  <caret line="29" column="31" lean-forward="false" selection-start-line="29" selection-start-column="31" selection-end-line="29" selection-end-column="31" />
                   <folding>
                     <element signature="e#0#18#0" expanded="true" />
                     <element signature="e#2050#2338#0" expanded="false" />
@@ -203,21 +209,20 @@
           <file leaf-file-name="RFNN_densenet.py" pinned="false" current-in-tab="true">
             <entry file="file://$PROJECT_DIR$/Training/Models/RFNN_densenet.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="748">
-                  <caret line="233" column="117" lean-forward="false" selection-start-line="233" selection-start-column="117" selection-end-line="233" selection-end-column="117" />
+                <state relative-caret-position="85">
+                  <caret line="5" column="53" lean-forward="false" selection-start-line="5" selection-start-column="29" selection-end-line="5" selection-end-column="53" />
                   <folding>
-                    <element signature="e#0#18#0" expanded="true" />
-                    <element signature="e#2378#2666#0" expanded="false" />
-                    <element signature="e#2750#3089#0" expanded="false" />
-                    <element signature="e#4189#4895#0" expanded="false" />
-                    <element signature="e#4960#5170#0" expanded="false" />
-                    <element signature="e#5211#5569#0" expanded="false" />
-                    <element signature="e#6325#6465#0" expanded="false" />
-                    <element signature="e#6500#6636#0" expanded="false" />
-                    <element signature="e#6668#6851#0" expanded="false" />
-                    <element signature="e#6901#7019#0" expanded="false" />
-                    <element signature="e#7071#7174#0" expanded="false" />
-                    <element signature="e#7224#7315#0" expanded="false" />
+                    <element signature="e#2425#2713#0" expanded="false" />
+                    <element signature="e#2797#3136#0" expanded="false" />
+                    <element signature="e#4315#5021#0" expanded="false" />
+                    <element signature="e#5086#5296#0" expanded="false" />
+                    <element signature="e#5337#5695#0" expanded="false" />
+                    <element signature="e#6451#6591#0" expanded="false" />
+                    <element signature="e#6626#6762#0" expanded="false" />
+                    <element signature="e#6794#6977#0" expanded="false" />
+                    <element signature="e#7027#7145#0" expanded="false" />
+                    <element signature="e#7197#7300#0" expanded="false" />
+                    <element signature="e#7350#7441#0" expanded="false" />
                   </folding>
                 </state>
               </provider>
@@ -283,6 +288,7 @@
       <find>dropout</find>
       <find>alphas</find>
       <find>training_steps</find>
+      <find>batch_enqueue</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -300,22 +306,22 @@
         <option value="$PROJECT_DIR$/Training/train_model.py" />
         <option value="$PROJECT_DIR$/Training/Models/RFNN_densenet3d.py" />
         <option value="$PROJECT_DIR$/Training/Models/ctnet.py" />
-        <option value="$PROJECT_DIR$/Training/cifar/cifar10_utils.py" />
         <option value="$PROJECT_DIR$/Training/preprocessing.py" />
         <option value="$PROJECT_DIR$/Training/Preprocessing/Registration/align.py" />
         <option value="$PROJECT_DIR$/Training/Preprocessing/Registration/registration_aspects.py" />
         <option value="$PROJECT_DIR$/Training/Models/densenet.py" />
-        <option value="$PROJECT_DIR$/Training/Utils/cnn_utils.py" />
-        <option value="$PROJECT_DIR$/Training/train_cifar.py" />
-        <option value="$PROJECT_DIR$/Training/run_models.py" />
-        <option value="$PROJECT_DIR$/Training/Utils/rfnn_utils.py" />
         <option value="$PROJECT_DIR$/Training/Models/RFNN_densenet.py" />
+        <option value="$PROJECT_DIR$/Training/Utils/cnn_utils.py" />
+        <option value="$PROJECT_DIR$/Training/cifar/cifar10_utils.py" />
+        <option value="$PROJECT_DIR$/Training/train_cifar.py" />
+        <option value="$PROJECT_DIR$/Training/Utils/rfnn_utils.py" />
+        <option value="$PROJECT_DIR$/Training/run_models.py" />
       </list>
     </option>
   </component>
   <component name="ProjectFrameBounds">
-    <option name="x" value="730" />
-    <option name="width" value="1923" />
+    <option name="x" value="2653" />
+    <option name="width" value="787" />
     <option name="height" value="1400" />
   </component>
   <component name="ProjectView">
@@ -431,16 +437,14 @@
     </todo-panel>
   </component>
   <component name="ToolWindowManager">
-    <frame x="730" y="0" width="1923" height="1400" extended-state="0" />
-    <editor active="true" />
+    <frame x="2653" y="0" width="787" height="1400" extended-state="0" />
     <layout>
       <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.1736527" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32990506" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
       <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="true" content_ui="tabs" />
-      <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32990506" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32990506" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
-      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.22863925" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
+      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.22863925" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
       <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.249501" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32911393" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Favorites" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="2" side_tool="true" content_ui="tabs" />
@@ -450,6 +454,7 @@
       <window_info id="Commander" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
       <window_info id="Inspection" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="5" side_tool="false" content_ui="tabs" />
       <window_info id="Hierarchy" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="2" side_tool="false" content_ui="combo" />
+      <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Ant Build" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
     </layout>
   </component>
@@ -472,7 +477,7 @@
           </properties>
         </breakpoint>
       </default-breakpoints>
-      <option name="time" value="126" />
+      <option name="time" value="127" />
     </breakpoint-manager>
     <watches-manager />
   </component>
@@ -675,18 +680,17 @@
           <caret line="151" column="21" lean-forward="false" selection-start-line="151" selection-start-column="21" selection-end-line="151" selection-end-column="21" />
           <folding>
             <element signature="e#231#1509#0" expanded="false" />
-            <element signature="e#1589#2589#0" expanded="false" />
-            <element signature="e#2689#3695#0" expanded="false" />
-            <element signature="e#3806#4672#0" expanded="false" />
-            <element signature="e#4753#5245#0" expanded="false" />
-            <element signature="e#5328#5567#0" expanded="false" />
-            <element signature="e#5668#6059#0" expanded="false" />
-            <element signature="e#6125#7113#0" expanded="false" />
-            <element signature="e#7188#7494#0" expanded="false" />
-            <element signature="e#7572#8081#0" expanded="false" />
-            <element signature="e#8144#8596#0" expanded="false" />
-            <element signature="e#8666#9956#0" expanded="false" />
-            <element signature="e#9997#10126#0" expanded="false" />
+            <element signature="e#2697#3703#0" expanded="false" />
+            <element signature="e#3814#4680#0" expanded="false" />
+            <element signature="e#4761#5253#0" expanded="false" />
+            <element signature="e#5336#5575#0" expanded="false" />
+            <element signature="e#5676#6067#0" expanded="false" />
+            <element signature="e#6133#7121#0" expanded="false" />
+            <element signature="e#7196#7502#0" expanded="false" />
+            <element signature="e#7580#8089#0" expanded="false" />
+            <element signature="e#8152#8604#0" expanded="false" />
+            <element signature="e#8674#9964#0" expanded="false" />
+            <element signature="e#10005#10134#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -1000,27 +1004,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="374">
           <caret line="41" column="27" lean-forward="false" selection-start-line="41" selection-start-column="27" selection-end-line="41" selection-end-column="27" />
-          <folding>
-            <element signature="e#0#18#0" expanded="false" />
-            <element signature="e#730#1542#0" expanded="false" />
-            <element signature="e#1765#1875#0" expanded="false" />
-            <element signature="e#1914#2397#0" expanded="false" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/Training/cifar/cifar10_utils.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="306">
-          <caret line="91" column="45" lean-forward="true" selection-start-line="91" selection-start-column="45" selection-end-line="91" selection-end-column="45" />
-          <folding>
-            <element signature="e#511#1002#0" expanded="false" />
-            <element signature="e#1040#1838#0" expanded="false" />
-            <element signature="e#1878#2418#0" expanded="false" />
-            <element signature="e#4356#4785#0" expanded="false" />
-            <element signature="e#4812#6170#0" expanded="false" />
-            <element signature="e#7824#8090#0" expanded="false" />
-          </folding>
         </state>
       </provider>
     </entry>
@@ -1050,65 +1033,66 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/Training/preprocessing.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="153">
-          <caret line="9" column="45" lean-forward="false" selection-start-line="9" selection-start-column="45" selection-end-line="9" selection-end-column="45" />
-          <folding>
-            <element signature="e#2959#3545#0" expanded="false" />
-            <element signature="e#3610#4967#0" expanded="false" />
-            <element signature="e#5027#5948#0" expanded="false" />
-            <element signature="e#6010#8432#0" expanded="false" />
-            <element signature="e#11769#15413#0" expanded="false" />
-            <element signature="e#15463#16515#0" expanded="false" />
-            <element signature="e#16575#19016#0" expanded="false" />
-            <element signature="e#19116#19500#0" expanded="false" />
-            <element signature="e#19541#20099#0" expanded="false" />
-            <element signature="e#20184#20716#0" expanded="false" />
-            <element signature="e#20768#21568#0" expanded="false" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/Training/Models/alexnet.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="808">
           <caret line="160" column="0" lean-forward="false" selection-start-line="160" selection-start-column="0" selection-end-line="160" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/Training/Preprocessing/Registration/align.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1224">
+          <caret line="79" column="0" lean-forward="false" selection-start-line="79" selection-start-column="0" selection-end-line="79" selection-end-column="0" />
           <folding>
-            <element signature="e#2486#2926#0" expanded="false" />
-            <element signature="e#3024#3450#0" expanded="false" />
-            <element signature="e#3488#5769#0" expanded="false" />
-            <element signature="e#5813#9086#0" expanded="false" />
+            <element signature="e#0#24#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/Training/Preprocessing/Registration/registration_aspects.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="544">
+          <caret line="42" column="24" lean-forward="false" selection-start-line="42" selection-start-column="24" selection-end-line="42" selection-end-column="24" />
+          <folding>
+            <element signature="e#0#24#0" expanded="true" />
+            <element signature="e#206#540#0" expanded="false" />
           </folding>
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/Training/Utils/cnn_utils.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="51">
-          <caret line="4" column="47" lean-forward="false" selection-start-line="4" selection-start-column="47" selection-end-line="4" selection-end-column="47" />
+        <state relative-caret-position="459">
+          <caret line="69" column="25" lean-forward="false" selection-start-line="69" selection-start-column="25" selection-end-line="69" selection-end-column="25" />
           <folding>
             <element signature="e#231#1509#0" expanded="false" />
-            <element signature="e#1589#2589#0" expanded="false" />
-            <element signature="e#2689#3695#0" expanded="false" />
-            <element signature="e#3806#4672#0" expanded="false" />
-            <element signature="e#4753#5245#0" expanded="false" />
-            <element signature="e#5328#5567#0" expanded="false" />
-            <element signature="e#5668#6059#0" expanded="false" />
-            <element signature="e#6125#7113#0" expanded="false" />
-            <element signature="e#7188#7494#0" expanded="false" />
-            <element signature="e#7572#8081#0" expanded="false" />
-            <element signature="e#8144#8596#0" expanded="false" />
-            <element signature="e#8666#9956#0" expanded="false" />
-            <element signature="e#9997#10126#0" expanded="false" />
+            <element signature="e#2697#3703#0" expanded="false" />
+            <element signature="e#3814#4680#0" expanded="false" />
+            <element signature="e#4761#5253#0" expanded="false" />
+            <element signature="e#5336#5575#0" expanded="false" />
+            <element signature="e#5676#6067#0" expanded="false" />
+            <element signature="e#6133#7121#0" expanded="false" />
+            <element signature="e#7196#7502#0" expanded="false" />
+            <element signature="e#7580#8089#0" expanded="false" />
+            <element signature="e#8152#8604#0" expanded="false" />
+            <element signature="e#8674#9964#0" expanded="false" />
+            <element signature="e#10005#10134#0" expanded="false" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/Training/cifar/cifar10_utils.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="255">
+          <caret line="101" column="0" lean-forward="true" selection-start-line="101" selection-start-column="0" selection-end-line="101" selection-end-column="0" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/Training/Models/densenet.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1394">
-          <caret line="100" column="16" lean-forward="false" selection-start-line="100" selection-start-column="16" selection-end-line="100" selection-end-column="16" />
+        <state relative-caret-position="221">
+          <caret line="29" column="31" lean-forward="false" selection-start-line="29" selection-start-column="31" selection-end-line="29" selection-end-column="31" />
           <folding>
             <element signature="e#0#18#0" expanded="true" />
             <element signature="e#2050#2338#0" expanded="false" />
@@ -1130,92 +1114,91 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/Training/train_cifar.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="3638">
-          <caret line="227" column="38" lean-forward="false" selection-start-line="227" selection-start-column="38" selection-end-line="227" selection-end-column="38" />
+        <state relative-caret-position="4709">
+          <caret line="294" column="38" lean-forward="false" selection-start-line="294" selection-start-column="38" selection-end-line="294" selection-end-column="38" />
           <folding>
             <element signature="e#1#32#0" expanded="true" />
-            <element signature="e#1604#2012#0" expanded="false" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/Training/run_models.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="332">
-          <caret line="141" column="20" lean-forward="false" selection-start-line="141" selection-start-column="20" selection-end-line="141" selection-end-column="20" />
-          <folding>
-            <element signature="e#0#38#0" expanded="true" />
-            <element signature="e#252#280#0" expanded="false" />
-            <element signature="e#310#733#0" expanded="false" />
-            <element signature="e#756#883#0" expanded="false" />
-            <element signature="e#904#955#0" expanded="false" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/Training/Models/RFNN_densenet.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="748">
-          <caret line="233" column="117" lean-forward="false" selection-start-line="233" selection-start-column="117" selection-end-line="233" selection-end-column="117" />
-          <folding>
-            <element signature="e#0#18#0" expanded="true" />
-            <element signature="e#2378#2666#0" expanded="false" />
-            <element signature="e#2750#3089#0" expanded="false" />
-            <element signature="e#4189#4895#0" expanded="false" />
-            <element signature="e#4960#5170#0" expanded="false" />
-            <element signature="e#5211#5569#0" expanded="false" />
-            <element signature="e#6325#6465#0" expanded="false" />
-            <element signature="e#6500#6636#0" expanded="false" />
-            <element signature="e#6668#6851#0" expanded="false" />
-            <element signature="e#6901#7019#0" expanded="false" />
-            <element signature="e#7071#7174#0" expanded="false" />
-            <element signature="e#7224#7315#0" expanded="false" />
           </folding>
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/Training/Utils/rfnn_utils.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="323">
-          <caret line="280" column="49" lean-forward="false" selection-start-line="280" selection-start-column="49" selection-end-line="280" selection-end-column="49" />
+        <state relative-caret-position="357">
+          <caret line="344" column="45" lean-forward="false" selection-start-line="344" selection-start-column="45" selection-end-line="344" selection-end-column="45" />
           <folding>
             <element signature="e#257#792#0" expanded="false" />
             <element signature="e#886#2405#0" expanded="false" />
             <element signature="e#2498#3562#0" expanded="false" />
-            <element signature="e#3667#5588#0" expanded="false" />
-            <element signature="e#5691#6418#0" expanded="false" />
-            <element signature="e#6521#8444#0" expanded="false" />
-            <element signature="e#12231#12966#0" expanded="false" />
-            <element signature="e#13059#14069#0" expanded="false" />
-            <element signature="e#14159#14903#0" expanded="false" />
-            <element signature="e#14956#17086#0" expanded="false" />
-            <element signature="e#17146#19334#0" expanded="false" />
-            <element signature="e#19409#22597#0" expanded="false" />
-            <element signature="e#22650#28168#0" expanded="false" />
-            <element signature="e#28225#28404#0" expanded="false" />
-            <element signature="e#28440#28584#0" expanded="false" />
-            <element signature="e#28599#28636#0" expanded="false" />
+            <element signature="e#3666#5587#0" expanded="false" />
+            <element signature="e#5690#6417#0" expanded="false" />
+            <element signature="e#6520#8443#0" expanded="false" />
+            <element signature="e#8548#10235#0" expanded="false" />
+            <element signature="e#10356#12140#0" expanded="false" />
+            <element signature="e#12230#12965#0" expanded="false" />
+            <element signature="e#13058#14068#0" expanded="false" />
+            <element signature="e#14158#14902#0" expanded="false" />
+            <element signature="e#14955#17085#0" expanded="false" />
+            <element signature="e#17145#19333#0" expanded="false" />
+            <element signature="e#19408#22596#0" expanded="false" />
+            <element signature="e#22649#28167#0" expanded="false" />
+            <element signature="e#28224#28403#0" expanded="false" />
+            <element signature="e#28439#28583#0" expanded="false" />
+            <element signature="e#28598#28635#0" expanded="false" />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/Training/Preprocessing/Registration/align.py">
+    <entry file="file://$PROJECT_DIR$/Training/Models/RFNN_densenet.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-2329">
-          <caret line="79" column="0" lean-forward="false" selection-start-line="79" selection-start-column="0" selection-end-line="79" selection-end-column="0" />
+        <state relative-caret-position="85">
+          <caret line="5" column="53" lean-forward="false" selection-start-line="5" selection-start-column="29" selection-end-line="5" selection-end-column="53" />
           <folding>
-            <element signature="e#0#24#0" expanded="true" />
+            <element signature="e#2425#2713#0" expanded="false" />
+            <element signature="e#2797#3136#0" expanded="false" />
+            <element signature="e#4315#5021#0" expanded="false" />
+            <element signature="e#5086#5296#0" expanded="false" />
+            <element signature="e#5337#5695#0" expanded="false" />
+            <element signature="e#6451#6591#0" expanded="false" />
+            <element signature="e#6626#6762#0" expanded="false" />
+            <element signature="e#6794#6977#0" expanded="false" />
+            <element signature="e#7027#7145#0" expanded="false" />
+            <element signature="e#7197#7300#0" expanded="false" />
+            <element signature="e#7350#7441#0" expanded="false" />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/Training/Preprocessing/Registration/registration_aspects.py">
+    <entry file="file://$PROJECT_DIR$/Training/preprocessing.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="251">
-          <caret line="98" column="81" lean-forward="false" selection-start-line="98" selection-start-column="81" selection-end-line="98" selection-end-column="81" />
+        <state relative-caret-position="153">
+          <caret line="9" column="45" lean-forward="false" selection-start-line="9" selection-start-column="45" selection-end-line="9" selection-end-column="45" />
           <folding>
-            <element signature="e#0#24#0" expanded="true" />
-            <element signature="e#206#540#0" expanded="false" />
+            <element signature="e#2959#3545#0" expanded="false" />
+            <element signature="e#3610#4967#0" expanded="false" />
+            <element signature="e#5027#5948#0" expanded="false" />
+            <element signature="e#6010#8432#0" expanded="false" />
+            <element signature="e#11769#15413#0" expanded="false" />
+            <element signature="e#15463#16515#0" expanded="false" />
+            <element signature="e#16575#19016#0" expanded="false" />
+            <element signature="e#19116#19500#0" expanded="false" />
+            <element signature="e#19541#20099#0" expanded="false" />
+            <element signature="e#20184#20716#0" expanded="false" />
+            <element signature="e#20768#21568#0" expanded="false" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/Training/run_models.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="284">
+          <caret line="121" column="19" lean-forward="false" selection-start-line="121" selection-start-column="17" selection-end-line="121" selection-end-column="19" />
+          <folding>
+            <element signature="e#0#38#0" expanded="true" />
+            <element signature="e#252#280#0" expanded="false" />
+            <element signature="e#310#733#0" expanded="false" />
+            <element signature="e#756#883#0" expanded="false" />
+            <element signature="e#904#955#0" expanded="false" />
           </folding>
         </state>
       </provider>

@@ -75,7 +75,7 @@ def _conv_layer_pure_2d(input, shape, strides=[1, 1, 1, 1], padding='SAME'):
 		conv_transposed = tf.expand_dims(conv_transposed, axis=3)
 		tf.summary.image('activation', conv_transposed, max_outputs=channels)
 
-		return conv
+		return conv, kernel
 
 def _conv_layer_2d_with_kernel(input, kernel, strides, padding, is_training, name, bnorm=False):
 	# No bias when BN
