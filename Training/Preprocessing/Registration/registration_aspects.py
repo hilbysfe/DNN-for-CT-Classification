@@ -51,20 +51,14 @@ def register(patient, rootSource, rootTarget, atlasScan, atlasMask, aspects, cta
 			initialAlignment = os.path.join(rootTarget, patient, str(thickness), "InitialAlignment.mha")
 			bsplineAspects = os.path.join(rootTarget, patient, str(thickness), "BsplineRegisteredASPECTS.mha")
 
-		if scanBrain == "":
-			if os.path.join(rootTarget, patient, str(thickness)) == "":
-				scanBrain = os.path.join(scanFolder, "ScanBrain.mha")
+		scanBrain = os.path.join(rootTarget, patient, str(thickness), "ScanBrain.mha")
+		if not os.path.exists(scanBrain):
+			# Skull stripping part.
+			if cta:
+				scan_brain_mask = bs.segment_brain(scan, -20, 330, 350)
 			else:
-				scanBrain = os.path.join(rootTarget, patient, str(thickness), "ScanBrain.mha")
-			if not os.path.exists(scanBrain):
-				# Skull stripping part.
-				if cta:
-					scan_brain_mask = bs.segment_brain(scan, -20, 330, 350)
-				else:
-					scan_brain_mask = bs.segment_brain(scan, -20, 140, 160)
-				sitk.WriteImage(scan_brain_mask, scanBrain)
-			else:
-				scan_brain_mask = sitk.ReadImage(scanBrain)
+				scan_brain_mask = bs.segment_brain(scan, -20, 140, 160)
+			sitk.WriteImage(scan_brain_mask, scanBrain)
 		else:
 			scan_brain_mask = sitk.ReadImage(scanBrain)
 
@@ -112,7 +106,7 @@ def register(patient, rootSource, rootTarget, atlasScan, atlasMask, aspects, cta
 		parameter_map["NumberOfResolutions"] = ["2"]
 		parameter_map["Metric"] = ["AdvancedMeanSquares"]
 
-		elastix_filter = sitk.SimpleElastix()
+		elastix_filter = sitk.ElastixImageFilter()
 		elastix_filter.SetLogToConsole(False)  # True to visualize progress.
 		elastix_filter.SetLogToFile(False)
 		elastix_filter.SetFixedImage(scan_brain_mask)
@@ -122,7 +116,7 @@ def register(patient, rootSource, rootTarget, atlasScan, atlasMask, aspects, cta
 		affine_result_mask = elastix_filter.GetResultImage()
 		#sitk.WriteImage(affine_result_mask, os.path.join(scanFolder, "AffineRegisteredAtlasMask.mha"))
 
-		transformix_filter = sitk.SimpleTransformix()
+		transformix_filter = sitk.TransformixImageFilter()
 		transformix_filter.SetMovingImage(atlas)
 		transformix_filter.SetLogToConsole(False)  # True to visualize progress.
 		transformix_filter.SetLogToFile(False)
@@ -137,7 +131,7 @@ def register(patient, rootSource, rootTarget, atlasScan, atlasMask, aspects, cta
 		affine_result_atlas = transformix_filter.GetResultImage()
 		#sitk.WriteImage(affine_result_atlas, os.path.join(scanFolder, "AffineRegisteredAtlas.mha"))
 
-		transformix_filter = sitk.SimpleTransformix()
+		transformix_filter = sitk.TransformixImageFilter()
 		transformix_filter.SetMovingImage(aspects_image)
 		transformix_filter.SetLogToConsole(False)  # True to visualize progress.
 		transformix_filter.SetLogToFile(False)
@@ -157,7 +151,7 @@ def register(patient, rootSource, rootTarget, atlasScan, atlasMask, aspects, cta
 		parameter_map["GridSpacingSchedule"] = ["3.0", "2.0", "1.5", "1"]
 		parameter_map["MaximumStepLength"] = ["12.0", "10.0", "8.0", "6.0"]
 
-		elastix_filter = sitk.SimpleElastix()
+		elastix_filter = sitk.ElastixImageFilter()
 		elastix_filter.SetLogToConsole(False)  # True to visualize progress.
 		elastix_filter.SetLogToFile(False)
 		elastix_filter.SetFixedImage(scan)
@@ -182,7 +176,7 @@ def register(patient, rootSource, rootTarget, atlasScan, atlasMask, aspects, cta
 		#sitk.WriteImage(bspline_result_mask, os.path.join(scanFolder, "BsplineRegisteredAtlasMask.mha"))
 
 		# Transform aspects
-		transformix_filter = sitk.SimpleTransformix()
+		transformix_filter = sitk.TransformixImageFilter()
 		transformix_filter.SetMovingImage(affine_result_aspects)
 		transformix_filter.SetLogToConsole(False)  # True to visualize progress.
 		transformix_filter.SetLogToFile(False)
@@ -196,9 +190,9 @@ def register(patient, rootSource, rootTarget, atlasScan, atlasMask, aspects, cta
 		sitk.WriteImage(bspline_result_aspects, bsplineAspects)
 
 	
-DATADIR = r'D:\Adam Hilbert\Data\Registry\NCCT_BL\ST_THIN\R0001\AlignedScan.mha'
-OUTDIR = r'D:\Adam Hilbert\Data\Registry\NCCT_BL\ST_THIN\R0001'
-ASSETS = r"C:\Users\Adam\Desktop\Assets"
+DATADIR = r'/home/hilbysfe/DATA/SUPERVISED/REGISTRY/NCCT/ST_BL_ALL/'
+OUTDIR = r'/home/hilbysfe/DATA/SUPERVISED/REGISTRY/NCCT/ASPECTS_ALL/'
+ASSETS = r'/home/hilbysfe/DATA/ASSETS'
 
 if __name__ == '__main__':
 	# Command line arguments
@@ -220,34 +214,14 @@ if __name__ == '__main__':
 	start = time.time()
 	register(
 				patient='R0107',
-				rootSource=r'E:\MRCLEAN_REGISTRY\NCCT_BL_ST',
-				rootTarget=r'E:\MRCLEAN_REGISTRY\NCCT_ASPECTS',
+				rootSource=flags.scan,
+				rootTarget=flags.output,
 				atlasScan=ATLAS,
 				atlasMask=BRAINATLAS,
 				aspects=ASPECTS,
 				cta=False)
 	end = time.time()
 	print(end - start)
-
-
-	#validation_scans = [ [os.path.join(root, name) for name in files if name.endswith("Scan.mha")][0]
-	#						for root, dirs, files in os.walk(validation_root) if len(files) > 0]
-	#print(validation_scans)
-	
-	#for scan in validation_scans:
-	#	print(scan.split('\\')[-2] + " running...")
-	#	try:
-			#register(
-			#	scanPath=flags.scan,
-			#	atlas=ATLAS,
-			#	atlasBrain=BRAINATLAS,
-			#	aspects=ASPECTS,
-			#	outputFolder = flags.output,
-			#	cta = False)
-	#		print(scan.split('\\')[-2] + " done.")
-	#	except:
-	#		print(scan.split('\\')[-2] + " failed.")
-	#		continue
 
 #	patients = os.listdir(CTA_MIP_RESIZED)
 	#	skullstrip("R0001", CTA_MIP_RESIZED, CTA_SKULLSTRIPPED_RESIZED)
