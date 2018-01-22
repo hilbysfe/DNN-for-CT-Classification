@@ -6,10 +6,10 @@ import shutil
 from multiprocessing import Pool
 from itertools import repeat
 
-from Preprocessing import mip
-from Preprocessing import preprocessing_utils
-from Preprocessing.Registration import align
-from Preprocessing.Registration import brain_segmentation as bs
+#from Preprocessing import mip
+#from Preprocessing import preprocessing_utils
+#from Preprocessing.Registration import align
+#from Preprocessing.Registration import brain_segmentation as bs
 
 WINDOW = 10
 OVERLAP = 3
@@ -723,7 +723,26 @@ if __name__ == '__main__':
 #		p.starmap(resize_image, zip(patients, repeat(CTA_MIP_SKULL_SIZE), repeat(CTA_SKULLSTRIPPED), repeat(CTA_SKULLSTRIPPED_RESIZED)))
 
 	# Skullstripp MIPs
-	patients = os.listdir(CTA_MIP_RESIZED)
+#	patients = os.listdir(CTA_MIP_RESIZED)
 #	skullstrip("R0001", CTA_MIP_RESIZED, CTA_SKULLSTRIPPED_RESIZED)
-	with Pool() as p:
-		p.starmap(skullstrip, zip(patients, repeat(CTA_MIP_RESIZED), repeat(CTA_SKULLSTRIPPED_RESIZED)))
+#	with Pool() as p:
+#		p.starmap(skullstrip, zip(patients, repeat(CTA_MIP_RESIZED), repeat(CTA_SKULLSTRIPPED_RESIZED)))
+
+	root = '/home/hilbysfe/DATA/SUPERVISED/REGISTRY/NCCT/ASPECTS_ALL_PART1/'
+	rootTarget = '/home/hilbysfe/DATA/SUPERVISED/REGISTRY/NCCT/ASPECTS_FAILED'
+	patients = os.listdir(root)
+	for patient in patients:
+		thicknesses = os.listdir(os.path.join(root,patient))
+		if len(thicknesses) == 0:
+		#			shutil.rmtree(os.path.join(root,patient))
+			print(patient + ' to be deleted.')
+		for thickness in thicknesses:
+			if not os.path.exists(os.path.join(root,patient,thickness,'BsplineRegisteredASPECTS.mha')):
+				if not os.path.exists(os.path.join(rootTarget,patient,thickness)):
+#					os.makedirs(os.path.join(rootTarget,patient,thickness))
+					shutil.copytree(os.path.join(root,patient,thickness), os.path.join(rootTarget,patient,thickness))
+					shutil.rmtree(os.path.join(root,patient,thickness))
+					print(patient + ' copied.')
+				else:
+				#					shutil.rmtree(os.path.join(root,patient,thickness))
+					print(patient + ' in failed.')

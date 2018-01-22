@@ -29,8 +29,7 @@ def train_cifar(FLAGS, NUM_GPUS):
 			# ====== LOAD DATASET ======
 			print('Loading Dataset...')
 			#            cifar10_dataset = cifar10_utils.get_cifar10('/home/nicolab/Downloads/cifar-10-batches-py')
-			cifar10_dataset = cifar10_utils.get_cifar10(
-				'D:\Adam Hilbert\CT_Classification\code\Training\cifar10\cifar-10-batches-py')
+			cifar10_dataset = cifar10_utils.get_cifar10(FLAGS.cifar_path)
 			print('Loading Dataset...done.')
 
 			# ====== DEFINE SPACEHOLDERS ======

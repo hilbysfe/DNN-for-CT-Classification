@@ -74,75 +74,75 @@ def MetricEvaluate(fixed_image, modified_moving_image):
 	return best_orientation
 
 
-def align(scan, scanBrain, atlas, atlasBrain, rootTarget="", patient="", cta=False, epochs=2):
+def align(scan, scanBrain, atlas, atlasBrain, rootTarget="", cta=False, epochs=1):
 
-	# Load atlas and atlas brain mask.
-	atlas = sitk.Cast(sitk.ReadImage(atlas), sitk.sitkFloat32)
-	atlas_brain_mask = sitk.ReadImage(atlasBrain)
+    # Load atlas and atlas brain mask.
+    atlas = sitk.Cast(sitk.ReadImage(atlas), sitk.sitkFloat32)
+    atlas_brain_mask = sitk.ReadImage(atlasBrain)
 
-	# Resample atlas to image dimensions
-	resample = sitk.ResampleImageFilter()
-	resample.SetTransform(sitk.Transform(3, sitk.sitkIdentity))
-	resample.SetReferenceImage(atlas)
-	out_size = scan.GetSize()
-	in_size = atlas.GetSize()
-	resample.SetSize(out_size)
-	in_spacing = atlas.GetSpacing()
-	outputspacing = [in_spacing[0] * (in_size[0] / out_size[0]), in_spacing[1] * (in_size[1] / out_size[1]),
-					 in_spacing[2] * (in_size[2] / out_size[2])]
-	resample.SetOutputSpacing(outputspacing)
-	resample.SetInterpolator(sitk.sitkNearestNeighbor)
-	atlas = resample.Execute(atlas)
-	# sitk.WriteImage(atlas, os.path.join(scanFolder, "ResampledAtlas.mha"))
+    # Resample atlas to image dimensions
+    resample = sitk.ResampleImageFilter()
+    resample.SetTransform(sitk.Transform(3, sitk.sitkIdentity))
+    resample.SetReferenceImage(atlas)
+    out_size = scan.GetSize()
+    in_size = atlas.GetSize()
+    resample.SetSize(out_size)
+    in_spacing = atlas.GetSpacing()
+    outputspacing = [in_spacing[0] * (in_size[0] / out_size[0]), in_spacing[1] * (in_size[1] / out_size[1]),
+                     in_spacing[2] * (in_size[2] / out_size[2])]
+    resample.SetOutputSpacing(outputspacing)
+    resample.SetInterpolator(sitk.sitkNearestNeighbor)
+    atlas = resample.Execute(atlas)
+#    sitk.WriteImage(atlas, os.path.join(scanFolder, "ResampledAtlas.mha"))
 
-	# Resample atlas_mask to image dimensions
-	resample = sitk.ResampleImageFilter()
-	resample.SetTransform(sitk.Transform(3, sitk.sitkIdentity))
-	resample.SetReferenceImage(atlas_brain_mask)
-	resample.SetSize(out_size)
-	resample.SetOutputSpacing(outputspacing)
-	resample.SetInterpolator(sitk.sitkNearestNeighbor)
-	atlas_brain_mask = resample.Execute(atlas_brain_mask)
+    # Resample atlas_mask to image dimensions
+    resample = sitk.ResampleImageFilter()
+    resample.SetTransform(sitk.Transform(3, sitk.sitkIdentity))
+    resample.SetReferenceImage(atlas_brain_mask)
+    resample.SetSize(out_size)
+    resample.SetOutputSpacing(outputspacing)
+    resample.SetInterpolator(sitk.sitkNearestNeighbor)
+    atlas_brain_mask = resample.Execute(atlas_brain_mask)
 
-#	sitk.WriteImage(scanBrain, os.path.join(r"C:\Users\Adam\Registry\NCCT_BL\ST_THINNEST\R0394\ResampledAtlasBrainMask.mha"))
+#    sitk.WriteImage(scanBrain, os.path.join(r"C:\Users\Adam\Registry\NCCT_BL\ST_THINNEST\R0394\ResampledAtlasBrainMask.mha"))
 
-	# Initial transform to align images based on center of mass.
-	initial_transform = sitk.CenteredTransformInitializer(atlas_brain_mask,  # fixed image
-														  scanBrain,  # moving image
-														  sitk.Euler3DTransform(),
-														  sitk.CenteredTransformInitializerFilter.MOMENTS)
+    # Initial transform to align images based on center of mass.
+    initial_transform = sitk.CenteredTransformInitializer(atlas_brain_mask,  # fixed image
+                                                          scanBrain,  # moving image
+                                                          sitk.Euler3DTransform(),
+                                                          sitk.CenteredTransformInitializerFilter.MOMENTS)
 
-	# Applying initial transform + correcting for non-square images
-	dim = scanBrain.GetSize()[0] if scanBrain.GetSize()[0] < scanBrain.GetSize()[1] else scanBrain.GetSize()[1]
-	moving_image_mask = sitk.Resample(scanBrain,  # moving image
-									  atlas_brain_mask,  # fixed image
-									  initial_transform,
-									  sitk.sitkNearestNeighbor,
-									  0.0,
-									  sitk.sitkUInt8)[
-										int(scanBrain.GetSize()[0]/2)-int(dim/2):int(scanBrain.GetSize()[0]/2)+int(dim/2),
-										int(scanBrain.GetSize()[1]/2)-int(dim/2):int(scanBrain.GetSize()[1]/2)+int(dim/2), :]
+    # Applying initial transform + correcting for non-square images
+    dim = scanBrain.GetSize()[0] if scanBrain.GetSize()[0] < scanBrain.GetSize()[1] else scanBrain.GetSize()[1]
+    moving_image_mask = sitk.Resample(scanBrain,  # moving image
+                                      atlas_brain_mask,  # fixed image
+                                      initial_transform,
+                                      sitk.sitkNearestNeighbor,
+                                      0.0,
+                                      sitk.sitkUInt8)[
+                                        int(scanBrain.GetSize()[0]/2)-int(dim/2):int(scanBrain.GetSize()[0]/2)+int(dim/2),
+                                        int(scanBrain.GetSize()[1]/2)-int(dim/2):int(scanBrain.GetSize()[1]/2)+int(dim/2), :]
 
-	atlas_brain_mask = atlas_brain_mask[
-										int(scanBrain.GetSize()[0]/2)-int(dim/2):int(scanBrain.GetSize()[0]/2)+int(dim/2),
-										int(scanBrain.GetSize()[1]/2)-int(dim/2):int(scanBrain.GetSize()[1]/2)+int(dim/2), :]
-	scan = scan[
-										int(scanBrain.GetSize()[0]/2)-int(dim/2):int(scanBrain.GetSize()[0]/2)+int(dim/2),
-										int(scanBrain.GetSize()[1]/2)-int(dim/2):int(scanBrain.GetSize()[1]/2)+int(dim/2), :]
-	atlas = atlas[
-										int(scanBrain.GetSize()[0]/2)-int(dim/2):int(scanBrain.GetSize()[0]/2)+int(dim/2),
-										int(scanBrain.GetSize()[1]/2)-int(dim/2):int(scanBrain.GetSize()[1]/2)+int(dim/2), :]
+    atlas_brain_mask = atlas_brain_mask[
+                                        int(scanBrain.GetSize()[0]/2)-int(dim/2):int(scanBrain.GetSize()[0]/2)+int(dim/2),
+                                        int(scanBrain.GetSize()[1]/2)-int(dim/2):int(scanBrain.GetSize()[1]/2)+int(dim/2), :]
+    scan = scan[
+                                        int(scanBrain.GetSize()[0]/2)-int(dim/2):int(scanBrain.GetSize()[0]/2)+int(dim/2),
+                                        int(scanBrain.GetSize()[1]/2)-int(dim/2):int(scanBrain.GetSize()[1]/2)+int(dim/2), :]
+    atlas = atlas[
+                                        int(scanBrain.GetSize()[0]/2)-int(dim/2):int(scanBrain.GetSize()[0]/2)+int(dim/2),
+                                        int(scanBrain.GetSize()[1]/2)-int(dim/2):int(scanBrain.GetSize()[1]/2)+int(dim/2), :]
 
-	composed_transformation = sitk.Transform(3, sitk.sitkComposite)
-	composed_transformation.AddTransform(initial_transform)
-#	sitk.WriteImage(moving_image_mask, os.path.join(rootTarget, patient, "BeforeMetricBrainMask.mha"))
+    composed_transformation = sitk.Transform(3, sitk.sitkComposite)
+    composed_transformation.AddTransform(initial_transform)
+#    sitk.WriteImage(moving_image_mask, os.path.join(rootTarget, "BeforeMetricBrainMask.mha"))
 
-	shape_info = sitk.LabelShapeStatisticsImageFilter()
-	shape_info.Execute(moving_image_mask)
-	centroid = shape_info.GetCentroid(1)
-	centroid_index = sitk.Image.TransformPhysicalPointToContinuousIndex(moving_image_mask, centroid)
+    shape_info = sitk.LabelShapeStatisticsImageFilter()
+    shape_info.Execute(moving_image_mask)
+    centroid = shape_info.GetCentroid(1)
+    centroid_index = sitk.Image.TransformPhysicalPointToContinuousIndex(moving_image_mask, centroid)
 
-	# Check for major mis-orientation
+    # Check for major mis-orientation
 #	orient = MetricEvaluate(sitk.Cast(atlas_brain_mask, sitk.sitkFloat32), sitk.Cast(moving_image_mask, sitk.sitkFloat32))
 
 #	if not (orient[0] == 0.0 and orient[1] == 0.0 and orient[2] == 0.0):
@@ -152,113 +152,113 @@ def align(scan, scanBrain, atlas, atlasBrain, rootTarget="", patient="", cta=Fal
 
 #	sitk.WriteImage(moving_image_mask, os.path.join(rootTarget, patient, "BeforeInitialAlignmentBrainMask.mha"))
 
-	for i in range(epochs):
-		# Align Z plane using symmetry detection.
-		image_width = moving_image_mask.GetSize()[0]
-		angle = -(numpy.pi/4.0)-(i*((numpy.pi/4.0)/epochs))
-		best_angle = 0.0
-		step = 0.05-(i*(0.05/epochs))
-		half_image_width = int(image_width / 2)
-		min_diff = moving_image_mask.GetSize()[0] * moving_image_mask.GetSize()[1] * moving_image_mask.GetSize()[2] / 2
-		while angle <= (numpy.pi/4.0)-(i*((numpy.pi/4.0)/epochs)):
-			rotation = sitk.Euler3DTransform(centroid, 0.0, 0.0, angle)
-			rotated_mask = sitk.Resample(moving_image_mask, moving_image_mask, rotation, sitk.sitkNearestNeighbor, 0.0)
-			rotated_mask_data = sitk.GetArrayFromImage(rotated_mask)
-			# Check sides
-			left_side = rotated_mask_data[:, :, 0:half_image_width]
-			right_side = rotated_mask_data[:, :, half_image_width:2 * half_image_width]
-			right_side = numpy.flip(right_side, 2)
-			diff_sides = numpy.square(right_side - left_side)
-			count_diff = numpy.sum(diff_sides)
-			# Check gaps
-			non_zero_coords = numpy.nonzero(rotated_mask_data)
-			max_y = numpy.max(non_zero_coords[1])
-			min_y = numpy.min(non_zero_coords[1])
-			y_gap = min_y + (moving_image_mask.GetSize()[1] - max_y)
-			max_x = numpy.max(non_zero_coords[2])
-			min_x = numpy.min(non_zero_coords[2])
-			x_gap = min_x + (moving_image_mask.GetSize()[0] - max_x)
+    for i in range(epochs):
+        # Align Z plane using symmetry detection.
+        image_width = moving_image_mask.GetSize()[0]
+        angle = -(numpy.pi/4.0)-(i*((numpy.pi/4.0)/epochs))
+        best_angle = 0.0
+        step = 0.05-(i*(0.05/epochs))
+        half_image_width = int(image_width / 2)
+        min_diff = moving_image_mask.GetSize()[0] * moving_image_mask.GetSize()[1] * moving_image_mask.GetSize()[2] / 2
+        while angle <= (numpy.pi/4.0)-(i*((numpy.pi/4.0)/epochs)):
+            rotation = sitk.Euler3DTransform(centroid, 0.0, 0.0, angle)
+            rotated_mask = sitk.Resample(moving_image_mask, moving_image_mask, rotation, sitk.sitkNearestNeighbor, 0.0)
+            rotated_mask_data = sitk.GetArrayFromImage(rotated_mask)
+            # Check sides
+            left_side = rotated_mask_data[:, :, 0:half_image_width]
+            right_side = rotated_mask_data[:, :, half_image_width:2 * half_image_width]
+            right_side = numpy.flip(right_side, 2)
+            diff_sides = numpy.square(right_side - left_side)
+            count_diff = numpy.sum(diff_sides)
+            # Check gaps
+            non_zero_coords = numpy.nonzero(rotated_mask_data)
+            max_y = numpy.max(non_zero_coords[1])
+            min_y = numpy.min(non_zero_coords[1])
+            y_gap = min_y + (moving_image_mask.GetSize()[1] - max_y)
+            max_x = numpy.max(non_zero_coords[2])
+            min_x = numpy.min(non_zero_coords[2])
+            x_gap = min_x + (moving_image_mask.GetSize()[0] - max_x)
 
-			if count_diff < min_diff and y_gap < x_gap:
-				best_angle = angle
-				min_diff = count_diff
-			angle += step
+            if count_diff < min_diff and y_gap < x_gap:
+                best_angle = angle
+                min_diff = count_diff
+            angle += step
 
-		rotation = sitk.Euler3DTransform(centroid, 0.0, 0.0, best_angle)
-		moving_image_mask = sitk.Resample(moving_image_mask, moving_image_mask, rotation, sitk.sitkNearestNeighbor, 0.0)
-		composed_transformation.AddTransform(rotation)
+        rotation = sitk.Euler3DTransform(centroid, 0.0, 0.0, best_angle)
+        moving_image_mask = sitk.Resample(moving_image_mask, moving_image_mask, rotation, sitk.sitkNearestNeighbor, 0.0)
+        composed_transformation.AddTransform(rotation)
+#        print(best_angle)
+#        sitk.WriteImage(moving_image_mask, os.path.join(rootTarget, "InitialAlignmentZBrainMask.mha"))
+
+        # Align Y plane using symmetry detection.
+        angle = -((numpy.pi/4.0) - (i * ((numpy.pi/4.0) / epochs)))
+        best_angle = -((numpy.pi/4.0) - (i * ((numpy.pi/4.0) / epochs)))
+        step = 0.05 - (i * (0.05 / epochs))
+        half_image_width = int(moving_image_mask.GetSize()[1] / 2)
+        min_diff = moving_image_mask.GetSize()[0] * moving_image_mask.GetSize()[1] * moving_image_mask.GetSize()[2] / 2
+
+        while angle <= (numpy.pi/4.0) - (i * ((numpy.pi/4.0) / epochs)):
+            rotation = sitk.Euler3DTransform(centroid, 0.0, angle, 0.0)
+            rotated_mask = sitk.Resample(moving_image_mask, moving_image_mask, rotation, sitk.sitkNearestNeighbor, 0.0)
+            rotated_mask_data = sitk.GetArrayFromImage(rotated_mask)
+            left_side = rotated_mask_data[:, :, 0:half_image_width]
+            right_side = rotated_mask_data[:, :, half_image_width:2 * half_image_width]
+            right_side = numpy.flip(right_side, 2)
+            diff_sides = numpy.square(right_side - left_side)
+            count_diff = numpy.sum(diff_sides)
+            if count_diff < min_diff:
+                best_angle = angle
+                min_diff = count_diff
+            angle += step
+        rotation = sitk.Euler3DTransform(centroid, 0.0, best_angle, 0.0)
+        moving_image_mask = sitk.Resample(moving_image_mask, moving_image_mask, rotation, sitk.sitkNearestNeighbor, 0.0)
+        composed_transformation.AddTransform(rotation)
 #		print(best_angle)
-#		sitk.WriteImage(moving_image_mask, os.path.join(rootTarget, patient, "InitialAlignmentZBrainMask.mha"))
+#        sitk.WriteImage(moving_image_mask, os.path.join(rootTarget, "InitialAlignmentYBrainMask.mha"))
 
-		# Align Y plane using symmetry detection.
-		angle = -((numpy.pi/4.0) - (i * ((numpy.pi/4.0) / epochs)))
-		best_angle = -((numpy.pi/4.0) - (i * ((numpy.pi/4.0) / epochs)))
-		step = 0.05 - (i * (0.05 / epochs))
-		half_image_width = int(moving_image_mask.GetSize()[1] / 2)
-		min_diff = moving_image_mask.GetSize()[0] * moving_image_mask.GetSize()[1] * moving_image_mask.GetSize()[2] / 2
+        # Align X plane using sagittal heuristics.
+        non_zero_coords = numpy.nonzero(sitk.GetArrayFromImage(moving_image_mask))
+        min_y = numpy.argmin(non_zero_coords[1])
+        max_y = numpy.argmax(non_zero_coords[1])
+        direction = 1.0 if non_zero_coords[0][min_y] < moving_image_mask.GetSize()[2] / 2 else -1.0
+        angle = 0.0
+        best_angle = 0.0
+        step = 0.05 - (i * (0.05 / epochs))
+        max_gap = abs(non_zero_coords[1][max_y] - non_zero_coords[1][min_y])
+        while abs(angle) <= (numpy.pi/4.0) - (i * ((numpy.pi/4.0) / epochs)):
+            rotation = sitk.Euler3DTransform(centroid, angle, 0.0, 0.0)
+            rotated_mask = sitk.Resample(moving_image_mask, moving_image_mask, rotation, sitk.sitkNearestNeighbor, 0.0)
+            coords = numpy.nonzero(sitk.GetArrayFromImage(rotated_mask))
+            gap = abs(max(coords[1]) - min(coords[1]))
+            if gap > max_gap:
+                best_angle = angle
+                max_gap = gap
+            angle += (direction * step)
+        rotation = sitk.Euler3DTransform(centroid, best_angle, 0.0, 0.0)
+        moving_image_mask = sitk.Resample(moving_image_mask, moving_image_mask, rotation, sitk.sitkNearestNeighbor, 0.0)
+        composed_transformation.AddTransform(rotation)
+#        print(max_gap)
+#        sitk.WriteImage(moving_image_mask, os.path.join(rootTarget, "InitialAlignmentXBrainMask.mha"))
 
-		while angle <= (numpy.pi/4.0) - (i * ((numpy.pi/4.0) / epochs)):
-			rotation = sitk.Euler3DTransform(centroid, 0.0, angle, 0.0)
-			rotated_mask = sitk.Resample(moving_image_mask, moving_image_mask, rotation, sitk.sitkNearestNeighbor, 0.0)
-			rotated_mask_data = sitk.GetArrayFromImage(rotated_mask)
-			left_side = rotated_mask_data[:, :, 0:half_image_width]
-			right_side = rotated_mask_data[:, :, half_image_width:2 * half_image_width]
-			right_side = numpy.flip(right_side, 2)
-			diff_sides = numpy.square(right_side - left_side)
-			count_diff = numpy.sum(diff_sides)
-			if count_diff < min_diff:
-				best_angle = angle
-				min_diff = count_diff
-			angle += step
-		rotation = sitk.Euler3DTransform(centroid, 0.0, best_angle, 0.0)
-		moving_image_mask = sitk.Resample(moving_image_mask, moving_image_mask, rotation, sitk.sitkNearestNeighbor, 0.0)
-		composed_transformation.AddTransform(rotation)
-#		print(best_angle)
-#		sitk.WriteImage(moving_image_mask, os.path.join(rootTarget, patient, "InitialAlignmentYBrainMask.mha"))
+    # Resample images after initial alignment.
+    moving_image_mask = sitk.Resample(scanBrain,
+                                      atlas_brain_mask,
+                                      composed_transformation,
+                                      sitk.sitkNearestNeighbor,
+                                      0.0,
+                                      sitk.sitkUInt8)
 
-		# Align X plane using sagittal heuristics.
-		non_zero_coords = numpy.nonzero(sitk.GetArrayFromImage(moving_image_mask))
-		min_y = numpy.argmax(non_zero_coords[1])
-		direction = 1.0 if non_zero_coords[0][min_y] < moving_image_mask.GetSize()[2] / 2 else -1.0
-		angle = 0.0
-		best_angle = 0.0
-		step = 0.05 - (i * (0.05 / epochs))
-		min_gap = non_zero_coords[1][min_y]
-		while abs(angle) <= (numpy.pi/4.0) - (i * ((numpy.pi/4.0) / epochs)):
-			rotation = sitk.Euler3DTransform(centroid, angle, 0.0, 0.0)
-			rotated_mask = sitk.Resample(moving_image_mask, moving_image_mask, rotation, sitk.sitkNearestNeighbor, 0.0)
-			coords = numpy.nonzero(sitk.GetArrayFromImage(rotated_mask))
-			gap = max(coords[1])
-			if gap > min_gap:
-				best_angle = angle
-				min_gap = gap
-			angle += (direction * step)
-		rotation = sitk.Euler3DTransform(centroid, best_angle, 0.0, 0.0)
-		moving_image_mask = sitk.Resample(moving_image_mask, moving_image_mask, rotation, sitk.sitkNearestNeighbor, 0.0)
-		composed_transformation.AddTransform(rotation)
-#		print(best_angle)
-#		sitk.WriteImage(moving_image_mask, os.path.join(rootTarget, patient, "InitialAlignmentXBrainMask.mha"))
+    moving_image = sitk.Resample(scan,
+                                 atlas,
+                                 composed_transformation,
+                                 sitk.sitkLinear,
+                                 0.0,
+                                 sitk.sitkFloat32)
 
-	# Resample images after initial alignment.
-	moving_image_mask = sitk.Resample(scanBrain,
-									  atlas_brain_mask,
-									  composed_transformation,
-									  sitk.sitkNearestNeighbor,
-									  0.0,
-									  sitk.sitkUInt8)
+#    sitk.WriteImage(moving_image_mask, os.path.join(rootTarget, "AlignedBrainMask.mha"))
+#    sitk.WriteImage(moving_image, os.path.join(rootTarget, "AlignedScan.mha"))
 
-	moving_image = sitk.Resample(scan,
-								 atlas,
-								 composed_transformation,
-								 sitk.sitkLinear,
-								 0.0,
-								 sitk.sitkFloat32)
-
-	# #sitk.WriteImage(moving_image_mask, os.path.join(scanFolder, "AlignedBrainMask.mha"))
-	# #sitk.WriteImage(moving_image, os.path.join(scanFolder, "AlignedScan.mha"))
-
-	return moving_image, moving_image_mask, atlas, atlas_brain_mask
-
+    return moving_image, moving_image_mask, atlas, atlas_brain_mask
 
 # DATADIR = r'D:/Adam Hilbert/Data/artery_test/Scan.mha'
 DATADIR = r"D:\Adam Hilbert\Data\MRCLEAN_REGISTRY\NCCT_BL_ST\R0325\1.0"

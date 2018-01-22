@@ -64,6 +64,7 @@ FLAGS.xvalidation_folds = 10
 FLAGS.alpha = 0.1
 
 # Data
+FLAGS.cifar_path = '/home/hilbysfe/dev/DNN-for-CT-Classification/Training/cifar-10-batches-py'
 # FLAGS.normalization = False
 # FLAGS.trainingpath = '/home/nicolab/DATA/data_binaries/SUPERVISED/NCCT_THICK_SKULLSTRIPPED_RESAMPLED/training_points.npy'
 # FLAGS.testpath = '/home/nicolab/DATA/data_binaries/SUPERVISED/NCCT_THICK_SKULLSTRIPPED_RESAMPLED/test_points.npy'
@@ -117,6 +118,7 @@ configs = [
 #	[7, 3, 0.1, 12, 0.8, 40, 30, 128, 50, 50, '1.5,1.0,0.5', 3, 3],
 #	[3, 3, 0.1, 12, 0.8, 40, 30, 64, 50, 50, '1.5,1.0,0.5', 3, 3],
 #	[3, 3, 0.1, 12, 0.8, 40, 30, 128, 50, 50, '1.5,1.0,0.5', 3, 3],
+<<<<<<< HEAD
 #	[7, 3, 0.01, 12, 0.8, 40, 30, 64, 50, 50, '1.5,1.0,0.5', 3, 3],
 #	[7, 3, 0.01, 12, 0.8, 40, 30, 128, 50, 50, '1.5,1.0,0.5', 3, 3],
 #	[7, 3, 0.01, 8, 0.8, 25, 30, 64, 50, 50, '1.5,1.0,0.5', 3, 3],
@@ -124,6 +126,13 @@ configs = [
 #	[7, 3, 0.01, 12, 0.8, 40, 30, 64, 50, 50, '1.5,1.0,0.5', 3, 3],
 	[3, 3, 0.01, 12, 0.8, 40, 30, 64, 50, 50, '1.5,1.0,0.5', 3, 3]
 #	[3, 3, 0.01, 12, 0.8, 40, 30, 128, 50, 50, '1.5,1.0,0.5', 3, 3]
+=======
+	[7, 3, 0.01, 12, 0.8, 40, 30, 64, 50, 50, '1.5,1.0,0.5', 3, 3],
+#	[7, 3, 0.01, 12, 0.8, 40, 30, 128, 50, 50, '1.5,1.0,0.5', 3, 3],
+#	[3, 3, 0.01, 12, 0.8, 40, 30, 64, 50, 50, '1.5,1.0,0.5', 3, 3],
+#	[3, 3, 0.01, 12, 0.8, 40, 30, 128, 50, 50, '1.5,1.0,0.5', 3, 3]
+
+>>>>>>> a60d670646a02ac9495b6e0dd32847b1071b1391
 ]
 
 for config in configs:
@@ -144,7 +153,8 @@ for config in configs:
 	FLAGS.t_max = 10
 
 	#    FLAGS.log_dir = '/home/nicolab/DATA/logs/NCCT_CTA/DenseNet/bests/'
-	FLAGS.log_dir = r'D:\Adam Hilbert\CT_Classification\code\Training\logs\rfnn\scale_sharing\\' \
+#	FLAGS.log_dir = r'D:\Adam Hilbert\CT_Classification\code\Training\logs\rfnn\scale_sharing\\' \
+	FLAGS.log_dir = r'/home/hilbysfe/dev/DNN-for-CT-Classification/Training/logs/rfnn/scale_sharing/' \
 					+ str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
 					+ str(FLAGS.learning_rate) + '_' \
 					+ str(FLAGS.growth_rate) + '_' \
