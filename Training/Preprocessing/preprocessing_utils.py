@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 import shutil
 from multiprocessing import Pool
-import scipy.ndimage
+#import scipy.ndimage
 
 def resample(data, spacing, new_spacing=[1,1,1]):
 	resize_factor = spacing / new_spacing
