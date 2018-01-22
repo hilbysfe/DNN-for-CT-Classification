@@ -197,49 +197,23 @@ def _rfnn_conv_layer_pure_2d_scales_avg(input, basis, omaps, strides=[1, 1, 1, 1
 			initializer=tf.random_uniform_initializer(-0.1, 0.1),
 			dtype=tf.float32)
 
-#	print(basis.get_shape())
+	scales = np.shape(basis)[1]
+	basis = tf.transpose(basis, [1, 0, 2, 3])
+	kernels = []
+	outputs = []
+	for i in range(scales):
+		kernel = tf.reduce_sum(
+			tf.transpose(alphas[:, :, :, None, None]) *
+			tf.transpose(basis[None, None, i, :, :, :])
+			, axis=2, name='weights_' + str(i))
 
-	# Create convolutional kernel
-	kernel = tf.reduce_sum(
-		tf.transpose(alphas[:, :, :, None, None]) * tf.transpose(basis[None, None, :, :, :, :])
-		, axis=3, name='weights')
-#	print(kernel.get_shape())
+		conv = tf.nn.conv2d(input, kernel, strides=strides, padding=padding)
 
-	kernel = tf.transpose(kernel, [0, 1, 3, 2, 4])
-#	print(kernel.get_shape())
-	kernel_merged = tf.stack(kernel[:,:,:,:,0])
-	for i in range(1, kernel.get_shape()[-1].value):
-		kernel_merged = tf.concat(axis=-1, values=(kernel_merged, kernel[:,:,:,:,i]))
-#	print(kernel_merged.get_shape())
+		kernels.append(kernel)
+		outputs.append(conv)
 
-	# Compute convolution
-	outputs = tf.nn.conv2d(input, kernel_merged, strides=strides, padding=padding)
-#	print(outputs.get_shape())
-
-	# Max pool over scales
-	scales = kernel.get_shape()[3].value
-#	print(scales)
-
-	output = tf.reduce_mean(outputs[:,:,:,0:scales], reduction_indices=[-1], keep_dims=True)
-	for i in range(1, kernel.get_shape()[-1].value):
-#		print(output.get_shape())
-		output = tf.concat(axis=-1, values=(output, tf.reduce_mean(
-				outputs[:,:,:,i*scales:(i+1)*scales], reduction_indices=[-1], keep_dims=True)))
-
-#	print(output.get_shape())
-	#		with tf.variable_scope('sigma%d' % i):
-	#			# scale weights to [0 1], type is still float
-	#			kernel_avg = tf.reduce_mean(kernel, axis=2)
-	#			x_min = tf.reduce_min(kernel_avg)
-	#			x_max = tf.reduce_max(kernel_avg)
-	#			kernel_0_to_1 = (kernel_avg - x_min) / (x_max - x_min)
-	#
-	#			# to tf.image_summary format [batch_size, height, width, channels]
-	#			kernel_transposed = tf.transpose(kernel_0_to_1, [2, 0, 1])
-	#			kernel_transposed = tf.expand_dims(kernel_transposed, axis=3)
-	#			batch = kernel_transposed.get_shape()[0].value
-	#
-	#			tf.summary.image('filters', kernel_transposed, max_outputs=batch)
+	outputs = tf.stack(outputs)
+	output = tf.reduce_mean(outputs, reduction_indices=[0])
 
 	return output, alphas
 
@@ -341,6 +315,42 @@ def _rfnn_conv_layer_pure_2d_scales_learn_bc(input, basis, omaps, is_training, s
 	#			tf.summary.image('filters', kernel_transposed, max_outputs=batch)
 
 	return output, alphas
+
+def _rfnn_conv_layer_pure_2d_scales_learn_flatten(input, basis, omaps, strides=[1, 1, 1, 1], padding='SAME'):
+	with tf.device('/cpu:0'):
+		alphas = tf.get_variable(
+			'alphas',
+			shape=[omaps, input.get_shape()[-1].value, basis.get_shape()[0].value*basis.get_shape()[1].value],
+			initializer=tf.random_uniform_initializer(-0.1, 0.1),
+			dtype=tf.float32)
+
+	basis = tf.reshape(basis, (basis.get_shape()[0].value*basis.get_shape()[1].value,
+							   basis.get_shape()[2].value, basis.get_shape()[3].value))
+
+	kernel = tf.reduce_sum(
+		tf.transpose(alphas[:, :, :, None, None]) *
+		tf.transpose(basis[None, None, :, :, :])
+		, axis=2, name='weights')
+
+	output = tf.nn.conv2d(input, kernel, strides=strides, padding=padding)
+	#	print(merged_outputs.get_shape())
+
+	#		with tf.variable_scope('sigma%d' % i):
+	#			# scale weights to [0 1], type is still float
+	#			kernel_avg = tf.reduce_mean(kernel, axis=2)
+	#			x_min = tf.reduce_min(kernel_avg)
+	#			x_max = tf.reduce_max(kernel_avg)
+	#			kernel_0_to_1 = (kernel_avg - x_min) / (x_max - x_min)
+	#
+	#			# to tf.image_summary format [batch_size, height, width, channels]
+	#			kernel_transposed = tf.transpose(kernel_0_to_1, [2, 0, 1])
+	#			kernel_transposed = tf.expand_dims(kernel_transposed, axis=3)
+	#			batch = kernel_transposed.get_shape()[0].value
+	#
+	#			tf.summary.image('filters', kernel_transposed, max_outputs=batch)
+
+	return output, alphas
+
 
 def _rfnn_deconv_layer_2d(input, basis, omaps, oshape, strides, padding, bnorm=False):
 	alphas = tf.get_variable(
