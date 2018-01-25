@@ -43,6 +43,46 @@ def MIP(input_image, window, overlap):
 
 	return mip_image
 
+def MIP_2D(input_image, threshold):
+	# if not os.path.exists(os.path.join(rootTarget, patient)):
+	# try:
+
+	input_data = sitk.GetArrayFromImage(input_image)
+
+	input_data[input_data > 400] = 0
+
+	# Delete high intensity rim around brain
+	max_z = np.max(np.nonzero(input_data)[0])
+	min_z = np.min(np.nonzero(input_data)[0])
+
+	for z in range(min_z, max_z+1):
+		max_y = np.max(np.nonzero(input_data[z,:,:])[0])
+		min_y = np.min(np.nonzero(input_data[z,:,:])[0])
+		for y in range(min_y, max_y+1):
+			if len(np.nonzero(input_data[z,y,:])[0]) == 0:
+				continue
+			max_x = np.max(np.nonzero(input_data[z,y,:])[0])
+			min_x = np.min(np.nonzero(input_data[z,y,:])[0])
+			for x in range(min_x, max_x+1):
+				if input_data[z,y,x] > 70 and \
+					(input_data[z,y,x+1] == 0 or input_data[z,y,x-1] == 0
+					 or input_data[z,y+1,x] == 0 or input_data[z,y-1,x] == 0):
+					input_data[z,y,x] = 0
+
+	# Compute MIP
+	new_slice = np.max(input_data, axis=0)
+
+	# Create image
+	mip_image = sitk.GetImageFromArray(np.array(new_slice))
+
+	# os.makedirs(os.path.join(rootTarget, patient))
+	# sitk.WriteImage(mip_image, os.path.join(rootTarget, patient, patient + '.mha'))
+
+#	os.makedirs(os.path.join(rootTarget, "mip"))
+#	sitk.WriteImage(mip_image, os.path.join(rootTarget, "mip", patient + '.mha'))
+
+	return mip_image
+
 def MIP_DICOM(patient):
 
 	# if not os.path.exists(os.path.join(rootTarget, patient)):
