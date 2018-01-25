@@ -39,8 +39,8 @@ MIP_REGISTRY = r'/home/nicolab/DATA/data/SUPERVISED/REGISTRY/CTA_MIP'
 MIP_SKULL_REGISTRY = r'/home/nicolab/DATA/data/SUPERVISED/REGISTRY/CTA_SKULLSTRIPPED_MIP'
 
 CTA_REGISTRY = r'E:\MRCLEAN_REGISTRY\CTA_BL'
-CTA_ST = r'D:\Adam Hilbert\Data\Registry\CTA_BL\CTA_ST'
-CTA_THINNEST = r'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_THINNEST'
+CTA_ST = r'E:\MRCLEAN_REGISTRY_BL\CTA\CTA_ST'
+CTA_THINNEST = r'E:\MRCLEAN_REGISTRY_BL\CTA\ST_THINNEST'
 CTA_THINNEST_RESIZED = r'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_THINNEST_RESIZED'
 CTA_MIP = r'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_MIP'
 CTA_MIP_RESIZED = r'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_MIP_RESIZED'
@@ -728,21 +728,26 @@ if __name__ == '__main__':
 #	with Pool() as p:
 #		p.starmap(skullstrip, zip(patients, repeat(CTA_MIP_RESIZED), repeat(CTA_SKULLSTRIPPED_RESIZED)))
 
-	root = '/home/hilbysfe/DATA/SUPERVISED/REGISTRY/NCCT/ASPECTS_ALL_PART1/'
-	rootTarget = '/home/hilbysfe/DATA/SUPERVISED/REGISTRY/NCCT/ASPECTS_FAILED'
-	patients = os.listdir(root)
-	for patient in patients:
-		thicknesses = os.listdir(os.path.join(root,patient))
-		if len(thicknesses) == 0:
-		#			shutil.rmtree(os.path.join(root,patient))
-			print(patient + ' to be deleted.')
-		for thickness in thicknesses:
-			if not os.path.exists(os.path.join(root,patient,thickness,'BsplineRegisteredASPECTS.mha')):
-				if not os.path.exists(os.path.join(rootTarget,patient,thickness)):
+#	root = '/home/hilbysfe/DATA/SUPERVISED/REGISTRY/NCCT/ASPECTS_ALL_PART1/'
+#	rootTarget = '/home/hilbysfe/DATA/SUPERVISED/REGISTRY/NCCT/ASPECTS_FAILED'
+#	patients = os.listdir(root)
+#	for patient in patients:
+#		thicknesses = os.listdir(os.path.join(root,patient))
+#		if len(thicknesses) == 0:
+#		#			shutil.rmtree(os.path.join(root,patient))
+#			print(patient + ' to be deleted.')
+#		for thickness in thicknesses:
+#			if not os.path.exists(os.path.join(root,patient,thickness,'BsplineRegisteredASPECTS.mha')):
+#				if not os.path.exists(os.path.join(rootTarget,patient,thickness)):
 #					os.makedirs(os.path.join(rootTarget,patient,thickness))
-					shutil.copytree(os.path.join(root,patient,thickness), os.path.join(rootTarget,patient,thickness))
-					shutil.rmtree(os.path.join(root,patient,thickness))
-					print(patient + ' copied.')
-				else:
-				#					shutil.rmtree(os.path.join(root,patient,thickness))
-					print(patient + ' in failed.')
+#					shutil.copytree(os.path.join(root,patient,thickness), os.path.join(rootTarget,patient,thickness))
+#					shutil.rmtree(os.path.join(root,patient,thickness))
+#					print(patient + ' copied.')
+#				else:
+#				#					shutil.rmtree(os.path.join(root,patient,thickness))
+#					print(patient + ' in failed.')
+
+	patients = os.listdir(CTA_THINNEST)
+	for patient in patients:
+		thicknesses = [float(thick) for thick in os.listdir(os.path.join(CTA_ST, patient))]
+		print(min(thicknesses))
