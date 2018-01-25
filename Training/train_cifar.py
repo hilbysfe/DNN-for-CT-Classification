@@ -65,9 +65,9 @@ def train_cifar(FLAGS, NUM_GPUS):
 			print('Defining model...')
 
 			sigmas = [float(x) for x in FLAGS.sigmas.split(',')]
-			kernels = [int(x) for x in FLAGS.kernels.split(',')]
-			maps = [int(x) for x in FLAGS.maps.split(',')]
-			strides = [int(x) for x in FLAGS.strides.split(',')]
+#			kernels = [int(x) for x in FLAGS.kernels.split(',')]
+#			maps = [int(x) for x in FLAGS.maps.split(',')]
+#			strides = [int(x) for x in FLAGS.strides.split(',')]
 
 			#            model = RFNN(
 			#                n_classes=10,
@@ -115,6 +115,7 @@ def train_cifar(FLAGS, NUM_GPUS):
 				sigmas=sigmas,
 				init_order=FLAGS.init_order,
 				comp_order=FLAGS.comp_order,
+				rfnn=FLAGS.rfnn,
 				reduction=FLAGS.reduction,
 				bc_mode=FLAGS.bc_mode,
 				n_classes=10

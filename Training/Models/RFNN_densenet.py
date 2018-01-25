@@ -24,6 +24,7 @@ class RFNNDenseNet(object):
 				 sigmas,
 				 init_order,
 				 comp_order,
+				 rfnn,
 				 reduction=1.0,
 				 bc_mode=False,
 				 n_classes=10):
@@ -57,6 +58,7 @@ class RFNNDenseNet(object):
 		self.hermit_initial = init_basis_hermite_2D_scales(self.initial_kernel, sigmas, order=init_order)
 		self.hermit_composite = init_basis_hermite_2D_scales(self.comp_kernel, sigmas, order=comp_order)
 
+		self.rfnn_layer = _rfnn_conv_layer_pure_2d_scales_learn_flatten if rfnn=="learn" else _rfnn_conv_layer_pure_2d_scales_avg if rfnn=="avg" else _rfnn_conv_layer_pure_2d_scales_max
 
 		if not bc_mode:
 			print("Build %s model with %d blocks, "
@@ -108,7 +110,7 @@ class RFNNDenseNet(object):
 			# ReLU
 			output = tf.nn.relu(output)
 			# convolution
-			output, alphas = _rfnn_conv_layer_pure_2d_scales_avg(output, self.hermit_composite, out_features)
+			output, alphas = self.rfnn_layer(output, self.hermit_composite, out_features)
 			self.alphas.append(alphas)
 			self.conv_act.append(output)
 			# dropout(in case of training and in case it is no 1.0)
@@ -236,7 +238,7 @@ class RFNNDenseNet(object):
 		layers_per_block = self.layers_per_block
 		# first - initial 3 x 3 conv to first_output_features
 		with tf.variable_scope("Initial_convolution"):
-			output, alphas = _rfnn_conv_layer_pure_2d_scales_avg(X, self.hermit_initial, self.first_output_features)
+			output, alphas = self.rfnn_layer(X, self.hermit_initial, self.first_output_features)
 			self.alphas.append(alphas)
 			self.conv_act.append(output)
 
