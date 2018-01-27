@@ -26,6 +26,7 @@ class DenseNet(object):
 				 is_training,
 				 init_kernel,
 				 comp_kernel,
+				 bnorm_momentum,
 				 reduction=1.0,
 				 bc_mode=False,
 				 first_conv_features=16,
@@ -35,6 +36,7 @@ class DenseNet(object):
 		self.depth = depth
 		self.growth_rate = growth_rate
 		self.bc_mode = bc_mode
+		self.bnorm_momentum = bnorm_momentum
 
 		# how many features will be received after first convolution
 		# value the same as in the original Torch code
@@ -103,7 +105,7 @@ class DenseNet(object):
 			# ReLU
 			output = tf.nn.relu(output)
 			# convolution
-			output = _conv_layer_pure_2d(output, shape=[kernel_size, kernel_size, int(output.get_shape()[-1]), out_features])
+			output, kernel = _conv_layer_pure_2d(output, shape=[kernel_size, kernel_size, int(output.get_shape()[-1]), out_features])
 			# dropout(in case of training and in case it is no 1.0)
 			output = self.dropout(output)
 		return output
@@ -116,7 +118,7 @@ class DenseNet(object):
 			output = tf.nn.relu(output)
 			inter_features = out_features * 4
 			# 1x1 convolution
-			output = _conv_layer_pure_2d(output, shape=[1, 1, int(output.get_shape()[-1]), inter_features], padding='VALID')
+			output, kernel = _conv_layer_pure_2d(output, shape=[1, 1, int(output.get_shape()[-1]), inter_features], padding='VALID')
 		output = self.dropout(output)
 		return output
 
@@ -199,7 +201,7 @@ class DenseNet(object):
 
 	def batch_norm(self, _input):
 		output = tf.contrib.layers.batch_norm(
-			_input, scale=True, is_training=self.is_training,
+			_input, scale=True, decay=self.bnorm_momentum, is_training=self.is_training,
 			updates_collections=None)
 		return output
 
@@ -235,8 +237,9 @@ class DenseNet(object):
 		layers_per_block = self.layers_per_block
 		# first - initial 3 x 3 conv to first_output_features
 		with tf.variable_scope("Initial_convolution"):
-			output = _conv_layer_pure_2d(X,
-						shape=[self.initial_kernel, self.initial_kernel, int(X.get_shape()[-1]), self.first_output_features])
+			output, kernel = _conv_layer_pure_2d(X,
+						shape=[self.initial_kernel, self.initial_kernel, int(X.get_shape()[-1]), self.first_output_features],
+						strides=[1,2,2,1])
 
 		# add N required blocks
 		for block in range(self.total_blocks):

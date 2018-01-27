@@ -696,15 +696,15 @@ if __name__ == '__main__':
 
 	# Remove MIPs from CTA series
 	patients = os.listdir(CTA_THINNEST_RESIZED)
-	print(patients[0])
-	start = time.time()
-	mip_image = mip.MIP_2D(sitk.ReadImage(os.path.join(CTA_THINNEST_RESIZED, patients[0])), 20)
-	sitk.WriteImage(mip_image, os.path.join(CTA_2D_MIP_RESIZED, patients[0]))
-	end = time.time()
-	print(end - start)
+#	print(patients[0])
+#	start = time.time()
+#	mip_image = mip.MIP_2D(sitk.ReadImage(os.path.join(CTA_THINNEST_RESIZED, patients[0])), 20)
+#	sitk.WriteImage(mip_image, os.path.join(CTA_2D_MIP_RESIZED, patients[0]))
+#	end = time.time()
+#	print(end - start)
 
-#	with Pool() as p:
-	#		p.starmap(remove_MIP, zip(patients, repeat(CTA_ST)))
+	with Pool() as p:
+		p.starmap(mip.MIP_2D, zip(repeat(CTA_THINNEST_RESIZED), patients, repeat(CTA_2D_MIP_RESIZED)))
 
 	# Run pipeline for whole dataset
 	#		start = time.time()

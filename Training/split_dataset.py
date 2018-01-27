@@ -1,9 +1,9 @@
-from Utils.utils import split_dataset_NCCT_CTA
+from Utils.utils import split_dataset
 
-training, test = split_dataset_NCCT_CTA(
-    '/home/nicolab/DATA/data/SUPERVISED/REGISTRY/NCCT_THICK_RESAMPLED', 
-    '/home/nicolab/DATA/data/SUPERVISED/REGISTRY/CTA_THIN_RESAMPLED',
-    '/home/nicolab/DATA/data_binaries/SUPERVISED/NCCT_CTA/')
+training, test = split_dataset(
+    'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_2D_MIP_RESIZED',
+    'E:\MRCLEAN_REGISTRY_BL\Registry_affected_sides.xlsx',
+    'D:\Adam Hilbert\Data\data_binaries\MIP2D_affected_side')
 
 print(len(training))
 print(len(test))

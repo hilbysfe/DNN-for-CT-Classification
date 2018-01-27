@@ -3,6 +3,7 @@ from Utils import utils
 from Models.rfnn import RFNN
 from Models.ctnet import CTNET
 from Models.densenet import DenseNet
+from Models.RFNN_densenet import RFNNDenseNet
 from Models.ae import Autoencoder
 
 from Utils.training_utils import tower_loss
@@ -38,10 +39,10 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			# ====== DEFINE SPACEHOLDERS ======
 			with tf.name_scope('input'):
 				if FLAGS.bases3d:
-					image_batch = tf.placeholder(tf.float32, [NUM_GPUS, FLAGS.batch_size, 512, 512, 30, 1],
+					image_batch = tf.placeholder(tf.float32, [NUM_GPUS, FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, FLAGS.Z_dim, 1],
 												 name='x-input')
 				else:
-					image_batch = tf.placeholder(tf.float32, [NUM_GPUS, FLAGS.batch_size, 512, 512, 3], name='x-input')
+					image_batch = tf.placeholder(tf.float32, [NUM_GPUS, FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, 1], name='x-input')
 				label_batch = tf.placeholder(tf.float32, [NUM_GPUS, FLAGS.batch_size, 2], name='y-input')
 				is_training = tf.placeholder(tf.bool, name='is-training')
 				learning_rate = tf.placeholder(tf.float32, shape=[], name='learning_rate')
@@ -66,10 +67,10 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			print('Defining model...')
 
 			sigmas = [float(x) for x in FLAGS.sigmas.split(',')]
-			kernels = [int(x) for x in FLAGS.kernels.split(',')]
-			maps = [int(x) for x in FLAGS.maps.split(',')]
-			bases = [int(x) for x in FLAGS.bases.split(',')]
-			strides = [int(x) for x in FLAGS.strides.split(',')]
+#			kernels = [int(x) for x in FLAGS.kernels.split(',')]
+#			maps = [int(x) for x in FLAGS.maps.split(',')]
+#			bases = [int(x) for x in FLAGS.bases.split(',')]
+#			strides = [int(x) for x in FLAGS.strides.split(',')]
 
 			#            model = RFNN(
 			#                n_classes=2,
@@ -101,9 +102,11 @@ def train_ctnet(FLAGS, NUM_GPUS):
 				is_training=is_training,
 				init_kernel=FLAGS.init_kernel,
 				comp_kernel=FLAGS.comp_kernel,
-				sigmas = sigmas,
-				init_order = FLAGS.init_order,
-				comp_order=FLAGS.comp_order,
+#				sigmas=sigmas,
+#				init_order=FLAGS.init_order,
+#				comp_order=FLAGS.comp_order,
+#				rfnn=FLAGS.rfnn,
+				bnorm_momentum=FLAGS.bnorm_mom,
 				reduction=FLAGS.reduction,
 				bc_mode=FLAGS.bc_mode,
 				n_classes=2
@@ -117,12 +120,13 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			#            opt = tf.train.GradientDescentOptimizer(FLAGS.learning_rate)
 			opt = tf.train.MomentumOptimizer(
 				FLAGS.learning_rate, FLAGS.nesterov_momentum, use_nesterov=True)
+#			opt = tf.train.AdamOptimizer(FLAGS.learning_rate, epsilon=FLAGS.epsilon)
 
 			# === DEFINE QUEUE OPS ===
 			batch_queue = tf.FIFOQueue(
 				capacity=NUM_GPUS,
 				dtypes=[tf.float32, tf.float32],
-				shapes=[(FLAGS.batch_size, 512, 512, 30, 1) if FLAGS.bases3d else (FLAGS.batch_size, 512, 512, 3),
+				shapes=[(FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, FLAGS.Z_dim, 1) if FLAGS.bases3d else (FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, 1),
 						(FLAGS.batch_size, 2)]
 			)
 			batch_enqueue = batch_queue.enqueue_many([image_batch, label_batch])
@@ -162,6 +166,7 @@ def train_ctnet(FLAGS, NUM_GPUS):
 							logits = model.inference(x)
 
 						loss = tower_loss_dense(logits, y, FLAGS.weight_decay, scope)
+#						loss = tower_loss(logits, y, scope)
 						accuracy = tower_accuracy(logits, y, scope)
 
 						# Reuse variables for the next tower.
@@ -237,16 +242,13 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			print('Training model...')
 
 			for f in range(1):
-
-				# Create a coordinator, launch the queue runner threads.
-				coord = tf.train.Coordinator()
-				tf.train.start_queue_runners(sess, coord=coord)
-
-				lr = FLAGS.learning_rate
-
 				try:
 					training_steps = int(np.ceil(2 * dataset.Training.num_examples / (NUM_GPUS * FLAGS.batch_size)))
+					validation_steps = int(np.ceil(2 * dataset.Validation.num_examples / (FLAGS.batch_size * NUM_GPUS)))
 					sess.run(tf.global_variables_initializer())
+					lr = FLAGS.learning_rate
+
+
 
 					#                    	print([n.name for n in tf.get_default_graph().as_graph_def().node
 					#                               if 'ConvLayer1' in n.name and 'alphas' in n.name])
@@ -256,14 +258,47 @@ def train_ctnet(FLAGS, NUM_GPUS):
 					#				alphas, kernels = sess.run([alphas_t, kernels_t])
 					#				show_kernels(kernels)
 
+					# Create a coordinator, launch the queue runner threads.
+					coord = tf.train.Coordinator()
+					tf.train.start_queue_runners(sess, coord=coord)
+
 					# Assign ops if pre-training
-					if FLAGS.pretraining:
-						for assign_op in assign_ops:
-							sess.run(assign_op)
+#					if FLAGS.pretraining:
+#						for assign_op in assign_ops:
+#							sess.run(assign_op)
 
 					# Init writers
 					train_writer = tf.summary.FileWriter(FLAGS.log_dir + '/train/' + str(f), sess.graph)
 					test_writer = tf.summary.FileWriter(FLAGS.log_dir + '/test/' + str(f))
+
+					# ======== LSUV INIT WEIGHTS WITH A FORWARD PASS ==========
+					# print("Initializing weights with LSUV...")
+					# # Conv layers
+					# for l in range(len(model.alphas)):
+					# 	var = 0.0
+					# 	t_i = 0
+					# 	while abs(var - 1.0) >= FLAGS.tol_var and t_i < FLAGS.t_max:
+					# 		sess.run(batch_enqueue, feed_dict=feed_dict(0))
+					# 		alphas, b_l = sess.run([model.alphas[l], model.conv_act[l]], feed_dict={is_training: False})
+					# 		var = np.var(b_l)
+					# 		#							print(var)
+					# 		sess.run(model.alphas[l].assign(alphas / np.sqrt(var)))
+					# 		t_i += 1
+					# # Bottleneck layers
+					# if FLAGS.bc_mode:
+					# 	print("bottleneck")
+					# 	for l in range(len(model.bc_conv_act)):
+					# 		var = 0.0
+					# 		t_i = 0
+					# 		while abs(var - 1.0) >= FLAGS.tol_var and t_i < FLAGS.t_max:
+					# 			sess.run(batch_enqueue, feed_dict=feed_dict(0))
+					# 			w_l, b_l = sess.run([model.bc_weights[l], model.bc_conv_act[l]],
+					# 								feed_dict={is_training: False})
+					# 			var = np.var(b_l)
+					# 			#							print(var)
+					# 			sess.run(model.bc_weights[l].assign(w_l / np.sqrt(var)))
+					# 			t_i += 1
+					# print("Initializing weights with LSUV...done.")
 
 					max_acc = 0
 					for i in range(int(FLAGS.max_epochs * training_steps)):
@@ -282,7 +317,7 @@ def train_ctnet(FLAGS, NUM_GPUS):
 							# ------------ PRINT -------------
 							sess.run(batch_enqueue, feed_dict=feed_dict(0))
 							_, summaries, loss_value, acc_value = sess.run(
-								[train_op, summary_op, avg_loss, avg_accuracy], feed_dict={is_training: True})
+								[train_op, summary_op, avg_loss, avg_accuracy], feed_dict={is_training: True, learning_rate: lr})
 
 							summary = tf.Summary()
 							summary.value.add(tag="Accuracy", simple_value=acc_value)
@@ -293,14 +328,12 @@ def train_ctnet(FLAGS, NUM_GPUS):
 							train_writer.add_summary(summary, i)
 						else:
 							sess.run(batch_enqueue, feed_dict=feed_dict(0))
-							_, loss_value = sess.run([train_op, avg_loss], feed_dict={is_training: True})
+							_, loss_value = sess.run([train_op, avg_loss], feed_dict={is_training: True, learning_rate: lr})
 
 						assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
 
 						if i % (FLAGS.eval_freq * training_steps) == 0 or i == int(FLAGS.max_epochs * training_steps):
 							# ------------ VALIDATON -------------
-							validation_steps = int(
-								np.ceil(2 * dataset.Validation.num_examples / (FLAGS.batch_size * NUM_GPUS)))
 							tot_acc = 0.0
 							tot_loss = 0.0
 							for step in range(validation_steps):
@@ -344,5 +377,5 @@ def train_ctnet(FLAGS, NUM_GPUS):
 					coord.join()
 			sess.run(close_queue)
 			# Save final model
-			checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'model.ckpt')
-			saver.save(sess, checkpoint_path)
+#			checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'model.ckpt')
+#			saver.save(sess, checkpoint_path)

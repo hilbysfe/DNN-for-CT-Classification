@@ -23,13 +23,16 @@ def train_cifar(FLAGS, NUM_GPUS):
 	tf.set_random_seed(42)
 	with tf.Graph().as_default():
 		with tf.device('/cpu:0'):
-
 			global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), trainable=False)
 
 			# ====== LOAD DATASET ======
 			print('Loading Dataset...')
-			#            cifar10_dataset = cifar10_utils.get_cifar10('/home/nicolab/Downloads/cifar-10-batches-py')
 			cifar10_dataset = cifar10_utils.get_cifar10(FLAGS.cifar_path)
+			dataset = utils.DataSetCifar(cifar10_dataset.train.images, cifar10_dataset.test.images,
+										 cifar10_dataset.train.labels, cifar10_dataset.test.labels,
+									cross_validation_folds=FLAGS.xvalidation_folds,
+									normalize=FLAGS.normalization)
+
 			print('Loading Dataset...done.')
 
 			# ====== DEFINE SPACEHOLDERS ======
@@ -45,21 +48,17 @@ def train_cifar(FLAGS, NUM_GPUS):
 				ys = []
 				if flag == 0:
 					for i in np.arange(NUM_GPUS):
-						xi, yi = cifar10_dataset.train.next_batch(FLAGS.batch_size)
+#						xi, yi = cifar10_dataset.train.next_batch(FLAGS.batch_size)
+						xi, yi = dataset.Training.next_batch(FLAGS.batch_size)
 						xs.append(xi)
 						ys.append(yi)
 				elif flag == 1:
 					for i in np.arange(NUM_GPUS):
-						xi, yi = cifar10_dataset.test.next_batch(FLAGS.batch_size)
+#						xi, yi = cifar10_dataset.test.next_batch(FLAGS.batch_size)
+						xi, yi = dataset.Validation.next_batch(FLAGS.batch_size)
 						xs.append(xi)
 						ys.append(yi)
-				elif flag == 2:
-					for i in np.arange(NUM_GPUS):
-						xi = cifar10_dataset.train.images[0:FLAGS.batch_size]
-						yi = cifar10_dataset.train.labels[0:FLAGS.batch_size]
-						xs.append(xi)
-						ys.append(yi)
-				return {image_batch: xs, label_batch: ys, is_training: flag == 0 or flag == 2}
+				return {image_batch: xs, label_batch: ys, is_training: flag == 0}
 
 			# ====== MODEL DEFINITION ======
 			print('Defining model...')
@@ -89,19 +88,6 @@ def train_cifar(FLAGS, NUM_GPUS):
 			#                conv3d=False,
 			#                bnorm=FLAGS.batch_normalization)
 
-			# model = DenseNet(
-			# 	growth_rate=FLAGS.growth_rate,
-			# 	depth=FLAGS.depth,
-			# 	total_blocks=FLAGS.total_blocks,
-			# 	keep_prob=FLAGS.keep_prob,
-			# 	model_type=FLAGS.model_type,
-			# 	is_training=is_training,
-			# 	init_kernel=FLAGS.init_kernel,
-			# 	comp_kernel=FLAGS.comp_kernel,
-			# 	reduction=FLAGS.reduction,
-			# 	bc_mode=FLAGS.bc_mode,
-			# 	n_classes=10
-			# )
 
 			model = RFNNDenseNet(
 				growth_rate=FLAGS.growth_rate,
@@ -248,8 +234,11 @@ def train_cifar(FLAGS, NUM_GPUS):
 			print('Training model...')
 			for f in range(1):
 				try:
-					training_steps = int(cifar10_dataset.train.num_examples / (NUM_GPUS * FLAGS.batch_size))
-					validation_steps = int(cifar10_dataset.test.num_examples / (NUM_GPUS *FLAGS.batch_size))
+#					training_steps = int(cifar10_dataset.train.num_examples / (NUM_GPUS * FLAGS.batch_size))
+#					validation_steps = int(cifar10_dataset.test.num_examples / (NUM_GPUS *FLAGS.batch_size))
+					training_steps = int(dataset.Training.num_examples / (NUM_GPUS * FLAGS.batch_size))
+					validation_steps = int(dataset.Validation.num_examples / (NUM_GPUS *FLAGS.batch_size))
+
 					sess.run(tf.global_variables_initializer())
 
 					lr = FLAGS.learning_rate
@@ -283,18 +272,19 @@ def train_cifar(FLAGS, NUM_GPUS):
 #							print(var)
 							sess.run(model.alphas[l].assign(alphas/np.sqrt(var)))
 							t_i += 1
-					# Bottleneck layers
-					print("bottleneck")
-					for l in range(len(model.bc_conv_act)):
-						var = 0.0
-						t_i = 0
-						while abs(var - 1.0) >= FLAGS.tol_var and t_i < FLAGS.t_max:
-							sess.run(batch_enqueue, feed_dict=feed_dict(0))
-							w_l, b_l = sess.run([model.bc_weights[l], model.bc_conv_act[l]], feed_dict={is_training: False})
-							var = np.var(b_l)
-#							print(var)
-							sess.run(model.bc_weights[l].assign(w_l / np.sqrt(var)))
-							t_i += 1
+					if FLAGS.bc_mode:
+						# Bottleneck layers
+						print("bottleneck")
+						for l in range(len(model.bc_conv_act)):
+							var = 0.0
+							t_i = 0
+							while abs(var - 1.0) >= FLAGS.tol_var and t_i < FLAGS.t_max:
+								sess.run(batch_enqueue, feed_dict=feed_dict(0))
+								w_l, b_l = sess.run([model.bc_weights[l], model.bc_conv_act[l]], feed_dict={is_training: False})
+								var = np.var(b_l)
+	#							print(var)
+								sess.run(model.bc_weights[l].assign(w_l / np.sqrt(var)))
+								t_i += 1
 					print("Initializing weights with LSUV...done.")
 
 					max_acc = 0
@@ -340,9 +330,6 @@ def train_cifar(FLAGS, NUM_GPUS):
 								acc_s, loss_s = sess.run([avg_accuracy, avg_loss], feed_dict={is_training: False})
 								tot_acc += (acc_s / validation_steps)
 								tot_loss += (loss_s / validation_steps)
-
-							#                                print(sm)
-							#                                print(y_)
 
 							summary = tf.Summary()
 							summary.value.add(tag="Accuracy", simple_value=tot_acc)
