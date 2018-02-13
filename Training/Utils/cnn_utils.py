@@ -172,7 +172,7 @@ def _conv_layer_pure_3d(input, shape, strides=[1, 1, 1, 1, 1], padding='SAME'):
 
 	conv = tf.nn.conv3d(input, kernel, strides=strides, padding=padding, name='Pre-Activation')
 
-	return conv
+	return conv, kernel
 
 def _conv_layer_3d_with_kernel(input, kernel, shape, strides, padding, is_training, bnorm=False):
 	# No bias when BN

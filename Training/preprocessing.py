@@ -6,10 +6,10 @@ import shutil
 from multiprocessing import Pool
 from itertools import repeat
 
-#from Preprocessing import mip
-#from Preprocessing import preprocessing_utils
-#from Preprocessing.Registration import align
-#from Preprocessing.Registration import brain_segmentation as bs
+from Preprocessing import mip
+from Preprocessing import preprocessing_utils
+from Preprocessing.Registration import align
+from Preprocessing.Registration import brain_segmentation as bs
 
 WINDOW = 10
 OVERLAP = 3
@@ -44,6 +44,7 @@ CTA_THINNEST = r'E:\MRCLEAN_REGISTRY_BL\CTA\ST_THINNEST'
 CTA_THINNEST_RESIZED = r'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_THINNEST_RESIZED'
 CTA_MIP = r'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_MIP'
 CTA_MIP_RESIZED = r'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_MIP_RESIZED'
+CTA_2D_MIP_RESIZED = r'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_2D_MIP_RESIZED'
 CTA_SKULLSTRIPPED = r'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_MIP_SKULLSTRIPPED'
 CTA_SKULLSTRIPPED_RESIZED = r'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_MIP_SKULLSTRIPPED_RESIZED2'
 
@@ -694,10 +695,16 @@ if __name__ == '__main__':
 	#		p.starmap(softtissue_selection, zip(patients, repeat(CTA_REGISTRY), repeat(CTA_ST)))
 
 	# Remove MIPs from CTA series
-	#	patients = os.listdir(CTA_ST)
-	#	remove_MIP("R1098", CTA_ST)
-	#	with Pool() as p:
-	#		p.starmap(remove_MIP, zip(patients, repeat(CTA_ST)))
+	patients = os.listdir(CTA_THINNEST_RESIZED)
+#	print(patients[0])
+#	start = time.time()
+#	mip_image = mip.MIP_2D(sitk.ReadImage(os.path.join(CTA_THINNEST_RESIZED, patients[0])), 20)
+#	sitk.WriteImage(mip_image, os.path.join(CTA_2D_MIP_RESIZED, patients[0]))
+#	end = time.time()
+#	print(end - start)
+
+	with Pool() as p:
+		p.starmap(mip.MIP_2D, zip(repeat(CTA_THINNEST_RESIZED), patients, repeat(CTA_2D_MIP_RESIZED)))
 
 	# Run pipeline for whole dataset
 	#		start = time.time()
@@ -747,7 +754,7 @@ if __name__ == '__main__':
 #				#					shutil.rmtree(os.path.join(root,patient,thickness))
 #					print(patient + ' in failed.')
 
-	patients = os.listdir(CTA_THINNEST)
-	for patient in patients:
-		thicknesses = [float(thick) for thick in os.listdir(os.path.join(CTA_ST, patient))]
-		print(min(thicknesses))
+#	patients = os.listdir(CTA_THINNEST)
+#	for patient in patients:
+#		thicknesses = [float(thick) for thick in os.listdir(os.path.join(CTA_ST, patient))]
+#		print(min(thicknesses))
