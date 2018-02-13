@@ -53,9 +53,9 @@ def online_flattened_mean(files):
 	mean = 0
 	for file in files:
 		data = normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(file)))
-		mean += np.sum(data)
+		mean += (np.sum(data) / (len(files) * np.shape(data)[0] * np.shape(data)[1]))
 
-	return mean / (len(files) * np.shape(data)[0] * np.shape(data)[1])
+	return mean
 
 def online_flattened_mean_cifar(images):
 	# Calculates mean of all pixels in the dataset, considering the intensities normalized
@@ -68,7 +68,6 @@ def online_flattened_mean_cifar(images):
 	means = np.array(means) / (len(images) * np.shape(data)[0] * np.shape(data)[1])
 
 	return means
-
 
 def normalize_image(data):
 	data = (data - MIN_BOUND) / (MAX_BOUND - MIN_BOUND)

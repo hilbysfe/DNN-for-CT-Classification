@@ -29,6 +29,8 @@ class DenseNet(object):
 				 bnorm_momentum,
 				 reduction=1.0,
 				 bc_mode=False,
+				 avgpool_kernel_ratio=0.5,
+				 avgpool_stride_ratio=0.5,
 				 first_conv_features=16,
 				 n_classes=10):
 
@@ -37,6 +39,9 @@ class DenseNet(object):
 		self.growth_rate = growth_rate
 		self.bc_mode = bc_mode
 		self.bnorm_momentum = bnorm_momentum
+		self.avgpool_kernel_ratio = avgpool_kernel_ratio
+		self.avgpool_stride_ratio = avgpool_stride_ratio
+
 
 		# how many features will be received after first convolution
 		# value the same as in the original Torch code
@@ -158,7 +163,7 @@ class DenseNet(object):
 		output = self.composite_function(
 			_input, out_features=out_features, kernel_size=1)
 		# run average pooling
-		output = self.avg_pool(output, k=2)
+		output = self.avg_pool(output, k=2, s=2)
 		return output
 
 	def transition_layer_to_classes(self, _input):
@@ -173,10 +178,11 @@ class DenseNet(object):
 		# ReLU
 		output = tf.nn.relu(output)
 		# average pooling
-		last_pool_kernel = int(output.get_shape()[-2])
-		output = self.avg_pool(output, k=last_pool_kernel)
+		last_pool_kernel = [1, int(output.get_shape()[1].value), int(output.get_shape()[2]) * self.avgpool_kernel_ratio, 1]
+		last_pool_stride = [1, int(output.get_shape()[1].value), int(output.get_shape()[2]) * self.avgpool_stride_ratio, 1]
+		output = tf.nn.avg_pool(output, last_pool_kernel, last_pool_stride, 'VALID')
 		# FC
-		features_total = int(output.get_shape()[-1])
+		features_total = int(output.get_shape()[-1])*int(output.get_shape()[-2])
 		output = tf.reshape(output, [-1, features_total])
 		W = self.weight_variable_xavier(
 			[features_total, self.n_classes], name='W')
@@ -192,16 +198,16 @@ class DenseNet(object):
 		output = tf.nn.conv2d(_input, kernel, strides, padding)
 		return output
 
-	def avg_pool(self, _input, k):
+	def avg_pool(self, _input, k, s):
 		ksize = [1, k, k, 1]
-		strides = [1, k, k, 1]
+		strides = [1, s, s, 1]
 		padding = 'VALID'
 		output = tf.nn.avg_pool(_input, ksize, strides, padding)
 		return output
 
 	def batch_norm(self, _input):
 		output = tf.contrib.layers.batch_norm(
-			_input, scale=True, decay=self.bnorm_momentum, is_training=self.is_training,
+			_input, scale=True, decay=self.bnorm_momentum, is_training=self.is_training, zero_debias_moving_mean=False,
 			updates_collections=None)
 		return output
 

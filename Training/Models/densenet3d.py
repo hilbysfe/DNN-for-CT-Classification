@@ -12,21 +12,33 @@ class DenseNet(object):
 				 is_training,
 				 init_kernel,
 				 comp_kernel,
+				 bnorm_momentum,
 				 reduction=1.0,
 				 bc_mode=False,
+				 avgpool_kernel_ratio=0.5,
+				 avgpool_stride_ratio=0.5,
+				 first_conv_features=16,
 				 n_classes=10):
 
 		self.n_classes = n_classes
 		self.depth = depth
 		self.growth_rate = growth_rate
+		self.bc_mode = bc_mode
+		self.bnorm_momentum = bnorm_momentum
+		self.avgpool_kernel_ratio = avgpool_kernel_ratio
+		self.avgpool_stride_ratio = avgpool_stride_ratio
+
 
 		# how many features will be received after first convolution
 		# value the same as in the original Torch code
-		self.first_output_features = growth_rate * 2
+		if self.bc_mode:
+			self.first_output_features = growth_rate * 2
+		else:
+			self.first_output_features = 16
+
 		self.total_blocks = total_blocks
 		self.layers_per_block = (depth - (total_blocks + 1)) // total_blocks
 		self.bc_mode = bc_mode
-
 		# compression rate at the transition layers
 		self.reduction = reduction
 		self.is_training = is_training
@@ -97,7 +109,9 @@ class DenseNet(object):
 			output = tf.nn.relu(output)
 			inter_features = out_features * 4
 			# 1x1 convolution
-			output = _conv_layer_pure_3d(output, shape=[1, 1, 1, int(output.get_shape()[-1]), inter_features], padding='VALID')
+			output, weights = _conv_layer_pure_3d(output, shape=[1, 1, 1, int(output.get_shape()[-1]), inter_features], padding='VALID')
+			self.bc_conv_act.append(output)
+			self.bc_weights.append(weights)
 		output = self.dropout(output)
 		return output
 
@@ -137,7 +151,7 @@ class DenseNet(object):
 		output = self.composite_function(
 			_input, out_features=out_features, kernel_size=1)
 		# run average pooling
-		output = self.avg_pool(output, k=2)
+		output = self.avg_pool(output, k=2, s=2)
 		return output
 
 	def transition_layer_to_classes(self, _input):
@@ -152,10 +166,11 @@ class DenseNet(object):
 		# ReLU
 		output = tf.nn.relu(output)
 		# average pooling
-		last_pool_kernel = int(output.get_shape()[-2])
-		output = self.avg_pool(output, k=last_pool_kernel)
+		last_pool_kernel = [1, int(output.get_shape()[1].value), int(output.get_shape()[2]) * self.avgpool_kernel_ratio, int(output.get_shape()[3].value), 1]
+		last_pool_stride = [1, int(output.get_shape()[1].value), int(output.get_shape()[2]) * self.avgpool_stride_ratio, int(output.get_shape()[3].value), 1]
+		output = tf.nn.avg_pool(output, last_pool_kernel, last_pool_stride, 'VALID')
 		# FC
-		features_total = int(output.get_shape()[-1])
+		features_total = int(output.get_shape()[-1]) * int(output.get_shape()[-2])
 		output = tf.reshape(output, [-1, features_total])
 		W = self.weight_variable_xavier(
 			[features_total, self.n_classes], name='W')
@@ -163,16 +178,16 @@ class DenseNet(object):
 		logits = tf.matmul(output, W) + bias
 		return logits
 
-	def avg_pool(self, _input, k):
-		ksize = [1, k, k, 1]
-		strides = [1, k, k, 1]
+	def avg_pool(self, _input, k, s):
+		ksize = [1, k, k, k, 1]
+		strides = [1, s, s, s, 1]
 		padding = 'VALID'
-		output = tf.nn.avg_pool(_input, ksize, strides, padding)
+		output = tf.nn.avg_pool3d(_input, ksize, strides, padding)
 		return output
 
 	def batch_norm(self, _input):
 		output = tf.contrib.layers.batch_norm(
-			_input, scale=True, is_training=self.is_training,
+			_input, scale=True, decay=self.bnorm_momentum, is_training=self.is_training, zero_debias_moving_mean=False,
 			updates_collections=None)
 		return output
 
@@ -212,7 +227,7 @@ class DenseNet(object):
 			output = _conv_layer_pure_3d(
 				X,
 				shape=[self.initial_kernel, self.initial_kernel, self.initial_kernel, int(X.get_shape()[-1]), self.first_output_features],
-				padding='SAME')
+				strides=[1,2,2,2,1])
 
 		# add N required blocks
 		for block in range(self.total_blocks):
