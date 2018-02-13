@@ -10,14 +10,14 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="FileEditorManager">
-    <splitter split-orientation="horizontal" split-proportion="0.5065065">
+    <splitter split-orientation="horizontal" split-proportion="0.4174174">
       <split-first>
         <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
           <file leaf-file-name="run_models.py" pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/run_models.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="246">
-                  <caret line="137" column="64" lean-forward="false" selection-start-line="137" selection-start-column="64" selection-end-line="137" selection-end-column="64" />
+                <state relative-caret-position="263">
+                  <caret line="141" column="39" lean-forward="false" selection-start-line="141" selection-start-column="39" selection-end-line="141" selection-end-column="39" />
                   <folding>
                     <element signature="e#0#38#0" expanded="true" />
                   </folding>
@@ -85,8 +85,8 @@
           <file leaf-file-name="densenet.py" pinned="false" current-in-tab="true">
             <entry file="file://$PROJECT_DIR$/Models/densenet.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="447">
-                  <caret line="262" column="0" lean-forward="true" selection-start-line="262" selection-start-column="0" selection-end-line="262" selection-end-column="0" />
+                <state relative-caret-position="240">
+                  <caret line="249" column="31" lean-forward="true" selection-start-line="249" selection-start-column="31" selection-end-line="249" selection-end-column="31" />
                   <folding>
                     <element signature="e#0#18#0" expanded="true" />
                     <element signature="e#2275#2563#0" expanded="false" />
@@ -151,8 +151,8 @@
           <file leaf-file-name="densenet3d.py" pinned="false" current-in-tab="true">
             <entry file="file://$PROJECT_DIR$/Models/densenet3d.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="243">
-                  <caret line="229" column="35" lean-forward="false" selection-start-line="229" selection-start-column="35" selection-end-line="229" selection-end-column="35" />
+                <state relative-caret-position="246">
+                  <caret line="167" column="25" lean-forward="true" selection-start-line="167" selection-start-column="25" selection-end-line="167" selection-end-column="25" />
                   <folding>
                     <element signature="e#0#18#0" expanded="true" />
                     <element signature="e#1868#2156#0" expanded="false" />
@@ -162,7 +162,6 @@
                     <element signature="e#3725#4431#0" expanded="false" />
                     <element signature="e#4496#4706#0" expanded="false" />
                     <element signature="e#4747#5110#0" expanded="false" />
-                    <element signature="e#5162#6141#0" expanded="false" />
                     <element signature="e#6180#6328#0" expanded="false" />
                     <element signature="e#6363#6557#0" expanded="false" />
                     <element signature="e#6589#6772#0" expanded="false" />
@@ -1262,16 +1261,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/run_models.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="246">
-          <caret line="137" column="64" lean-forward="false" selection-start-line="137" selection-start-column="64" selection-end-line="137" selection-end-column="64" />
-          <folding>
-            <element signature="e#0#38#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/Models/RFNN_densenet.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="266">
@@ -1318,34 +1307,20 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/Models/densenet3d.py">
+    <entry file="file://$PROJECT_DIR$/run_models.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="243">
-          <caret line="229" column="35" lean-forward="false" selection-start-line="229" selection-start-column="35" selection-end-line="229" selection-end-column="35" />
+        <state relative-caret-position="263">
+          <caret line="141" column="39" lean-forward="false" selection-start-line="141" selection-start-column="39" selection-end-line="141" selection-end-column="39" />
           <folding>
-            <element signature="e#0#18#0" expanded="true" />
-            <element signature="e#1868#2156#0" expanded="false" />
-            <element signature="e#2240#2579#0" expanded="false" />
-            <element signature="e#2651#3194#0" expanded="false" />
-            <element signature="e#3243#3669#0" expanded="false" />
-            <element signature="e#3725#4431#0" expanded="false" />
-            <element signature="e#4496#4706#0" expanded="false" />
-            <element signature="e#4747#5110#0" expanded="false" />
-            <element signature="e#5162#6141#0" expanded="false" />
-            <element signature="e#6180#6328#0" expanded="false" />
-            <element signature="e#6363#6557#0" expanded="false" />
-            <element signature="e#6589#6772#0" expanded="false" />
-            <element signature="e#6822#6940#0" expanded="false" />
-            <element signature="e#6992#7095#0" expanded="false" />
-            <element signature="e#7145#7236#0" expanded="false" />
+            <element signature="e#0#38#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/Models/densenet.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="447">
-          <caret line="262" column="0" lean-forward="true" selection-start-line="262" selection-start-column="0" selection-end-line="262" selection-end-column="0" />
+        <state relative-caret-position="240">
+          <caret line="249" column="31" lean-forward="true" selection-start-line="249" selection-start-column="31" selection-end-line="249" selection-end-column="31" />
           <folding>
             <element signature="e#0#18#0" expanded="true" />
             <element signature="e#2275#2563#0" expanded="false" />
@@ -1363,6 +1338,29 @@
             <element signature="e#7397#7515#0" expanded="false" />
             <element signature="e#7567#7670#0" expanded="false" />
             <element signature="e#7720#7811#0" expanded="false" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/Models/densenet3d.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="246">
+          <caret line="167" column="25" lean-forward="true" selection-start-line="167" selection-start-column="25" selection-end-line="167" selection-end-column="25" />
+          <folding>
+            <element signature="e#0#18#0" expanded="true" />
+            <element signature="e#1868#2156#0" expanded="false" />
+            <element signature="e#2240#2579#0" expanded="false" />
+            <element signature="e#2651#3194#0" expanded="false" />
+            <element signature="e#3243#3669#0" expanded="false" />
+            <element signature="e#3725#4431#0" expanded="false" />
+            <element signature="e#4496#4706#0" expanded="false" />
+            <element signature="e#4747#5110#0" expanded="false" />
+            <element signature="e#6180#6328#0" expanded="false" />
+            <element signature="e#6363#6557#0" expanded="false" />
+            <element signature="e#6589#6772#0" expanded="false" />
+            <element signature="e#6822#6940#0" expanded="false" />
+            <element signature="e#6992#7095#0" expanded="false" />
+            <element signature="e#7145#7236#0" expanded="false" />
           </folding>
         </state>
       </provider>
