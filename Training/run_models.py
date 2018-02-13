@@ -136,7 +136,7 @@ configs = [
 
 #	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9, 0.999, 1e-5],
 #	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.85, 0.999, 1e-5],
-	[7, 3, 0.001, 12, 0.6, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.95, 0.999, 1e-4]
+	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.95, 0.999, 1e-4]
 
 
 #	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.8, 0.999, 1e-4],
@@ -199,7 +199,7 @@ for config in configs:
 					+ str(FLAGS.rfnn) + '_' \
 					+ str(FLAGS.reduce_lr_epoch_1) + '_' \
 					+ str(FLAGS.reduce_lr_epoch_2) + '_Adam-' \
-					+ str(FLAGS.beta1) + '-' + str(FLAGS.beta2) + '-' + str(FLAGS.epsilon)
+					+ str(FLAGS.beta1) + '-' + str(FLAGS.beta2) + '-' + str(FLAGS.epsilon) + '_ttc-fixed'
 #					+ str(FLAGS.bnorm_mom)  \
 #					+ str(FLAGS.reduction) + '_' \
 #					+ str(FLAGS.init_order) + '_' \

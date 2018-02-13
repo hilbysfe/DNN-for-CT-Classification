@@ -10,14 +10,14 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="FileEditorManager">
-    <splitter split-orientation="horizontal" split-proportion="0.4174174">
+    <splitter split-orientation="horizontal" split-proportion="0.8707415">
       <split-first>
         <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-          <file leaf-file-name="run_models.py" pinned="false" current-in-tab="false">
+          <file leaf-file-name="run_models.py" pinned="false" current-in-tab="true">
             <entry file="file://$PROJECT_DIR$/run_models.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="263">
-                  <caret line="141" column="39" lean-forward="false" selection-start-line="141" selection-start-column="39" selection-end-line="141" selection-end-column="39" />
+                <state relative-caret-position="467">
+                  <caret line="201" column="105" lean-forward="true" selection-start-line="201" selection-start-column="105" selection-end-line="201" selection-end-column="105" />
                   <folding>
                     <element signature="e#0#38#0" expanded="true" />
                   </folding>
@@ -82,7 +82,7 @@
               </provider>
             </entry>
           </file>
-          <file leaf-file-name="densenet.py" pinned="false" current-in-tab="true">
+          <file leaf-file-name="densenet.py" pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/Models/densenet.py">
               <provider selected="true" editor-type-id="text-editor">
                 <state relative-caret-position="240">
@@ -151,8 +151,8 @@
           <file leaf-file-name="densenet3d.py" pinned="false" current-in-tab="true">
             <entry file="file://$PROJECT_DIR$/Models/densenet3d.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="246">
-                  <caret line="167" column="25" lean-forward="true" selection-start-line="167" selection-start-column="25" selection-end-line="167" selection-end-column="25" />
+                <state relative-caret-position="280">
+                  <caret line="169" column="30" lean-forward="false" selection-start-line="169" selection-start-column="30" selection-end-line="169" selection-end-column="30" />
                   <folding>
                     <element signature="e#0#18#0" expanded="true" />
                     <element signature="e#1868#2156#0" expanded="false" />
@@ -187,12 +187,12 @@
       <list>
         <option value="$PROJECT_DIR$/Utils/training_utils.py" />
         <option value="$PROJECT_DIR$/train_model.py" />
-        <option value="$PROJECT_DIR$/run_models.py" />
         <option value="$PROJECT_DIR$/Utils/rfnn_utils.py" />
         <option value="$PROJECT_DIR$/Utils/cnn_utils.py" />
         <option value="$PROJECT_DIR$/Models/RFNN_densenet.py" />
         <option value="$PROJECT_DIR$/Models/densenet.py" />
         <option value="$PROJECT_DIR$/Models/densenet3d.py" />
+        <option value="$PROJECT_DIR$/run_models.py" />
       </list>
     </option>
   </component>
@@ -1307,16 +1307,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/run_models.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="263">
-          <caret line="141" column="39" lean-forward="false" selection-start-line="141" selection-start-column="39" selection-end-line="141" selection-end-column="39" />
-          <folding>
-            <element signature="e#0#38#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/Models/densenet.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="240">
@@ -1344,8 +1334,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/Models/densenet3d.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="246">
-          <caret line="167" column="25" lean-forward="true" selection-start-line="167" selection-start-column="25" selection-end-line="167" selection-end-column="25" />
+        <state relative-caret-position="280">
+          <caret line="169" column="30" lean-forward="false" selection-start-line="169" selection-start-column="30" selection-end-line="169" selection-end-column="30" />
           <folding>
             <element signature="e#0#18#0" expanded="true" />
             <element signature="e#1868#2156#0" expanded="false" />
@@ -1361,6 +1351,16 @@
             <element signature="e#6822#6940#0" expanded="false" />
             <element signature="e#6992#7095#0" expanded="false" />
             <element signature="e#7145#7236#0" expanded="false" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/run_models.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="467">
+          <caret line="201" column="105" lean-forward="true" selection-start-line="201" selection-start-column="105" selection-end-line="201" selection-end-column="105" />
+          <folding>
+            <element signature="e#0#38#0" expanded="true" />
           </folding>
         </state>
       </provider>
