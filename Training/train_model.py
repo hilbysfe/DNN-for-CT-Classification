@@ -3,6 +3,7 @@ from Utils import utils
 from Models.rfnn import RFNN
 from Models.ctnet import CTNET
 from Models.densenet import DenseNet
+from Models.densenet3d import DenseNet3d
 from Models.RFNN_densenet import RFNNDenseNet
 from Models.ae import Autoencoder
 
@@ -33,7 +34,7 @@ def train_ctnet(FLAGS, NUM_GPUS):
 
 			dataset = utils.DataSet(training_points, test_points,
 									cross_validation_folds=FLAGS.xvalidation_folds,
-									normalize=FLAGS.normalization)
+									normalize=FLAGS.normalization, img3d=FLAGS.bases3d)
 			print('Loading Dataset...done.')
 
 			# ====== DEFINE SPACEHOLDERS ======
@@ -119,9 +120,9 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			print('Defining necessary OPs...')
 
 			#            opt = tf.train.GradientDescentOptimizer(FLAGS.learning_rate)
-#			opt = tf.train.MomentumOptimizer(
-#				FLAGS.learning_rate, FLAGS.nesterov_momentum, use_nesterov=True)
-			opt = tf.train.AdamOptimizer(FLAGS.learning_rate, beta1=FLAGS.beta1, beta2=FLAGS.beta2, epsilon=FLAGS.epsilon)
+			opt = tf.train.MomentumOptimizer(
+				FLAGS.learning_rate, FLAGS.nesterov_momentum, use_nesterov=True)
+#			opt = tf.train.AdamOptimizer(FLAGS.learning_rate, beta1=FLAGS.beta1, beta2=FLAGS.beta2, epsilon=FLAGS.epsilon)
 #			opt = tf.contrib.opt.NadamOptimizer(FLAGS.learning_rate, epsilon=FLAGS.epsilon)
 
 			# === DEFINE QUEUE OPS ===
@@ -224,12 +225,11 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			train_op = opt.apply_gradients(avg_grads, global_step=global_step)
 
 			# Track the moving averages of all trainable variables.
-			#            variable_averages = tf.train.ExponentialMovingAverage(
-			#                0.9999, global_step)
-			#            variables_averages_op = variable_averages.apply(tf.trainable_variables())
+#			variable_averages = tf.train.ExponentialMovingAverage(0.9999, global_step)
+#			variables_averages_op = variable_averages.apply(tf.trainable_variables())
 
 			# Group all updates into a single train op.
-			#            train_op = tf.group(apply_gradient_op, variables_averages_op)
+#			train_op = tf.group(apply_gradient_op, variables_averages_op)
 
 			print('Defining update OPs...done.')
 
@@ -292,33 +292,44 @@ def train_ctnet(FLAGS, NUM_GPUS):
 					test_writer = tf.summary.FileWriter(FLAGS.log_dir + '/test/' + str(f))
 
 					# ======== LSUV INIT WEIGHTS WITH A FORWARD PASS ==========
-#					print("Initializing weights with LSUV...")
-#					# Conv layers
-#					for l in range(len(model.alphas)):
-#						var = 0.0
-#						t_i = 0
-#						while abs(var - 1.0) >= FLAGS.tol_var and t_i < FLAGS.t_max:
-#							sess.run(batch_enqueue, feed_dict=feed_dict(0))
-#							alphas, b_l = sess.run([model.alphas[l], model.conv_act[l]], feed_dict={is_training: False})
-#							var = np.var(b_l)
-#							#							print(var)
-#							sess.run(model.alphas[l].assign(alphas / np.sqrt(var)))
-#							t_i += 1
+					print("Initializing weights with LSUV...")
+					# Dequeue data
+					xs = []
+					for i in range(FLAGS.t_max):
+						sess.run(batch_enqueue, feed_dict=feed_dict(0))
+						batch = sess.run(x, feed_dict=feed_dict(0))
+						xs.append(batch)
+					# Conv layers
+					for l in range(len(model.alphas)):
+						var = 0.0
+						t_i = 0
+						while (abs(var - 1.0) >= FLAGS.tol_var or t_i <= 5) and t_i < FLAGS.t_max:
+							alphas, b_l = sess.run([model.alphas[l], model.conv_act[l]], feed_dict={x: xs[t_i], is_training: False})
+							var = np.var(b_l)
+							sess.run(model.alphas[l].assign(alphas / np.sqrt(var)))
+							t_i += 1
+					for l in range(len(model.weights)):
+						var = 0.0
+						t_i = 0
+						while (abs(var - 1.0) >= FLAGS.tol_var or t_i <= 5) and t_i < FLAGS.t_max:
+							weights, b_l = sess.run([model.weights[l], model.fl_act[l]], feed_dict={x: xs[t_i], is_training: False})
+							var = np.var(b_l)
+							sess.run(model.weights[l].assign(weights / np.sqrt(var)))
+							t_i += 1
 					# Bottleneck layers
-#					if FLAGS.bc_mode:
-#						print("bottleneck")
-#						for l in range(len(model.bc_conv_act)):
-#							var = 0.0
-#							t_i = 0
-#							while abs(var - 1.0) >= FLAGS.tol_var and t_i < FLAGS.t_max:
-#								sess.run(batch_enqueue, feed_dict=feed_dict(0))
-#								w_l, b_l = sess.run([model.bc_weights[l], model.bc_conv_act[l]],
-#													feed_dict={is_training: False})
-#								var = np.var(b_l)
-#								#							print(var)
-#								sess.run(model.bc_weights[l].assign(w_l / np.sqrt(var)))
-#								t_i += 1
-#					print("Initializing weights with LSUV...done.")
+					if FLAGS.bc_mode:
+						print("bottleneck")
+						for l in range(len(model.bc_conv_act)):
+							var = 0.0
+							t_i = 0
+							while (abs(var - 1.0) >= FLAGS.tol_var or t_i <= 5) and t_i < FLAGS.t_max:
+								w_l, b_l = sess.run([model.bc_weights[l], model.bc_conv_act[l]],
+													feed_dict={x: xs[t_i], is_training: False})
+								var = np.var(b_l)
+								#							print(var)
+								sess.run(model.bc_weights[l].assign(w_l / np.sqrt(var)))
+								t_i += 1
+					print("Initializing weights with LSUV...done.")
 
 					max_acc = 0
 					for i in range(FLAGS.max_epochs):
@@ -330,7 +341,7 @@ def train_ctnet(FLAGS, NUM_GPUS):
 						if i == FLAGS.reduce_lr_epoch_1:
 							lr = lr / 10
 							if FLAGS.bnorm_inc:
-								bnorm_mom = bnorm_mom * 1.0714
+								bnorm_mom = bnorm_mom * 1.1429
 						if i == FLAGS.reduce_lr_epoch_2:
 							lr = lr / 10
 							if FLAGS.bnorm_inc:
@@ -408,7 +419,7 @@ def train_ctnet(FLAGS, NUM_GPUS):
 
 							if tot_acc > max_acc:
 								max_acc = tot_acc
-							print('Validation loss at step %s: %s' % (i, tot_loss))
+							print('Validation loss-acc at step %s: %s - %s' % (i, tot_loss, tot_acc))
 
 					# if i % FLAGS.checkpoint_freq == 0: # or i == FLAGS.max_steps:
 					# checkpoint_path = os.path.join(FLAGS.checkpoint_dir, 'model.ckpt')
@@ -444,6 +455,9 @@ def train_ctnet(FLAGS, NUM_GPUS):
 							FLAGS.learning_rate/100.0)
 
 					avg_train_writer.add_summary(summary, i)
+
+				avg_train_writer.close()
+				avg_test_writer.close()
 			except Exception as e:
 				# Report exceptions to the coordinator.
 				coord.request_stop(e)

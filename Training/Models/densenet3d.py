@@ -5,7 +5,7 @@ from Utils.cnn_utils import _conv_layer_pure_3d
 
 TF_VERSION = float('.'.join(tf.__version__.split('.')[:2]))
 
-class DenseNet(object):
+class DenseNet3d(object):
 	def __init__(self, growth_rate, depth,
 				 total_blocks, keep_prob,
 				 model_type,
@@ -92,11 +92,11 @@ class DenseNet(object):
 		"""
 		with tf.variable_scope("composite_function"):
 			# BN
-			output = self.batch_norm(_input)
+#			output = self.batch_norm(_input)
 			# ReLU
-			output = tf.nn.relu(output)
+			output = tf.nn.relu(_input)
 			# convolution
-			output = _conv_layer_pure_3d(output, shape=[kernel_size, kernel_size, kernel_size, int(output.get_shape()[-1]), out_features])
+			output, weights = _conv_layer_pure_3d(output, shape=[kernel_size, kernel_size, kernel_size, int(output.get_shape()[-1]), out_features])
 			# dropout(in case of training and in case it is no 1.0)
 			output = self.dropout(output)
 		return output
@@ -104,14 +104,14 @@ class DenseNet(object):
 	def bottleneck(self, _input, out_features):
 		with tf.variable_scope("bottleneck"):
 			# BN
-			output = self.batch_norm(_input)
+#			output = self.batch_norm(_input)
 			# ReLU
-			output = tf.nn.relu(output)
+			output = tf.nn.relu(_input)
 			inter_features = out_features * 4
 			# 1x1 convolution
 			output, weights = _conv_layer_pure_3d(output, shape=[1, 1, 1, int(output.get_shape()[-1]), inter_features], padding='VALID')
-			self.bc_conv_act.append(output)
-			self.bc_weights.append(weights)
+#			self.bc_conv_act.append(output)
+#			self.bc_weights.append(weights)
 		output = self.dropout(output)
 		return output
 
@@ -129,9 +129,9 @@ class DenseNet(object):
 				bottleneck_out, out_features=growth_rate, kernel_size=self.comp_kernel)
 		# concatenate _input with out from composite function
 		if TF_VERSION >= 1.0:
-			output = tf.concat(axis=3, values=(_input, comp_out))
+			output = tf.concat(axis=4, values=(_input, comp_out))
 		else:
-			output = tf.concat(3, (_input, comp_out))
+			output = tf.concat(4, (_input, comp_out))
 		return output
 
 	def add_block(self, _input, growth_rate, layers_per_block):
@@ -162,15 +162,15 @@ class DenseNet(object):
 		- FC layer multiplication
 		"""
 		# BN
-		output = self.batch_norm(_input)
+#		output = self.batch_norm(_input)
 		# ReLU
-		output = tf.nn.relu(output)
+		output = tf.nn.relu(_input)
 		# average pooling
 		last_pool_kernel = [1, int(output.get_shape()[1].value), int(output.get_shape()[2]) * self.avgpool_kernel_ratio, int(output.get_shape()[3].value), 1]
 		last_pool_stride = [1, int(output.get_shape()[1].value), int(output.get_shape()[2]) * self.avgpool_stride_ratio, int(output.get_shape()[3].value), 1]
-		output = tf.nn.avg_pool(output, last_pool_kernel, last_pool_stride, 'VALID')
+		output = tf.nn.avg_pool3d(output, last_pool_kernel, last_pool_stride, 'VALID')
 		# FC
-		features_total = int(output.get_shape()[-1]) * int(output.get_shape()[-2])
+		features_total = int(output.get_shape()[-1]) * int(output.get_shape()[-2]) * int(output.get_shape()[-3])
 		output = tf.reshape(output, [-1, features_total])
 		W = self.weight_variable_xavier(
 			[features_total, self.n_classes], name='W')
@@ -224,10 +224,11 @@ class DenseNet(object):
 		layers_per_block = self.layers_per_block
 		# first - initial 3 x 3 conv to first_output_features
 		with tf.variable_scope("Initial_convolution"):
-			output = _conv_layer_pure_3d(
+			output, weights = _conv_layer_pure_3d(
 				X,
 				shape=[self.initial_kernel, self.initial_kernel, self.initial_kernel, int(X.get_shape()[-1]), self.first_output_features],
 				strides=[1,2,2,2,1])
+		output = tf.nn.max_pool3d(output, ksize=[1,3,3,3,1], strides=[1,2,2,2,1], padding='SAME')
 
 		# add N required blocks
 		for block in range(self.total_blocks):

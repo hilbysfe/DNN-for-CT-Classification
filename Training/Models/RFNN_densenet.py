@@ -36,6 +36,8 @@ class RFNNDenseNet(object):
 		self.conv_act = []
 		self.bc_conv_act = []
 		self.bc_weights = []
+		self.weights = []
+		self.fl_act = []
 		self.bnorm_momentum = bnorm_momentum
 
 		self.n_classes = n_classes
@@ -207,8 +209,11 @@ class RFNNDenseNet(object):
 		output = tf.reshape(output, [-1, features_total])
 		W = self.weight_variable_xavier(
 			[features_total, self.n_classes], name='W')
+		self.weights.append(W)
 		bias = self.bias_variable([self.n_classes])
 		logits = tf.matmul(output, W) + bias
+		self.fl_act.append(logits)
+
 		return logits
 
 	def avg_pool(self, _input, k, s):

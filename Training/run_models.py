@@ -73,9 +73,12 @@ FLAGS.normalization = True
 #FLAGS.testpath = r'D:\Adam Hilbert\Data\data_binaries\MIP2D_affected_side\test_points.npy'
 FLAGS.trainingpath = r'D:\Adam Hilbert\Data\data_binaries\MIP2D\training_points.npy'
 FLAGS.testpath = r'D:\Adam Hilbert\Data\data_binaries\MIP2D\test_points.npy'
+#FLAGS.trainingpath = r'D:\Adam Hilbert\Data\data_binaries\NCCT\training_points.npy'
+#FLAGS.testpath = r'D:\Adam Hilbert\Data\data_binaries\NCCT\test_points.npy'
+
 
 # General CNN
-FLAGS.batch_normalization = True
+#FLAGS.batch_normalization = True
 #FLAGS.kernels = '11,5,5'
 #FLAGS.strides = '3,2,3'
 #FLAGS.maps = '32,32,2'
@@ -113,30 +116,28 @@ FLAGS.checkpoint_freq = 0
 
 
 configs = [
-#	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9, 0.999, 0.1],
-#	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9, 0.999, 1.0],
-#	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9, 0.999, 0.1],
-#	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9, 0.999, 0.01],
-#	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9, 0.999, 0.001],
-#	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9, 0.999, 0.0001],
-#	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9, 0.999, 1e-5],
-#	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9, 0.999, 1e-7],
+#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9],
+#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 50, 75, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9],
+#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 50, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9],
+#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 50, 75, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, True, 0.9],
+#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 50, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, True, 0.9],
 
-#	[7, 3, 0.1, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9, 0.999, 1e-4],
-#	[7, 3, 0.1, 12, 0.8, 16, 100, 32, 50, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9, 0.999, 1e-4],
-#	[7, 3, 0.1, 12, 0.8, 16, 100, 32, 50, 75, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9, 0.999, 1e-4],
-#	[7, 3, 0.1, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, True, 0.9, 0.999, 1e-4],
 
-#	[7, 3, 0.01, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9, 0.999, 1e-4],
+#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 50, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.95],
+#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 50, 75, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.95],
+#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 50, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, True, 0.95],
+#	[7, 3, 0.01, 10, 0.8, 16, 100, 32, 50, 75, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, True, 0.95],
+#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 50, 75, '2.0,0.5', 3, 3, "single", 0.7, 2e-4, True, 0.95],
+#	[7, 3, 0.1, 10, 0.8, 16, 200, 32, 50, 200, '2.0,0.5', 3, 3, "single", 0.7, 5e-5, True, 0.95],
+	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 50, 100, '2.0,0.5', 3, 3, "single", 0.7, 5e-5, True, 0.9]
 
-#	[7, 3, 0.1, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9, 0.999, 1e-5],
-#	[7, 3, 0.1, 12, 0.8, 16, 100, 32, 50, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9, 0.999, 1e-5],
-#	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.85, 0.999, 1e-4],
-#	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.95, 0.999, 1e-4],
 
-#	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.9, 0.999, 1e-5],
-#	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.85, 0.999, 1e-5],
-	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.95, 0.999, 1e-4]
+#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.6, 1e-4, False, 0.9],
+#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.65, 1e-4, False, 0.9],
+#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.75, 1e-4, False, 0.9],
+#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.8, 1e-4, False, 0.9],
+#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.85, 1e-4, False, 0.9],
+#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.9, 1e-4, False, 0.9]
 
 
 #	[7, 3, 0.001, 12, 0.8, 16, 100, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 1e-4, False, 0.8, 0.999, 1e-4],
@@ -173,20 +174,23 @@ for config in configs:
 	FLAGS.init_order = config[11]
 	FLAGS.comp_order = config[12]
 	FLAGS.rfnn = config[13]
-#	FLAGS.epsilon = config[14]
 	FLAGS.bnorm_mom = config[14]
 	FLAGS.weight_decay = config[15]
 	FLAGS.bnorm_inc = config[16]
-	FLAGS.beta1 = config[17]
-	FLAGS.beta2 = config[18]
-	FLAGS.epsilon = config[19]
+	FLAGS.nesterov_momentum = config[17]
+#	FLAGS.beta1 = config[17]
+#	FLAGS.beta2 = config[18]
+#	FLAGS.epsilon = config[19]
 	FLAGS.tol_var = 0.01
 	FLAGS.t_max = 10
 	FLAGS.X_dim = 433
+#	FLAGS.X_dim = 336
+#	FLAGS.Z_dim = 252
 
 	#    FLAGS.log_dir = '/home/nicolab/DATA/logs/NCCT_CTA/DenseNet/bests/'
 #	FLAGS.log_dir = r'/home/hilbysfe/dev/DNN-for-CT-Classification/Training/logs/MIP2D/standard/' \
-	FLAGS.log_dir = r'D:\Adam Hilbert\CT_Classification\code\Training\logs\MIP2D\rfnn\single_scale\new_train\\' \
+#	FLAGS.log_dir = r'D:\Adam Hilbert\CT_Classification\code\Training\logs\NCCT\standard\\' \
+	FLAGS.log_dir = r'D:\Adam Hilbert\CT_Classification\code\Training\logs\MIP2D\rfnn\single_scale\Nest\lsuv\\' \
 					+ str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
 					+ str(FLAGS.learning_rate) + '_' \
 					+ str(FLAGS.growth_rate) + '_' \
@@ -198,14 +202,15 @@ for config in configs:
 					+ str(FLAGS.weight_decay) + '_' \
 					+ str(FLAGS.rfnn) + '_' \
 					+ str(FLAGS.reduce_lr_epoch_1) + '_' \
-					+ str(FLAGS.reduce_lr_epoch_2) + '_Adam-' \
-					+ str(FLAGS.beta1) + '-' + str(FLAGS.beta2) + '-' + str(FLAGS.epsilon) + '_ttc-fixed'
-#					+ str(FLAGS.bnorm_mom)  \
+					+ str(FLAGS.reduce_lr_epoch_2) + '_' + str(FLAGS.max_epochs) + '_Nest-' \
+					+ str(FLAGS.nesterov_momentum) + '_' \
+					+ str(FLAGS.bnorm_mom)  \
+#					+ str(FLAGS.beta1) + '-' + str(FLAGS.beta2) + '-' + str(FLAGS.epsilon)
 #					+ str(FLAGS.reduction) + '_' \
 #					+ str(FLAGS.init_order) + '_' \
 #					+ str(FLAGS.comp_order) + '_' \
 	if FLAGS.bnorm_inc:
-		FLAGS.log_dir += '_bnorm_inc'
+		FLAGS.log_dir += '_bnorm_inc' + '-0.75'
 	#    FLAGS.checkpoint_dir = '/home/nicolab/DATA/checkpoints/NCCT_CTA/DenseNet/' \
 #	FLAGS.checkpoint_dir = 'D:\Adam Hilbert\CT_Classification\code\Training\checkpoints\\' \
 #						   + str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \

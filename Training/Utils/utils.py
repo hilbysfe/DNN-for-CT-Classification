@@ -9,8 +9,10 @@ import pickle
 import tensorflow as tf
 import re
 
+#MIN_BOUND = 0.0
+#MAX_BOUND = 255.0
 MIN_BOUND = 0.0
-MAX_BOUND = 255.0
+MAX_BOUND = 100.0
 
 
 def _add_loss_summaries(total_loss):
@@ -54,6 +56,15 @@ def online_flattened_mean(files):
 	for file in files:
 		data = normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(file)))
 		mean += (np.sum(data) / (len(files) * np.shape(data)[0] * np.shape(data)[1]))
+
+	return mean
+
+def online_flattened_mean_3d(files):
+	# Calculates mean of all pixels in the dataset, considering the intensities normalized
+	mean = 0
+	for file in files:
+		data = normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(file)))
+		mean += (np.sum(data) / (len(files) * np.shape(data)[0] * np.shape(data)[1] * np.shape(data)[2]))
 
 	return mean
 
@@ -115,7 +126,7 @@ def read_dataset(datapath, labelpath, test_ratio=0.0):
 
 	# --- Load labels from file ---
 	labels_wb = ox.load_workbook(labelpath)
-	labels_ws = labels_wb['Registry_affected_sides']
+	labels_ws = labels_wb['Registrydatabase']
 
 #	label_dict = {key[0].value: value[0].value
 #				  for i, (key, value) in enumerate(zip(labels_ws[followid_attribute], labels_ws[label_attribute]))
@@ -233,8 +244,9 @@ def split_dataset_NCCT_CTA(datapath_NCCT, datapath_CTA, output_path):
 
 class DataSet(object):
 
-	def __init__(self, training_points, test_points, cross_validation_folds=0, normalize=False):
+	def __init__(self, training_points, test_points, cross_validation_folds=0, normalize=False, img3d=False):
 		print('Init Dataset...')
+		self.img3d = img3d
 		# === TEST-SET ===
 		# --- Split and shuffle ---
 		perm = np.arange(int(len(test_points) / 2))
@@ -280,7 +292,10 @@ class DataSet(object):
 				self._Test.Normalization = True
 
 				print('Computing mean...')
-				mean = online_flattened_mean(self._Training.images)
+				if not self.img3d:
+					mean = online_flattened_mean(self._Training.images)
+				else:
+					mean = online_flattened_mean_3d(self._Training.images)
 				print('Computing mean...done.')
 
 				self._Training.setNormalizationParameters(mean)
@@ -343,7 +358,10 @@ class DataSet(object):
 
 			if normalize:
 				print('Computing mean...')
-				mean = online_flattened_mean(self._Training.images)
+				if not self.img3d:
+					mean = online_flattened_mean(self._Training.images)
+				else:
+					mean = online_flattened_mean_3d(self._Training.images)
 				print('Computing mean...done.')
 
 				self.Normalization = True
@@ -379,7 +397,10 @@ class DataSet(object):
 
 		if self.Normalization:
 			print('Computing mean and std image...')
-			mean = online_flattened_mean(self._Training.images)
+			if not self.img3d:
+				mean = online_flattened_mean(self._Training.images)
+			else:
+				mean = online_flattened_mean_3d(self._Training.images)
 			print('Computing mean and std image...done.')
 
 			self._Training.Normalization = True
@@ -568,12 +589,11 @@ class SubSet(object):
 		)[perm]
 		#        image_batch = np.array([ np.zeros((3,512,512)) if t[0]==0 else np.ones((3,512,512)) for t in label_batch])
 
-#		image_batch = np.swapaxes(image_batch, 1, 2)
-#		image_batch = np.swapaxes(image_batch, 2, 3)
-
 		# --- Only in case of 3D model ---
 		if bases3d:
 			image_batch = np.expand_dims(image_batch, axis=4)
+			image_batch = np.swapaxes(image_batch, 1, 2)
+			image_batch = np.swapaxes(image_batch, 2, 3)
 		else:
 			image_batch = np.expand_dims(image_batch, axis=3)
 
@@ -590,7 +610,6 @@ class SubSet(object):
 			return normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(image_path))) - self._mean
 		else:
 			sl = normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(image_path)))
-#			sl = np.expand_dims(sl, axis=0)
 			return sl
 
 class SubSetCifar(object):
