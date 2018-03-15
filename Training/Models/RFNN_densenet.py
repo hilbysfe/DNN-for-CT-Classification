@@ -2,14 +2,26 @@ import numpy as np
 import tensorflow as tf
 
 from Utils.rfnn_utils import init_basis_hermite_2D
-from Utils.rfnn_utils import init_basis_hermite_2D_scales
+from Utils.rfnn_utils import init_basis_hermite_steerable_2D
+
+# single scale/orientation
 from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d
+
+# multi-scale
 from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_scales_max
 from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_scales_max2
 from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_scales_learn
 from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_scales_learn_bc
-from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_scales_learn_flatten
-from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_scales_avg
+
+# multi-scale/orientation altering output
+from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_SO_learn_flatten
+
+# multi-scale/orientation keeping output
+from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_SO_avg
+from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_SO_max
+from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_SO_learn_fl_bc
+from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_SO_learn_sq_bc
+
 from Utils.cnn_utils import _conv_layer_pure_2d
 
 TF_VERSION = float('.'.join(tf.__version__.split('.')[:2]))
@@ -21,24 +33,31 @@ class RFNNDenseNet(object):
 				 is_training,
 				 init_kernel,
 				 comp_kernel,
-				 sigmas,
+				 init_sigmas,
+				 comp_sigmas,
 				 init_order,
 				 comp_order,
+				 thetas,
 				 rfnn,
 				 bnorm_momentum,
+				 renorm=0.7,
 				 reduction=1.0,
 				 bc_mode=False,
+				 beta_wd=0.0,
 				 avgpool_kernel_ratio=0.5,
 				 avgpool_stride_ratio=0.5,
 				 n_classes=10):
 
+		self.kernels = []
 		self.alphas = []
 		self.conv_act = []
-		self.bc_conv_act = []
-		self.bc_weights = []
+#		self.bc_conv_act = []
+#		self.bc_weights = []
 		self.weights = []
 		self.fl_act = []
 		self.bnorm_momentum = bnorm_momentum
+		self.renorm = renorm
+		self.beta_wd = beta_wd
 
 		self.n_classes = n_classes
 		self.depth = depth
@@ -62,16 +81,20 @@ class RFNNDenseNet(object):
 
 		self.initial_kernel = init_kernel
 		self.comp_kernel = comp_kernel
+		self.init_sigmas = init_sigmas
+		self.comp_sigmas = comp_sigmas
+		self.thetas = thetas
 
-		self.hermit_initial = init_basis_hermite_2D_scales(self.initial_kernel, sigmas, order=init_order) \
-			if rfnn is not "single" else init_basis_hermite_2D(self.initial_kernel, sigmas[0], init_order)
-		self.hermit_composite = init_basis_hermite_2D_scales(self.comp_kernel, sigmas, order=comp_order) \
-			if rfnn is not "single" else init_basis_hermite_2D(self.comp_kernel, sigmas[1], comp_order)
+		self.hermit_initial = init_basis_hermite_steerable_2D(self.initial_kernel, self.init_sigmas, theta=self.thetas[0], order=init_order) \
+			if rfnn is not "single" else init_basis_hermite_2D(self.initial_kernel, self.init_sigmas[0], init_order)
+		self.hermit_composite = init_basis_hermite_steerable_2D(self.comp_kernel, self.comp_sigmas, theta=self.thetas[1], order=comp_order) \
+			if rfnn is not "single" else init_basis_hermite_2D(self.comp_kernel, self.comp_sigmas[1], comp_order)
 
 		self.rfnn_layer = \
-			_rfnn_conv_layer_pure_2d_scales_learn_flatten if rfnn=="learn" else \
-			_rfnn_conv_layer_pure_2d_scales_avg if rfnn=="avg" else \
-			_rfnn_conv_layer_pure_2d_scales_max if rfnn=="max" else \
+			_rfnn_conv_layer_pure_2d_SO_learn_fl_bc if rfnn=="learn_fl" else \
+			_rfnn_conv_layer_pure_2d_SO_learn_sq_bc if rfnn=="learn_sq" else \
+			_rfnn_conv_layer_pure_2d_SO_avg if rfnn=="avg" else \
+			_rfnn_conv_layer_pure_2d_SO_max if rfnn=="max" else \
 			_rfnn_conv_layer_pure_2d
 
 		if not bc_mode:
@@ -126,10 +149,12 @@ class RFNNDenseNet(object):
 			# convolution
 			if kernel_size == 1:
 				output, weights = _conv_layer_pure_2d(output, shape=[1, 1, output.get_shape()[-1].value, out_features], padding='VALID')
-				self.bc_weights.append(weights)
-				self.bc_conv_act.append(output)
+#				self.bc_weights.append(weights)
+#				self.bc_conv_act.append(output)
 			else:
-				output, alphas = self.rfnn_layer(output, self.hermit_composite, out_features)
+				output, alphas = self.rfnn_layer(output, self.hermit_composite, out_features,
+												 self.is_training, self.bnorm_momentum, self.renorm)
+#				self.kernels.append(kernel)
 				self.alphas.append(alphas)
 				self.conv_act.append(output)
 			# dropout(in case of training and in case it is no 1.0)
@@ -145,8 +170,8 @@ class RFNNDenseNet(object):
 			inter_features = out_features * 4
 			# 1x1 convolution
 			output, weights = _conv_layer_pure_2d(output, shape=[1, 1, output.get_shape()[-1].value, inter_features], padding='VALID')
-			self.bc_conv_act.append(output)
-			self.bc_weights.append(weights)
+#			self.bc_conv_act.append(output)
+#			self.bc_weights.append(weights)
 		output = self.dropout(output)
 		return output
 
@@ -175,6 +200,7 @@ class RFNNDenseNet(object):
 		for layer in range(layers_per_block):
 			with tf.variable_scope("layer_%d" % layer):
 				output = self.add_internal_layer(output, growth_rate)
+		print(output.get_shape())
 		return output
 
 	def transition_layer(self, _input):
@@ -185,8 +211,10 @@ class RFNNDenseNet(object):
 		out_features = int(int(_input.get_shape()[-1]) * self.reduction)
 		output = self.composite_function(
 			_input, out_features=out_features, kernel_size=1)
+		print(output.get_shape())
 		# run average pooling
 		output = self.avg_pool(output, k=2, s=2)
+		print(output.get_shape())
 		return output
 
 	def transition_layer_to_classes(self, _input):
@@ -204,6 +232,7 @@ class RFNNDenseNet(object):
 		last_pool_kernel = [1, int(output.get_shape()[1].value), int(output.get_shape()[2]) * self.avgpool_kernel_ratio, 1]
 		last_pool_stride = [1, int(output.get_shape()[1].value), int(output.get_shape()[2]) * self.avgpool_stride_ratio, 1]
 		output = tf.nn.avg_pool(output, last_pool_kernel, last_pool_stride, 'VALID')
+		print(output.get_shape())
 		# FC
 		features_total = int(output.get_shape()[-1])*int(output.get_shape()[-2])
 		output = tf.reshape(output, [-1, features_total])
@@ -225,8 +254,8 @@ class RFNNDenseNet(object):
 
 	def batch_norm(self, _input):
 		output = tf.contrib.layers.batch_norm(
-			_input, scale=True, decay=self.bnorm_momentum, is_training=self.is_training, zero_debias_moving_mean=False,
-			updates_collections=None)
+			_input, decay=self.bnorm_momentum, is_training=self.is_training, center=False,
+			renorm=True, renorm_decay=self.renorm)#, param_regularizers={'beta': tf.contrib.layers.l2_regularizer(self.beta_wd)})
 		return output
 
 	def dropout(self, _input):
@@ -261,11 +290,15 @@ class RFNNDenseNet(object):
 		layers_per_block = self.layers_per_block
 		# first - initial 3 x 3 conv to first_output_features
 		with tf.variable_scope("Initial_convolution"):
-			output, alphas = self.rfnn_layer(X, self.hermit_initial, self.first_output_features, strides=[1,2,2,1])
+			output, alphas = self.rfnn_layer(X, self.hermit_initial, self.first_output_features,
+											 self.is_training, self.bnorm_momentum, self.renorm, strides=[1,2,2,1])
+			print(output.get_shape())
+#			self.kernels.append(kernel)
 			self.alphas.append(alphas)
 			self.conv_act.append(output)
-#		with tf.variable_scope("Initial_pooling"):
-#			output = tf.nn.max_pool(output, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1], padding='VALID')
+		with tf.variable_scope("Initial_pooling"):
+			output = tf.nn.max_pool(output, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1], padding='VALID')
+			print(output.get_shape())
 
 		# add N required blocks
 		for block in range(self.total_blocks):

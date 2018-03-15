@@ -88,22 +88,16 @@ def tower_loss(logits, labels, scope):
 	#        tf.summary.scalar('Total_loss', total_loss)
 	return total_loss
 
-def tower_loss_dense(logits, labels, weight_decay, scope):
+def tower_loss_dense(logits, labels):
 	with tf.name_scope('Cross_Entropy_Loss'):
 		cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels,
 																name='cross_entropy_per_example')
 		cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
-		tf.add_to_collection('losses', cross_entropy_mean)
+
 	with tf.name_scope('L2_Loss'):
-		l2_loss = tf.add_n(
-			[tf.nn.l2_loss(var) for var in tf.trainable_variables()], name='l2_loss') \
-				* weight_decay
-		tf.add_to_collection('losses', l2_loss)
+		l2_loss = tf.add_n([tf.nn.l2_loss(var) for var in tf.trainable_variables()], name='l2_loss')
 
-	with tf.name_scope('Total_Loss'):
-		total_loss = tf.add_n(tf.get_collection('losses', scope), name='total_loss')
-
-	return cross_entropy_mean, l2_loss, total_loss
+	return cross_entropy_mean, l2_loss
 
 def tower_loss_exp(logits, labels, alpha, scope):
 	with tf.name_scope('Cross_Entropy_Loss'):

@@ -9,10 +9,10 @@ import pickle
 import tensorflow as tf
 import re
 
+MIN_BOUND = 50.0
+MAX_BOUND = 300.0
 #MIN_BOUND = 0.0
-#MAX_BOUND = 255.0
-MIN_BOUND = 0.0
-MAX_BOUND = 100.0
+#MAX_BOUND = 100.0
 
 
 def _add_loss_summaries(total_loss):
@@ -58,6 +58,15 @@ def online_flattened_mean(files):
 		mean += (np.sum(data) / (len(files) * np.shape(data)[0] * np.shape(data)[1]))
 
 	return mean
+
+def online_flattened_std(files, mean):
+	# Calculates mean of all pixels in the dataset, considering the intensities normalized
+	std = 0
+	for file in files:
+		data = normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(file)))
+		std += (np.sum(np.square(data)) / (len(files) * np.shape(data)[0] * np.shape(data)[1]))
+
+	return np.sqrt(std-np.square(mean))
 
 def online_flattened_mean_3d(files):
 	# Calculates mean of all pixels in the dataset, considering the intensities normalized
@@ -107,7 +116,7 @@ def dense_to_one_hot(labels_dense, num_classes):
 	return labels_one_hot
 
 
-def read_dataset(datapath, labelpath, test_ratio=0.0):
+def read_dataset(datapath, labelpath, label_attribute, test_ratio=0.0):
 	"""
 	Function to read up images and labels.
 	Store only paths as images wouldn't fit to memory.
@@ -115,11 +124,22 @@ def read_dataset(datapath, labelpath, test_ratio=0.0):
 	MRS@90 hardcoded as label attribute in label_filename -> column 'DF'
 	"""
 
-#	followid_attribute = 'A2:A1489'
-#	label_attribute = 'DF2:DF1489'
+	attribute_dict = {
+		'collaterals' : 'C2:C1489',
+		'collaterals_imp': 'E2:E1489',
+		'tici': 'G2:G1489',
+		'tici_imp' : 'I2:I1489',
+		'nihss' : 'K2:K1489',
+		'nihss_imp' : 'M2:M1489',
+		'mrs' : 'N2:N1489'
+	}
 
-	followid_attribute = 'A1:A1527'
-	label_attribute = 'B1:B1527'
+	if 'affected' in labelpath:
+		followid_attribute = 'A1:A1527'
+		label_attribute = 'B1:B1527'
+	else:
+		followid_attribute = 'A2:A1489'
+		label_attribute = attribute_dict[label_attribute]
 
 	# --- Retrieve all patients we have images from ---
 	patients = os.listdir(datapath)
@@ -173,6 +193,141 @@ def read_dataset(datapath, labelpath, test_ratio=0.0):
 
 	return training_points, test_points
 
+def read_dataset_2(datapath, labelpath, label_attribute, output, val_folds=4, val_ratio=0.1):
+	"""
+	Function to read up images and labels.
+	Store only paths as images wouldn't fit to memory.
+
+	"""
+
+	attribute_dict = {
+		'collaterals' : 'C2:C1489',
+		'collaterals_imp': 'E2:E1489',
+		'tici': 'G2:G1489',
+		'tici_imp' : 'I2:I1489',
+		'nihss' : 'K2:K1489',
+		'nihss_imp' : 'M2:M1489',
+		'mrs' : 'N2:N1489'
+	}
+
+	if 'affected' in labelpath:
+		followid_attribute = 'A1:A1527'
+		label_attribute = 'B1:B1527'
+	else:
+		followid_attribute = 'A2:A1489'
+		label_attribute = attribute_dict[label_attribute]
+
+	# --- Retrieve all patients we have images from ---
+	patients = os.listdir(datapath)
+
+	# --- Load labels from file ---
+	labels_wb = ox.load_workbook(labelpath)
+	labels_ws = labels_wb['Registrydatabase']
+
+#	label_dict = {key[0].value: value[0].value
+#				  for i, (key, value) in enumerate(zip(labels_ws[followid_attribute], labels_ws[label_attribute]))
+#				  if labels_ws['Z' + str(i + 2)].value == 3}
+
+	label_dict = {key[0].value: value[0].value
+				  for i, (key, value) in enumerate(zip(labels_ws[followid_attribute], labels_ws[label_attribute]))
+				  if value[0].value is not None}
+
+	# --- Split regarding classes ---
+	class0_images = [os.path.join(root, name)
+					 for root, dirs, files in os.walk(datapath)
+					 for name in files if name.endswith(".mha")
+					 if name.split('.')[0] in label_dict.keys() and
+					 label_dict[name.split('.')[0]] == 0]
+	class1_images = [os.path.join(root, name)
+					 for root, dirs, files in os.walk(datapath)
+					 for name in files if name.endswith(".mha")
+					 if name.split('.')[0] in label_dict.keys() and
+					 label_dict[name.split('.')[0]] == 1]
+
+	num_examples = 2 * min(len(class0_images), len(class1_images))
+
+	# --- Schuffle both classes ---
+	perm = np.arange(len(class0_images))
+	np.random.shuffle(perm)
+	class0_images = np.array(class0_images)[perm]
+
+	perm = np.arange(len(class1_images))
+	np.random.shuffle(perm)
+	class1_images = np.array(class1_images)[perm]
+
+	# --- Balance out ---
+	balanced_size = min(len(class0_images), len(class1_images))
+
+	class0_images = class0_images[:balanced_size]
+	class1_images = class1_images[:balanced_size]
+
+	# --- Split into balanced test-set, training-set ---
+	# --- Prepare folds ---
+	image0_folds = []
+	image1_folds = []
+
+	offset = 0
+	point_per_fold = int(balanced_size / val_folds)
+	val_size = int((balanced_size - point_per_fold)*val_ratio)
+	for i in range(val_folds):
+		image0_folds.append(
+			class0_images[offset:offset + point_per_fold]
+		)
+		image1_folds.append(
+			class1_images[offset:offset + point_per_fold]
+		)
+
+		offset += point_per_fold
+
+	offset = 0
+	for current_fold in range(val_folds):
+		# --- Init sets with 1st fold ---
+		training_folds_imgs0 = np.concatenate(
+			[fold for i, fold in enumerate(image0_folds) if i != current_fold])
+		test_imgset0 = image0_folds[current_fold]
+
+		training_folds_imgs1 = np.concatenate(
+			[fold for i, fold in enumerate(image1_folds) if i != current_fold])
+		test_imgset1 = image1_folds[current_fold]
+
+		# ---- Shuffle training folds + split into train-val -----
+
+		perm = np.arange(len(training_folds_imgs0))
+		np.random.shuffle(perm)
+		training_folds_imgs0 = np.array(training_folds_imgs0)[perm]
+
+		perm = np.arange(len(training_folds_imgs1))
+		np.random.shuffle(perm)
+		training_folds_imgs1 = np.array(training_folds_imgs1)[perm]
+
+		validation_imgset0 = training_folds_imgs0[:val_size]
+		validation_imgset1 = training_folds_imgs1[:val_size]
+
+		training_imgset0 = training_folds_imgs0[val_size:]
+		training_imgset1 = training_folds_imgs1[val_size:]
+
+		training_points = dict(
+			zip(np.concatenate(training_imgset0, training_imgset1),
+				np.concatenate((np.zeros((len(training_imgset0)), dtype=np.int),
+								np.ones((len(training_imgset1)), dtype=np.int)))))
+		validation_points = dict(
+			zip(np.concatenate(validation_imgset0, validation_imgset1),
+				np.concatenate((np.zeros((len(validation_imgset0)), dtype=np.int),
+								np.ones((len(validation_imgset1)), dtype=np.int)))))
+		test_points = dict(
+			zip(np.concatenate(test_imgset0, test_imgset1),
+				np.concatenate((np.zeros((len(test_imgset0)), dtype=np.int),
+								np.ones((len(test_imgset1)), dtype=np.int)))))
+
+		# ------- Save -------
+		with open(os.path.join(output, 'training_points_', str(current_fold), '.npy'), 'wb') as handle:
+			pickle.dump(training_points, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+		with open(os.path.join(output, 'validation_points_', str(current_fold), '.npy'), 'wb') as handle:
+			pickle.dump(validation_points, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+		with open(os.path.join(output, 'test_points_', str(current_fold), '.npy'), 'wb') as handle:
+			pickle.dump(test_points, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 def read_dataset_NCCT_CTA(datapath_NCCT, datapath_CTA, test_ratio=0.15):
 	"""
@@ -360,6 +515,7 @@ class DataSet(object):
 				print('Computing mean...')
 				if not self.img3d:
 					mean = online_flattened_mean(self._Training.images)
+					std = online_flattened_std(self._Training.images, mean)
 				else:
 					mean = online_flattened_mean_3d(self._Training.images)
 				print('Computing mean...done.')
@@ -367,8 +523,8 @@ class DataSet(object):
 				self.Normalization = True
 				self._Training.Normalization = True
 				self._Validation.Normalization = True
-				self._Training.setNormalizationParameters(mean)
-				self._Validation.setNormalizationParameters(mean)
+				self._Training.setNormalizationParameters(mean, std)
+				self._Validation.setNormalizationParameters(mean, std)
 			else:
 				self.Normalization = False
 				self._Training.Normalization = False
@@ -399,14 +555,15 @@ class DataSet(object):
 			print('Computing mean and std image...')
 			if not self.img3d:
 				mean = online_flattened_mean(self._Training.images)
+				std = online_flattened_std(self._Training.images, mean)
 			else:
 				mean = online_flattened_mean_3d(self._Training.images)
 			print('Computing mean and std image...done.')
 
 			self._Training.Normalization = True
 			self._Validation.Normalization = True
-			self._Training.setNormalizationParameters(mean)
-			self._Validation.setNormalizationParameters(mean)
+			self._Training.setNormalizationParameters(mean, std)
+			self._Validation.setNormalizationParameters(mean, std)
 		else:
 			self._Training.Normalization = False
 			self._Validation.Normalization = False
@@ -555,8 +712,9 @@ class SubSet(object):
 	def epochs_completed(self):
 		return self._epochs_completed
 
-	def setNormalizationParameters(self, mean):
+	def setNormalizationParameters(self, mean, std):
 		self._mean = mean
+		self._std = std
 
 	def next_batch(self, batch_size, bases3d=False):
 		"""
@@ -607,7 +765,7 @@ class SubSet(object):
 			image_path: Path of image to read from.
 		"""
 		if self.Normalization:
-			return normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(image_path))) - self._mean
+			return np.divide(normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(image_path))) - self._mean, self._std)
 		else:
 			sl = normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(image_path)))
 			return sl
@@ -692,18 +850,3 @@ class SubSetCifar(object):
 #			image_batch[:, :, :, 2] -= self._mean[2]
 
 		return image_batch, label_batch
-
-	def getImageArray(self, image_path):
-		"""
-		Returns:
-			Numpy array of the loaded image
-		Args:
-			image_path: Path of image to read from.
-		"""
-		if self.Normalization:
-			return normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(image_path))) - self._mean
-		else:
-			sl = normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(image_path)))
-			print(sl.shape())
-#			sl = np.expand_dims(sl, axis=0)
-			return sl
