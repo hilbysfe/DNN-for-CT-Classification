@@ -1,5 +1,6 @@
 
 from Utils import utils
+from Utils import utils_final
 from Models.rfnn import RFNN
 from Models.ctnet import CTNET
 from Models.densenet import DenseNet
@@ -34,13 +35,9 @@ def train_ctnet(FLAGS, NUM_GPUS):
 
 			# ====== LOAD DATASET ======
 			print('Loading Dataset...')
-			with open(FLAGS.trainingpath, 'rb') as handle:
-				training_points = pickle.load(handle)
-			with open(FLAGS.testpath, 'rb') as handle:
-				test_points = pickle.load(handle)
+			training_points, test_points, validation_points = utils_final.read_dataset(FLAGS.datapath)
 
-			dataset = utils.DataSet(training_points, test_points,
-									cross_validation_folds=FLAGS.xvalidation_folds,
+			dataset = utils_final.DataSet(training_points, test_points, validation_points,
 									normalize=FLAGS.normalization, img3d=FLAGS.bases3d)
 			print('Loading Dataset...done.')
 
@@ -372,7 +369,6 @@ def train_ctnet(FLAGS, NUM_GPUS):
 					print("Initializing weights with LSUV...done.")
 
 					print("Initializing weight decay...")
-					# Dequeue data
 					FLAGS.weight_decay = 0.0
 					for i in range(FLAGS.t_max):
 						x_loss, l2_loss = sess.run([avg_loss_entropy, avg_loss_l2],
@@ -384,17 +380,14 @@ def train_ctnet(FLAGS, NUM_GPUS):
 
 					max_acc = 0
 					for i in range(FLAGS.max_epochs):
-
 						if coord.should_stop():
 							break
 
 						# ----- Reduce learning rate ------
 						if i == FLAGS.reduce_lr_epoch_1:
-#							lr = lr / 10
 							if FLAGS.bnorm_inc:
 								bnorm_mom = bnorm_mom * 1.0714
 						if i == FLAGS.reduce_lr_epoch_2:
-#							lr = lr / 10
 							if FLAGS.bnorm_inc:
 								bnorm_mom = bnorm_mom * 1.0714
 

@@ -1,9 +1,8 @@
-from Utils.utils import split_dataset
+from Utils.utils_final import split_datasets
 
-training, test = split_dataset(
-    r'D:\Adam Hilbert\Data\Registry\NCCT_BL\ST_THINNEST_RESIZED',
-    r'E:\MRCLEAN_REGISTRY_BL\Registrydatabase.xlsx',
-    r'D:\Adam Hilbert\Data\data_binaries\NCCT')
+split_datasets(
+    r'D:\Adam Hilbert\Data\Registry\CTA_BL\ST_2D_MIP_RESIZED',
+    r'E:\MRCLEAN_REGISTRY_BL\SelectedVariables.xlsx',
+    r'D:\Adam Hilbert\Data\data_binaries\MIP2D',
+	'nihss_imp')
 
-print(len(training))
-print(len(test))

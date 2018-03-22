@@ -1,0 +1,51 @@
+CIFAR:
+Training:
+
+
+
+MIP:
+Training:
+- LR: 0.0002
+- WD: 0.00015
+- Adam
+   - eps: 1e-3
+   - beta1: 0.9/0.95
+- BN
+   - norm: 0.7
+   - renorm: 0.7
+   - beta-wd: 1e-3/1e-4
+- Batch size: 32
+
+Shallow:
+
+
+Deep:
+- 4 blocks
+- 37 deep
+- kernels: 7x3
+- growth rate: 24
+- Dropout: 0.8
+
+NCCT:
+Training:
+
+Shallow:
+
+
+Deep:
+
+
+
+
+MIP+NCCT:
+Training:
+
+Shallow:
+
+
+Deep:
+
+
+
++clinical:
+

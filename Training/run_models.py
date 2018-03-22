@@ -9,11 +9,9 @@ from train_model import train_ctnet
 
 NUM_GPUS = 1
 
-
 class FLAGS():
 	def __init__(self):
 		return
-
 
 def initialize_folders():
 	"""
@@ -31,7 +29,6 @@ def initialize_folders():
 #		shutil.rmtree(FLAGS.checkpoint_dir, ignore_errors=True)
 #		tf.gfile.MakeDirs(FLAGS.checkpoint_dir)
 
-
 def print_flags():
 	"""
     Prints all entries in FLAGS variable.
@@ -39,100 +36,40 @@ def print_flags():
 	for key, value in vars(FLAGS).items():
 		print(key + ' : ' + str(value))
 
-
 def str2bool(s):
 	if s == "True":
 		return True
 	else:
 		return False
 
-
 FLAGS = FLAGS()
 
 # Training
 FLAGS.weight_decay = 1e-4
 FLAGS.nesterov_momentum = 0.9
-# FLAGS.learning_rate = 0.001
-# FLAGS.max_epochs = 60
-# FLAGS.batch_size = 64
 FLAGS.pretraining = False
-
-# FLAGS.reduce_lr_epoch_1 = 50
-# FLAGS.reduce_lr_epoch_2 = 50
-
-# Exp-Gradient
-#FLAGS.alpha = 0.1
 
 # Data
 #FLAGS.cifar_path = '/home/hilbysfe/dev/DNN-for-CT-Classification/Training/cifar-10-batches-py'
 #FLAGS.cifar_path = r'D:\Adam Hilbert\CT_Classification\code\Training\cifar10\cifar-10-batches-py'
 FLAGS.normalization = True
-#FLAGS.trainingpath = '/home/nicolab/DATA/data_binaries/SUPERVISED/NCCT_THICK_SKULLSTRIPPED_RESAMPLED/training_points.npy'
-#FLAGS.testpath = '/home/nicolab/DATA/data_binaries/SUPERVISED/NCCT_THICK_SKULLSTRIPPED_RESAMPLED/test_points.npy'
-
-FLAGS.trainingpath = r'D:\Adam Hilbert\Data\data_binaries\MIP2D_affected_side\training_points.npy'
-FLAGS.testpath = r'D:\Adam Hilbert\Data\data_binaries\MIP2D_affected_side\test_points.npy'
-
-#FLAGS.trainingpath = r'D:\Adam Hilbert\Data\data_binaries\MIP2D\training_points.npy'
-#FLAGS.testpath = r'D:\Adam Hilbert\Data\data_binaries\MIP2D\test_points.npy'
-
-#FLAGS.trainingpath = r'D:\Adam Hilbert\Data\data_binaries\NCCT\training_points.npy'
-#FLAGS.testpath = r'D:\Adam Hilbert\Data\data_binaries\NCCT\test_points.npy'
-
-FLAGS.label_attribute = 'collaterals'
-
+FLAGS.datapath = r'D:\Adam Hilbert\Data\data_binaries\MIP2D\affected_side'
 
 # General CNN
-#FLAGS.batch_normalization = True
-#FLAGS.kernels = '11,5,5'
-#FLAGS.strides = '3,2,3'
-#FLAGS.maps = '32,32,2'
 FLAGS.bases3d = False
 
 # DenseNet
-# FLAGS.growth_rate = 8
-# FLAGS.depth = 40
 FLAGS.total_blocks = 4
-# FLAGS.keep_prob = 0.3
 FLAGS.reduction = 0.5
 FLAGS.model_type = 'DenseNet'
 FLAGS.bc_mode = True
-# FLAGS.init_kernel = 11
-# FLAGS.comp_kernel = 5
-
-# RFNN
-# FLAGS.sigmas = '1.5, 1.0, 0.5'
-
 
 # Logging
 FLAGS.print_freq = 1
 FLAGS.eval_freq = 1
 FLAGS.checkpoint_freq = 0
-# FLAGS.log_dir = '/home/nicolab/DATA/logs/NCCT_CTA/DenseNet/' \
-#     + str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
-#     + str(FLAGS.learning_rate) + '_' \
-#     + str(FLAGS.growth_rate) + '_' \
-#     + str(FLAGS.depth) + '_' \
-#     + str(FLAGS.total_blocks) + '_' \
-#     + str(FLAGS.keep_prob) + '_' \
-#     + str(FLAGS.reduction)
-
-#    + str(FLAGS.reduce_lr_epoch_1) + '_' \
-
 
 configs = [
-	# Nesterov
-#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 100, 100, '2.0,0.5', 3, 3, "single", 0.7, 5e-5, False, 0.9],
-#	[7, 3, 0.1, 10, 0.8, 16, 200, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 5e-5, False, 0.9],
-#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 50, 100, '2.0,0.5', 3, 3, "single", 0.7, 5e-5, False, 0.9],
-#	[7, 3, 0.1, 10, 0.8, 16, 200, 32, 50, 200, '2.0,0.5', 3, 3, "single", 0.7, 5e-5, False, 0.9],
-#	[7, 3, 0.1, 10, 0.8, 16, 100, 32, 50, 100, '2.0,0.5', 3, 3, "single", 0.7, 5e-5, True, 0.9],
-#	[7, 3, 0.1, 10, 0.8, 16, 200, 32, 50, 200, '2.0,0.5', 3, 3, "single", 0.7, 5e-5, True, 0.9],
-
-#	[7, 3, 0.001, 10, 0.8, 16, 100, 32, 100, 100, '2.0,0.5', 3, 3, "single", 0.7, 5e-4, False, 0.9],
-#	[7, 3, 0.001, 10, 0.8, 16, 200, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 5e-4, False, 0.9],
-#	[7, 3, 0.01, 10, 0.8, 16, 100, 32, 100, 100, '2.0,0.5', 3, 3, "single", 0.7, 5e-4, False, 0.9],
-#	[7, 3, 0.01, 10, 0.8, 16, 200, 32, 200, 200, '2.0,0.5', 3, 3, "single", 0.7, 5e-4, False, 0.9]
 
 	# Adam
 #	[7, 3, 0.0002, 24, 0.8, 37, 150, 32, 150, 150, '2.0,0.5', 3, 3, "single", 0.7, 0.0, False, 0.95, 0.999, 1e-3, 0.7],
@@ -141,7 +78,7 @@ configs = [
 #	[7, 3, 0.0002, 24, 0.8, 37, 150, 32, 150, 150, '2.0,0.5', 3, 3, "single", 0.7, 0.0, False, 0.95, 0.999, 1.0, 0.7],
 #	[7, 3, 0.0002, 24, 0.8, 37, 150, 32, 150, 150, '2.0,0.5', 3, 3, "single", 0.7, 1e-6, False, 0.95, 0.999, 1e-4, 0.7],
 
-	[7, 3, 0.0003, 6, 0.8, 37, 200, 32, 200, 200, '2.0,1.5', '1.0,0.5', 3, 3, "avg", 0.7, False, 0.9, 0.999, 1e-3, 0.7, 1e-4, '30, 30'],  # -> run for longer
+	[7, 3, 0.0003, 6, 0.8, 37, 200, 32, 200, 200, '2.0,1.5', '1.0,0.5', 3, 3, "avg", 0.7, False, 0.9, 0.999, 1e-3, 0.7, 1e-4, '30, 30'],
 #	[7, 3, 0.0003, 6, 0.8, 37, 150, 32, 150, 150, '2.0,1.5', '1.0,0.5', 3, 3, "max", 0.7, False, 0.9, 0.999, 1e-3, 0.7, 1e-4, '30, 30'],
 	[7, 3, 0.0003, 8, 0.8, 37, 150, 32, 150, 150, '2.0,1.5', '1.0,0.5', 3, 3, "avg", 0.7, False, 0.9, 0.999, 1e-3, 0.7, 1e-4, '45, 45'],
 	[7, 3, 0.0003, 8, 0.8, 37, 150, 32, 150, 150, '2.0,1.5', '1.0,0.5', 3, 3, "max", 0.7, False, 0.9, 0.999, 1e-3, 0.7, 1e-4, '45, 45'],
@@ -184,7 +121,9 @@ for config in configs:
 #	FLAGS.log_dir = r'/home/hilbysfe/dev/DNN-for-CT-Classification/Training/logs/MIP2D/standard/' \
 #	FLAGS.log_dir = r'D:\Adam Hilbert\CT_Classification\code\Training\logs\NCCT\standard\\' \
 #	FLAGS.log_dir = r'D:\Adam Hilbert\CT_Classification\code\Training\logs\MIP2D\rfnn\single_scale\Adam\lsuv\\' \
-	FLAGS.log_dir = r'E:\logs\MIP2D_affected\rfnn\SO\\' \
+
+#	TESTING NEW DATASET
+	FLAGS.log_dir = r'E:\logs\MIP2D_affected\rfnn\SO\test\\' \
 					+ str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
 					+ str(FLAGS.learning_rate) + '_' \
 					+ str(FLAGS.growth_rate) + '_' \

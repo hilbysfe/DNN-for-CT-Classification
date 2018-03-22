@@ -31,3 +31,4 @@ Training/Output.txt
 Training/Preprocessing/Registration/build/
 Training/Preprocessing/Registration/dist/registration_aspects.exe
 .idea/workspace.xml
+Training/gradient_checkpointing_master/

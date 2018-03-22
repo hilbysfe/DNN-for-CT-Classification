@@ -199,15 +199,14 @@ def read_dataset_2(datapath, labelpath, label_attribute, output, val_folds=4, va
 	Store only paths as images wouldn't fit to memory.
 
 	"""
-
 	attribute_dict = {
-		'collaterals' : 'C2:C1489',
+		'collaterals': 'C2:C1489',
 		'collaterals_imp': 'E2:E1489',
 		'tici': 'G2:G1489',
-		'tici_imp' : 'I2:I1489',
-		'nihss' : 'K2:K1489',
-		'nihss_imp' : 'M2:M1489',
-		'mrs' : 'N2:N1489'
+		'tici_imp': 'I2:I1489',
+		'nihss': 'K2:K1489',
+		'nihss_imp': 'M2:M1489',
+		'mrs': 'N2:N1489'
 	}
 
 	if 'affected' in labelpath:
@@ -291,7 +290,6 @@ def read_dataset_2(datapath, labelpath, label_attribute, output, val_folds=4, va
 		test_imgset1 = image1_folds[current_fold]
 
 		# ---- Shuffle training folds + split into train-val -----
-
 		perm = np.arange(len(training_folds_imgs0))
 		np.random.shuffle(perm)
 		training_folds_imgs0 = np.array(training_folds_imgs0)[perm]
@@ -307,26 +305,28 @@ def read_dataset_2(datapath, labelpath, label_attribute, output, val_folds=4, va
 		training_imgset1 = training_folds_imgs1[val_size:]
 
 		training_points = dict(
-			zip(np.concatenate(training_imgset0, training_imgset1),
-				np.concatenate((np.zeros((len(training_imgset0)), dtype=np.int),
-								np.ones((len(training_imgset1)), dtype=np.int)))))
+			zip(np.concatenate((training_imgset0, training_imgset1)),
+				np.concatenate((np.zeros((len(training_imgset0),), dtype=np.int),
+								np.ones((len(training_imgset1),), dtype=np.int)))))
 		validation_points = dict(
-			zip(np.concatenate(validation_imgset0, validation_imgset1),
-				np.concatenate((np.zeros((len(validation_imgset0)), dtype=np.int),
-								np.ones((len(validation_imgset1)), dtype=np.int)))))
+			zip(np.concatenate((validation_imgset0, validation_imgset1)),
+				np.concatenate((np.zeros((len(validation_imgset0),), dtype=np.int),
+								np.ones((len(validation_imgset1),), dtype=np.int)))))
 		test_points = dict(
-			zip(np.concatenate(test_imgset0, test_imgset1),
-				np.concatenate((np.zeros((len(test_imgset0)), dtype=np.int),
-								np.ones((len(test_imgset1)), dtype=np.int)))))
+			zip(np.concatenate((test_imgset0, test_imgset1)),
+				np.concatenate((np.zeros((len(test_imgset0),), dtype=np.int),
+								np.ones((len(test_imgset1),), dtype=np.int)))))
 
 		# ------- Save -------
-		with open(os.path.join(output, 'training_points_', str(current_fold), '.npy'), 'wb') as handle:
+		tf.gfile.MakeDirs(os.path.join(output, str(current_fold)))
+
+		with open(os.path.join(output, str(current_fold), 'training_points.npy'), 'wb') as handle:
 			pickle.dump(training_points, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-		with open(os.path.join(output, 'validation_points_', str(current_fold), '.npy'), 'wb') as handle:
+		with open(os.path.join(output, str(current_fold), 'validation_points.npy'), 'wb') as handle:
 			pickle.dump(validation_points, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-		with open(os.path.join(output, 'test_points_', str(current_fold), '.npy'), 'wb') as handle:
+		with open(os.path.join(output, str(current_fold), 'test_points.npy'), 'wb') as handle:
 			pickle.dump(test_points, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 def read_dataset_NCCT_CTA(datapath_NCCT, datapath_CTA, test_ratio=0.15):
@@ -381,7 +381,6 @@ def split_dataset(datapath, labelpath, output_path):
 		pickle.dump(test_points, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 	return training_points, test_points
-
 
 def split_dataset_NCCT_CTA(datapath_NCCT, datapath_CTA, output_path):
 	training_points, test_points = read_dataset_NCCT_CTA(datapath_NCCT, datapath_CTA)
@@ -581,6 +580,107 @@ class DataSet(object):
 	@property
 	def Test(self):
 		return self._Test
+
+class DataSet2(object):
+
+	def __init__(self, training_points_list, test_points_list, validation_points_list, normalize=False, img3d=False):
+		print('Init Dataset...')
+		self.img3d = img3d
+		self._current_fold = 0
+		self._Test = []
+		self._Training = []
+		self._Validation = []
+		for i in range(len(training_points_list)):
+			training_points = training_points_list[i]
+			test_points = test_points_list[i]
+			validation_points = validation_points_list[i]
+
+			# === TEST-SET ===
+			# --- Split and shuffle ---
+			perm = np.arange(int(len(test_points) / 2))
+			np.random.shuffle(perm)
+			test_images0 = np.array([image for image in test_points if test_points[image] == 0])[perm]
+			np.random.shuffle(perm)
+			test_images1 = np.array([image for image in test_points if test_points[image] == 1])[perm]
+
+			test_labels0 = np.array(
+				[np.ndarray((2,), buffer=np.array([1, 0]), dtype=int) for i in range(len(test_images0))])
+			test_labels1 = np.array(
+				[np.ndarray((2,), buffer=np.array([0, 1]), dtype=int) for i in range(len(test_images1))])
+
+			self._Test.append(SubSet(test_images0, test_images1, test_labels0, test_labels1))
+
+			# === TRAINING-SET ===
+			# --- Split and shuffle ---
+			perm = np.arange(len(training_points)/2)
+			np.random.shuffle(perm)
+			training_images0 = np.array([image for image in training_points if training_points[image] == 0])[perm]
+			np.random.shuffle(perm)
+			training_images1 = np.array([image for image in training_points if training_points[image] == 1])[perm]
+
+			training_labels0 = np.array(
+				[np.ndarray((2,), buffer=np.array([1, 0]), dtype=int) for i in range(len(training_images0))])
+			training_labels1 = np.array(
+				[np.ndarray((2,), buffer=np.array([0, 1]), dtype=int) for i in range(len(training_images1))])
+
+			self._Training.append(SubSet(training_images0, training_images1, training_labels0, training_labels1))
+
+			# === VALIDATION-SET ===
+			perm = np.arange(len(validation_points)/2)
+			np.random.shuffle(perm)
+			validation_images0 = np.array([image for image in validation_points if validation_points[image] == 0])[perm]
+			np.random.shuffle(perm)
+			validation_images1 = np.array([image for image in validation_points if validation_points[image] == 1])[perm]
+
+			validation_labels0 = np.array(
+				[np.ndarray((2,), buffer=np.array([1, 0]), dtype=int) for i in range(len(validation_images0))])
+			validation_labels1 = np.array(
+				[np.ndarray((2,), buffer=np.array([0, 1]), dtype=int) for i in range(len(validation_images1))])
+
+			self._Validation.append(SubSet(validation_images0, validation_images1, validation_labels0, validation_labels1))
+
+			print('Creating folds...done.')
+
+			# --- prepare normalization ---
+			if normalize:
+				print('Computing mean...')
+				if not self.img3d:
+					mean = online_flattened_mean(self._Training[i].images)
+					std = online_flattened_std(self._Training[i].images, mean)
+				else:
+					mean = online_flattened_mean_3d(self._Training[i].images)
+#					std = online_flattened_std_3d(self._Training[i].images, mean)
+				print('Computing mean...done.')
+
+				self.Normalization = True
+				self._Training[i].Normalization = True
+				self._Test[i].Normalization = True
+				self._Validation[i].Normalization = True
+				self._Training[i].setNormalizationParameters(mean, std)
+				self._Test[i].setNormalizationParameters(mean, std)
+				self._Validation[i].setNormalizationParameters(mean, std)
+			else:
+				self.Normalization = False
+				self._Training[i].Normalization = False
+				self._Validation[i].Normalization = False
+				self._Test[i].Normalization = False
+
+		print('Init Dataset...done.')
+
+	def next_fold(self):
+		self._current_fold += 1
+
+	@property
+	def Training(self):
+		return self._Training[self._current_fold]
+
+	@property
+	def Validation(self):
+		return self._Validation[self._current_fold]
+
+	@property
+	def Test(self):
+		return self._Test[self._current_fold]
 
 
 class DataSetCifar(object):
