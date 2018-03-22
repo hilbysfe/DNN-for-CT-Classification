@@ -52,7 +52,6 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			with tf.name_scope('alg-parameters'):
 				is_training = tf.placeholder(tf.bool, name='is-training')
 				weight_decay = tf.placeholder(tf.float32, shape=[], name='weight_decay')
-				learning_rate = tf.placeholder(tf.float32, shape=[], name='learning_rate')
 				bnorm_momentum = tf.placeholder(tf.float32, shape=[], name='bnorm_momentum')
 
 			# ====== DEFINE FEED_DICTIONARY ======
@@ -73,35 +72,9 @@ def train_ctnet(FLAGS, NUM_GPUS):
 
 			# ====== MODEL DEFINITION ======
 			print('Defining model...')
-
 			init_sigmas = [float(x) for x in FLAGS.init_sigmas.split(',')]
 			comp_sigmas = [float(x) for x in FLAGS.comp_sigmas.split(',')]
 			thetas = [float(x) for x in FLAGS.thetas.split(',')]
-#			kernels = [int(x) for x in FLAGS.kernels.split(',')]
-#			maps = [int(x) for x in FLAGS.maps.split(',')]
-#			bases = [int(x) for x in FLAGS.bases.split(',')]
-#			strides = [int(x) for x in FLAGS.strides.split(',')]
-
-			#            model = RFNN(
-			#                n_classes=2,
-			#                kernels=kernels,
-			#                maps=maps,
-			#                sigmas=sigmas,
-			#                bases=bases,
-			#                bases_3d=FLAGS.bases3d,
-			#                is_training=is_training,
-			#                batchnorm=FLAGS.batch_normalization
-			#            )
-
-			#            model = CTNET(
-			#                n_classes=2,
-			#                kernels=kernels,
-			#                maps=maps,
-			#                strides=strides,
-			#                pretraining=False,
-			#                is_training = is_training,
-			#                conv3d=FLAGS.bases3d,
-			#                bnorm=FLAGS.batch_normalization)
 
 			model = RFNNDenseNet(
 				growth_rate=FLAGS.growth_rate,
@@ -125,17 +98,11 @@ def train_ctnet(FLAGS, NUM_GPUS):
 				bc_mode=FLAGS.bc_mode,
 				n_classes=2
 			)
-
 			print('Defining model...done.')
 
 			# ====== DEFINE LOSS, ACCURACY TENSORS ======
 			print('Defining necessary OPs...')
-
-			#            opt = tf.train.GradientDescentOptimizer(FLAGS.learning_rate)
-#			opt = tf.train.MomentumOptimizer(
-#				FLAGS.learning_rate, FLAGS.nesterov_momentum, use_nesterov=True)
 			opt = tf.train.AdamOptimizer(FLAGS.learning_rate, beta1=FLAGS.beta1, beta2=FLAGS.beta2, epsilon=FLAGS.epsilon)
-#			opt = tf.contrib.opt.NadamOptimizer(FLAGS.learning_rate, beta1=FLAGS.beta1, beta2=FLAGS.beta2, epsilon=FLAGS.epsilon)
 
 			# === DEFINE QUEUE OPS ===
 			batch_queue = tf.FIFOQueue(
@@ -155,42 +122,21 @@ def train_ctnet(FLAGS, NUM_GPUS):
 		tower_accuracies = []
 		with tf.variable_scope(tf.get_variable_scope()):
 			for i in range(NUM_GPUS):
-
 				x, y = batch_queue.dequeue()
 
 				with tf.device('/gpu:%d' % i):
 					with tf.name_scope('%s_%d' % ('tower', i)) as scope:
 						# ====== INFERENCE ======
-						if FLAGS.pretraining:
-							print('Pre-training model...')
-
-							network_architecture = \
-								{
-									'Conv_kernels': kernels,
-									'Conv_maps': maps
-								}
-							ae = Autoencoder(network_architecture)
-
-							assign_ops, net = ae.load_weights(x, FLAGS.pretrained_weights_path,
-															  FLAGS.pretrained_biases_path, is_training)
-
-							# Calculate predictions
-							logits = model.inference(net)
-
-							print('Pre-training model...done.')
-						else:
-							# Calculate predictions
-							logits = model.inference(x)
-
+						# Calculate predictions
+						logits = model.inference(x)
 						x_entropy, l2 = tower_loss_dense(logits, y)
+
 						l2_loss = l2*weight_decay
 						tf.add_to_collection('losses', l2_loss)
 						tf.add_to_collection('losses', x_entropy)
-
 						with tf.name_scope('Total_Loss'):
 							loss = tf.add_n(tf.get_collection('losses', scope), name='total_loss')
 
-						#						loss = tower_loss(logits, y, scope)
 						accuracy = tower_accuracy(logits, y, scope)
 
 						# Reuse variables for the next tower.
@@ -203,8 +149,6 @@ def train_ctnet(FLAGS, NUM_GPUS):
 						grads = tf.gradients(loss, tf.trainable_variables())
 						grads_and_vars = list(zip(grads, tf.trainable_variables()))
 
-#						grads = opt.compute_gradients(loss)
-
 						# Keep track of the gradients across all towers.
 						tower_grads.append(grads_and_vars)
 						tower_losses.append(loss)
@@ -212,23 +156,19 @@ def train_ctnet(FLAGS, NUM_GPUS):
 						tower_losses_l2.append(l2_loss)
 						tower_accuracies.append(accuracy)
 		with tf.device('/cpu:0'):
-
 			# Calculate the mean of each gradient - synchronization point across towers.
 			avg_grads = average_gradients(tower_grads)
 			avg_loss = tf.reduce_mean(tower_losses, 0)
 			avg_loss_entropy = tf.reduce_mean(tower_losses_entropy, 0)
 			avg_loss_l2 = tf.reduce_mean(tower_losses_l2, 0)
 			avg_accuracy = tf.reduce_mean(tower_accuracies, 0)
-
 			print('Defining necessary OPs...done.')
 
 			# ====== ADD SUMMARIES ======
-
 			# Gradients
 			for grad, var in avg_grads:
 				if grad is not None:
 					summaries.append(tf.summary.histogram(var.op.name + '/gradients', grad))
-
 			# Trainable variables
 			for var in tf.trainable_variables():
 				summaries.append(tf.summary.histogram(var.op.name, var))
@@ -243,28 +183,16 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			# np.save('./Kernels/alphas_0.npy', alphas)
 
 			# ====== UPDATE VARIABLES ======
-
 			print('Defining update OPs...')
-
 			# Apply the gradients to adjust the shared variables.
 			update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 			with tf.control_dependencies(update_ops):
 				train_op = opt.apply_gradients(avg_grads, global_step=global_step)
-
-			# Track the moving averages of all trainable variables.
-#			variable_averages = tf.train.ExponentialMovingAverage(0.9999, global_step)
-#			variables_averages_op = variable_averages.apply(tf.trainable_variables())
-
-			# Group all updates into a single train op.
-#			train_op = tf.group(apply_gradient_op, variables_averages_op)
-
 			print('Defining update OPs...done.')
 
 			# ====== SAVING OPS ======
-
 			# Create a saver.
 			saver = tf.train.Saver(tf.global_variables())
-
 			# Build the summary operation from the last tower summaries.
 			summary_op = tf.summary.merge(summaries)
 
@@ -297,7 +225,6 @@ def train_ctnet(FLAGS, NUM_GPUS):
 					training_steps = int(np.ceil(2 * dataset.Training.num_examples / (NUM_GPUS * FLAGS.batch_size)))
 					validation_steps = int(np.ceil(2 * dataset.Validation.num_examples / (FLAGS.batch_size * NUM_GPUS)))
 					sess.run(tf.global_variables_initializer())
-					lr = FLAGS.learning_rate
 					bnorm_mom = FLAGS.bnorm_mom
 
 					#                    	print([n.name for n in tf.get_default_graph().as_graph_def().node
@@ -333,39 +260,13 @@ def train_ctnet(FLAGS, NUM_GPUS):
 					print("Initializing weights with LSUV...")
 					# Conv layers
 					for l in range(len(model.alphas)):
-#						print(l)
 						var = 0.0
 						t_i = 0
 						while (abs(var - 1.0) >= FLAGS.tol_var or t_i <= FLAGS.t_min) and t_i < FLAGS.t_max:
 							alphas, b_l = sess.run([model.alphas[l], model.conv_act[l]], feed_dict={x: xs[t_i], is_training: False, bnorm_momentum: bnorm_mom})
 							var = np.var(b_l)
-#							print(var)
 							sess.run(model.alphas[l].assign(alphas / np.sqrt(var)))
 							t_i += 1
-#					# FCL layer
-#					for l in range(len(model.weights)):
-#						var = 0.0
-#						t_i = 0
-#						while (abs(var - 1.0) >= FLAGS.tol_var or t_i <= FLAGS.t_min) and t_i < FLAGS.t_max:
-#							weights, b_l = sess.run([model.weights[l], model.fl_act[l]], feed_dict={x: xs[t_i], is_training: False})
-#							var = np.var(b_l)
-#							print(var)
-#							sess.run(model.weights[l].assign(weights / np.sqrt(var)))
-#							t_i += 1
-#
-#					# Bottleneck layers
-#					if FLAGS.bc_mode:
-#						print("bottleneck")
-#						for l in range(len(model.bc_conv_act)):
-#							var = 0.0
-#							t_i = 0
-#							while (abs(var - 1.0) >= FLAGS.tol_var or t_i <= FLAGS.t_min) and t_i < FLAGS.t_max:
-#								w_l, b_l = sess.run([model.bc_weights[l], model.bc_conv_act[l]],
-#													feed_dict={x: xs[t_i], is_training: False})
-#								var = np.var(b_l)
-#								#							print(var)
-#								sess.run(model.bc_weights[l].assign(w_l / np.sqrt(var)))
-#								t_i += 1
 					print("Initializing weights with LSUV...done.")
 
 					print("Initializing weight decay...")
@@ -401,11 +302,11 @@ def train_ctnet(FLAGS, NUM_GPUS):
 							if step == training_steps - 1 and i % FLAGS.print_freq == 0:
 								_, summaries, acc_s, loss_s, l2_loss_value_s, xentropy_loss_value_s \
 									= sess.run([train_op, summary_op, avg_accuracy, avg_loss, avg_loss_l2, avg_loss_entropy],
-											feed_dict={is_training: True, weight_decay: FLAGS.weight_decay, learning_rate: lr, bnorm_momentum: bnorm_mom})
+											feed_dict={is_training: True, weight_decay: FLAGS.weight_decay, bnorm_momentum: bnorm_mom})
 							else:
 								_, acc_s, loss_s, l2_loss_value_s, xentropy_loss_value_s\
 									= sess.run([train_op, avg_accuracy, avg_loss, avg_loss_l2, avg_loss_entropy],
-											feed_dict={is_training: True, weight_decay: FLAGS.weight_decay, learning_rate: lr, bnorm_momentum: bnorm_mom})
+											feed_dict={is_training: True, weight_decay: FLAGS.weight_decay, bnorm_momentum: bnorm_mom})
 
 							assert not np.isnan(loss_s), 'Model diverged with loss = NaN'
 
@@ -421,7 +322,6 @@ def train_ctnet(FLAGS, NUM_GPUS):
 							summary.value.add(tag="Total_Loss", simple_value=avg_loss_i)
 							summary.value.add(tag="X-entropy_Loss", simple_value=avg_xentropy_loss_i)
 							summary.value.add(tag="L2_Loss", simple_value=avg_l2_loss_i)
-							summary.value.add(tag="Learning_rate", simple_value=lr)
 
 							train_writer.add_summary(summaries, i)
 							train_writer.add_summary(summary, i)
@@ -494,7 +394,6 @@ def train_ctnet(FLAGS, NUM_GPUS):
 					summary.value.add(tag="Total_Loss", simple_value=avg_train_total[i])
 					summary.value.add(tag="X-entropy_Loss", simple_value=avg_train_entropy[i])
 					summary.value.add(tag="L2_Loss", simple_value=avg_train_l2[i])
-					summary.value.add(tag="Learning_rate", simple_value=FLAGS.learning_rate)
 
 					avg_train_writer.add_summary(summary, i)
 

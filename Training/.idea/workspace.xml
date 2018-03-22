@@ -234,8 +234,8 @@
           <file leaf-file-name="train_model.py" pinned="false" current-in-tab="true">
             <entry file="file://$PROJECT_DIR$/train_model.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="527">
-                  <caret line="367" column="40" lean-forward="true" selection-start-line="367" selection-start-column="40" selection-end-line="367" selection-end-column="40" />
+                <state relative-caret-position="311">
+                  <caret line="382" column="49" lean-forward="true" selection-start-line="382" selection-start-column="49" selection-end-line="382" selection-end-column="49" />
                   <folding>
                     <element signature="e#1#24#0" expanded="true" />
                   </folding>
@@ -269,8 +269,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>xvalidation_folds</find>
-      <find>next_fold</find>
       <find>dataset</find>
       <find>.weights</find>
       <find>.alphas</find>
@@ -299,6 +297,8 @@
       <find>training_points_list</find>
       <find>utils</find>
       <find>logs</find>
+      <find>learning_rate</find>
+      <find>lr</find>
     </findStrings>
   </component>
   <component name="IdeDocumentHistory">
@@ -1472,8 +1472,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/train_model.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="527">
-          <caret line="367" column="40" lean-forward="true" selection-start-line="367" selection-start-column="40" selection-end-line="367" selection-end-column="40" />
+        <state relative-caret-position="311">
+          <caret line="382" column="49" lean-forward="true" selection-start-line="382" selection-start-column="49" selection-end-line="382" selection-end-column="49" />
           <folding>
             <element signature="e#1#24#0" expanded="true" />
           </folding>
