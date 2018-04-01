@@ -1,5 +1,6 @@
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import numpy as np
 
 def get_experiment_infos(FLAGS):
 	l = [
@@ -41,13 +42,14 @@ def get_kernels(i):
 	return alphas, kernel_transposed
 
 def show_kernels(kernels):
-	f, axarr = plt.subplots(8, 8)
-	f.set_figheight(12)
-	f.set_figwidth(12)
+	k = int(np.sqrt(np.shape(kernels)[-1]))
+	f, axarr = plt.subplots(k, k)
+	f.set_figheight(2*k)
+	f.set_figwidth(2*k)
 	f.subplots_adjust(hspace=0.05, wspace=0.05)
-	for i in range(8):
-		for j in range(8):
-			axarr[j, i].imshow(kernels[i * 3 + j], cmap='gray')
+	for i in range(k):
+		for j in range(k):
+			axarr[j, i].imshow(kernels[:,:,i * k + j], cmap='gray')
 			axarr[j, i].set_axis_off()
 
 def exp_GB(logits, alpha):
@@ -64,7 +66,7 @@ def tower_accuracy(logits, labels, scope):
 		accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 	#        tf.summary.scalar('Accuracy', accuracy)
 
-	return accuracy
+	return accuracy, correct_prediction, softmax
 
 def tower_accuracy_exp(logits, labels, scope):
 	#    softmax = tf.nn.softmax(logits)

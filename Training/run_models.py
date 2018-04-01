@@ -6,6 +6,7 @@ import tensorflow as tf
 import shutil
 from train_cifar import train_cifar
 from train_model import train_ctnet
+from train_model_cnn import train_ctnet_cnn
 
 NUM_GPUS = 1
 
@@ -19,9 +20,9 @@ def initialize_folders():
     """
 	if not tf.gfile.Exists(FLAGS.log_dir):
 		tf.gfile.MakeDirs(FLAGS.log_dir)
-	else:
-		shutil.rmtree(FLAGS.log_dir, ignore_errors=True)
-		tf.gfile.MakeDirs(FLAGS.log_dir)
+#	else:
+#		shutil.rmtree(FLAGS.log_dir, ignore_errors=True)
+#		tf.gfile.MakeDirs(FLAGS.log_dir)
 
 #	if not tf.gfile.Exists(FLAGS.checkpoint_dir):
 #		tf.gfile.MakeDirs(FLAGS.checkpoint_dir)
@@ -45,18 +46,40 @@ def str2bool(s):
 FLAGS = FLAGS()
 
 # Training
-FLAGS.weight_decay = 1e-4
-FLAGS.nesterov_momentum = 0.9
 FLAGS.pretraining = False
+FLAGS.max_epochs = 100
+FLAGS.batch_size = 32
+FLAGS.xvalidation_folds = 4
+FLAGS.trials = 3
+# Adam
+FLAGS.beta1 = 0.9
+FLAGS.beta2 = 0.999
+FLAGS.epsilon = 1e-3
+
+# LSUV
+FLAGS.t_max = 20
+FLAGS.t_min = 10
+FLAGS.tol_var = 0.01
 
 # Data
 #FLAGS.cifar_path = '/home/hilbysfe/dev/DNN-for-CT-Classification/Training/cifar-10-batches-py'
 #FLAGS.cifar_path = r'D:\Adam Hilbert\CT_Classification\code\Training\cifar10\cifar-10-batches-py'
 FLAGS.normalization = True
-FLAGS.datapath = r'D:\Adam Hilbert\Data\data_binaries\MIP2D\affected_side'
+FLAGS.X_dim = 433
+#	FLAGS.X_dim = 336
+#	FLAGS.Z_dim = 252
 
 # General CNN
 FLAGS.bases3d = False
+FLAGS.init_kernel = 11
+FLAGS.comp_kernel = 5
+FLAGS.init_order = 3
+FLAGS.comp_order = 3
+FLAGS.bnorm_mom = 0.7
+FLAGS.renorm = 0.7
+FLAGS.beta_wd = 1e-4
+
+FLAGS.keep_prob = 0.9
 
 # DenseNet
 FLAGS.total_blocks = 4
@@ -65,65 +88,45 @@ FLAGS.model_type = 'DenseNet'
 FLAGS.bc_mode = True
 
 # Logging
-FLAGS.print_freq = 1
+FLAGS.print_freq = 3
 FLAGS.eval_freq = 1
-FLAGS.checkpoint_freq = 0
 
 configs = [
-
-	# Adam
-#	[7, 3, 0.0002, 24, 0.8, 37, 150, 32, 150, 150, '2.0,0.5', 3, 3, "single", 0.7, 0.0, False, 0.95, 0.999, 1e-3, 0.7],
-#	[7, 3, 0.0002, 24, 0.8, 37, 150, 32, 150, 150, '2.0,0.5', 3, 3, "single", 0.7, 0.0, False, 0.95, 0.999, 1e-2, 0.7],
-#	[7, 3, 0.0002, 24, 0.8, 37, 150, 32, 150, 150, '2.0,0.5', 3, 3, "single", 0.7, 0.0, False, 0.95, 0.999, 0.1, 0.7],
-#	[7, 3, 0.0002, 24, 0.8, 37, 150, 32, 150, 150, '2.0,0.5', 3, 3, "single", 0.7, 0.0, False, 0.95, 0.999, 1.0, 0.7],
-#	[7, 3, 0.0002, 24, 0.8, 37, 150, 32, 150, 150, '2.0,0.5', 3, 3, "single", 0.7, 1e-6, False, 0.95, 0.999, 1e-4, 0.7],
-
-	[7, 3, 0.0003, 6, 0.8, 37, 200, 32, 200, 200, '2.0,1.5', '1.0,0.5', 3, 3, "avg", 0.7, False, 0.9, 0.999, 1e-3, 0.7, 1e-4, '30, 30'],
-#	[7, 3, 0.0003, 6, 0.8, 37, 150, 32, 150, 150, '2.0,1.5', '1.0,0.5', 3, 3, "max", 0.7, False, 0.9, 0.999, 1e-3, 0.7, 1e-4, '30, 30'],
-	[7, 3, 0.0003, 8, 0.8, 37, 150, 32, 150, 150, '2.0,1.5', '1.0,0.5', 3, 3, "avg", 0.7, False, 0.9, 0.999, 1e-3, 0.7, 1e-4, '45, 45'],
-	[7, 3, 0.0003, 8, 0.8, 37, 150, 32, 150, 150, '2.0,1.5', '1.0,0.5', 3, 3, "max", 0.7, False, 0.9, 0.999, 1e-3, 0.7, 1e-4, '45, 45'],
+#	SHAllOW
+#	[0.0003, 8, 21, 200, 200, '2.0', '0.5', "single", False, '45, 45', 'nihss_imp'],
+#	[0.0003, 8, 21, 200, 200, '2.0', '0.5', "single", False, '45, 45', 'tici_imp'],
+#	[0.0003, 8, 21, 200, 200, '2.0', '0.5', "single", False, '45, 45', 'mrs'],
+	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'collaterals_imp'],
+	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'nihss_imp'],
+	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'tici_imp'],
+	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'mrs'],
+	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'affected_side'],
+#	DEEP
+#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'affected_side'],
+#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "avg", False, '45, 45', 'collaterals_imp'],
+#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', 'nihss_imp'],
+#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'tici_imp'],
+#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "avg", False, '45, 45', 'mrs'],
+#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "max", False, '45, 45']
 ]
 
+
 for config in configs:
-	FLAGS.init_kernel = config[0]
-	FLAGS.comp_kernel = config[1]
-	FLAGS.learning_rate = config[2]
-	FLAGS.growth_rate = config[3]
-	FLAGS.keep_prob = config[4]
-	FLAGS.depth = config[5]
-	FLAGS.max_epochs = config[6]
-	FLAGS.batch_size = config[7]
-	FLAGS.reduce_lr_epoch_1 = config[8]
-	FLAGS.reduce_lr_epoch_2 = config[9]
-	FLAGS.init_sigmas = config[10]
-	FLAGS.comp_sigmas = config[11]
-	FLAGS.init_order = config[12]
-	FLAGS.comp_order = config[13]
-	FLAGS.rfnn = config[14]
-	FLAGS.bnorm_mom = config[15]
-	FLAGS.bnorm_inc = config[16]
-	FLAGS.beta1 = config[17]
-	FLAGS.beta2 = config[18]
-	FLAGS.epsilon = config[19]
-	FLAGS.renorm = config[20]
-	FLAGS.beta_wd = config[21]
-	FLAGS.thetas = config[22]
-	FLAGS.tol_var = 0.01
-	FLAGS.t_max = 20
-	FLAGS.t_min = 10
-	FLAGS.X_dim = 433
-#	FLAGS.X_dim = 336
-#	FLAGS.Z_dim = 252
+	FLAGS.datapath = r'D:\Adam Hilbert\Data\data_binaries\MIP2D\\'
 
-	FLAGS.xvalidation_folds = 4
+	FLAGS.learning_rate = config[0]
+	FLAGS.growth_rate = config[1]
+	FLAGS.depth = config[2]
+	FLAGS.reduce_lr_epoch_1 = config[3]
+	FLAGS.reduce_lr_epoch_2 = config[4]
+	FLAGS.init_sigmas = config[5]
+	FLAGS.comp_sigmas = config[6]
+	FLAGS.rfnn = config[7]
+	FLAGS.bnorm_inc = config[8]
+	FLAGS.thetas = config[9]
+	FLAGS.datapath = FLAGS.datapath + config[10]
 
-	#    FLAGS.log_dir = '/home/nicolab/DATA/logs/NCCT_CTA/DenseNet/bests/'
-#	FLAGS.log_dir = r'/home/hilbysfe/dev/DNN-for-CT-Classification/Training/logs/MIP2D/standard/' \
-#	FLAGS.log_dir = r'D:\Adam Hilbert\CT_Classification\code\Training\logs\NCCT\standard\\' \
-#	FLAGS.log_dir = r'D:\Adam Hilbert\CT_Classification\code\Training\logs\MIP2D\rfnn\single_scale\Adam\lsuv\\' \
-
-#	TESTING NEW DATASET
-	FLAGS.log_dir = r'E:\logs\MIP2D_affected\rfnn\SO\test\\' \
+	FLAGS.log_dir = r'D:\Experiments\logs\MIP2D_' + config[10] + '\\rfnn\Shallow\\' \
 					+ str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
 					+ str(FLAGS.learning_rate) + '_' \
 					+ str(FLAGS.growth_rate) + '_' \
@@ -140,22 +143,51 @@ for config in configs:
 					+ str(FLAGS.beta1) + '-' + str(FLAGS.beta2) + '-' + str(FLAGS.epsilon) + '_red-' \
 					+ str(FLAGS.reduction) + 'adaptWD-nobeta_' \
 					+ str(FLAGS.thetas)
-#					+ str(FLAGS.beta_wd) + '_' + '-wd' + str(FLAGS.beta_wd) + '_' \
-
-#					+ str(FLAGS.nesterov_momentum) \
-#					+ str(FLAGS.init_order) + '_' \
-#					+ str(FLAGS.comp_order) + '_' \
+	#					+ str(FLAGS.beta_wd) + '_' + '-wd' + str(FLAGS.beta_wd) + '_' \
 	if FLAGS.bnorm_inc:
 		FLAGS.log_dir += '_bnorm_inc' + '-0.75'
-	#    FLAGS.checkpoint_dir = '/home/nicolab/DATA/checkpoints/NCCT_CTA/DenseNet/' \
-#	FLAGS.checkpoint_dir = 'D:\Adam Hilbert\CT_Classification\code\Training\checkpoints\\' \
-#						   + str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
-#						   + str(FLAGS.learning_rate) + '_' \
-#						   + str(FLAGS.growth_rate) + '_' \
-#						   + str(FLAGS.depth) + '_' \
-#						   + str(FLAGS.total_blocks) + '_' \
-#						   + str(FLAGS.keep_prob) + '_' \
-#						   + str(FLAGS.reduction)
+
+	FLAGS.checkpoint_dir = r'D:\Experiments\checkpoints\MIP2D_' + config[10] + '\\rfnn\Shallow\\' \
+						   + str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
+						   + str(FLAGS.learning_rate) + '_' \
+						   + str(FLAGS.growth_rate) + '_' \
+						   + str(FLAGS.depth) + '_' \
+						   + str(FLAGS.total_blocks) + '_' \
+						   + str(FLAGS.keep_prob) + '_' \
+						   + str(FLAGS.batch_size) + '_' \
+						   + str(FLAGS.rfnn) + '_' \
+						   + str(FLAGS.init_sigmas) + str(FLAGS.comp_sigmas) + '_' \
+						   + str(FLAGS.reduce_lr_epoch_1) + '_' \
+						   + str(FLAGS.reduce_lr_epoch_2) + '_' + str(FLAGS.max_epochs) + '_' \
+						   + str(FLAGS.bnorm_mom) \
+						   + str(FLAGS.renorm) + '_' \
+						   + str(FLAGS.beta1) + '-' + str(FLAGS.beta2) + '-' + str(FLAGS.epsilon) + '_red-' \
+						   + str(FLAGS.reduction) + 'adaptWD-nobeta_' \
+						   + str(FLAGS.thetas)
+	#					+ str(FLAGS.beta_wd) + '_' + '-wd' + str(FLAGS.beta_wd) + '_' \
+	if FLAGS.bnorm_inc:
+		FLAGS.checkpoint_dir += '_bnorm_inc' + '-0.75'
+
+	FLAGS.stat_dir = r'D:\Experiments\stats\MIP2D_' + config[10] + '\\rfnn\Shallow\\' \
+					 + str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
+					 + str(FLAGS.learning_rate) + '_' \
+					 + str(FLAGS.growth_rate) + '_' \
+					 + str(FLAGS.depth) + '_' \
+					 + str(FLAGS.total_blocks) + '_' \
+					 + str(FLAGS.keep_prob) + '_' \
+					 + str(FLAGS.batch_size) + '_' \
+					 + str(FLAGS.rfnn) + '_' \
+					 + str(FLAGS.init_sigmas) + str(FLAGS.comp_sigmas) + '_' \
+					 + str(FLAGS.reduce_lr_epoch_1) + '_' \
+					 + str(FLAGS.reduce_lr_epoch_2) + '_' + str(FLAGS.max_epochs) + '_' \
+					 + str(FLAGS.bnorm_mom) \
+					 + str(FLAGS.renorm) + '_' \
+					 + str(FLAGS.beta1) + '-' + str(FLAGS.beta2) + '-' + str(FLAGS.epsilon) + '_red-' \
+					 + str(FLAGS.reduction) + 'adaptWD-nobeta_' \
+					 + str(FLAGS.thetas)
+	#					+ str(FLAGS.beta_wd) + '_' + '-wd' + str(FLAGS.beta_wd) + '_' \
+	if FLAGS.bnorm_inc:
+		FLAGS.stat_dir += '_bnorm_inc' + '-0.75'
 
 	initialize_folders()
 	train_ctnet(FLAGS, NUM_GPUS)

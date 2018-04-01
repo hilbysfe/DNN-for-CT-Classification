@@ -77,7 +77,7 @@ def _rfnn_conv_layer_2d(input, basis, omaps, strides, padding, is_training, bnor
 	return alphas, outputs, kernels
 
 
-def _rfnn_conv_layer_pure_2d(input, basis, omaps, strides=[1, 1, 1, 1], padding='SAME'):
+def _rfnn_conv_layer_pure_2d(input, basis, omaps, is_training, bn_mom, rn_mom, strides=[1, 1, 1, 1], padding='SAME'):
 	with tf.device('/cpu:0'):
 		alphas = tf.get_variable(
 			'alphas',
@@ -88,7 +88,6 @@ def _rfnn_conv_layer_pure_2d(input, basis, omaps, strides=[1, 1, 1, 1], padding=
 		tf.transpose(alphas[:, :, :, None, None]) *
 		tf.transpose(basis[None, None, :, :, :])
 		, axis=2, name='weights')
-
 	output = tf.nn.conv2d(input, kernel, strides=strides, padding=padding)
 
 	#		with tf.variable_scope('sigma%d' % i):
@@ -228,7 +227,7 @@ def _rfnn_conv_layer_pure_2d_scales_max(input, basis, omaps, strides=[1, 1, 1, 1
 	outputs = tf.stack(outputs)
 	output = tf.reduce_max(outputs, reduction_indices=[0])
 
-	return output, alphas
+	return output, alphas, kernels
 
 def _rfnn_conv_layer_pure_2d_scales_avg(input, basis, omaps, strides=[1, 1, 1, 1], padding='SAME'):
 	with tf.device('/cpu:0'):
@@ -256,7 +255,7 @@ def _rfnn_conv_layer_pure_2d_scales_avg(input, basis, omaps, strides=[1, 1, 1, 1
 	outputs = tf.stack(outputs)
 	output = tf.reduce_mean(outputs, reduction_indices=[0])
 
-	return output, alphas
+	return output, alphas, kernels
 
 def _rfnn_conv_layer_pure_2d_scales_learn(input, basis, omaps, strides=[1, 1, 1, 1], padding='SAME'):
 	with tf.device('/cpu:0'):
@@ -303,7 +302,7 @@ def _rfnn_conv_layer_pure_2d_scales_learn(input, basis, omaps, strides=[1, 1, 1,
 	#
 	#			tf.summary.image('filters', kernel_transposed, max_outputs=batch)
 
-	return output, alphas
+	return output, alphas, kernels
 
 def _rfnn_conv_layer_pure_2d_scales_learn_bc(input, basis, omaps, is_training, strides=[1, 1, 1, 1], padding='SAME'):
 	with tf.device('/cpu:0'):
@@ -405,7 +404,7 @@ def _rfnn_conv_layer_pure_2d_SO_max(input, basis, omaps, is_training, bn_mom, rn
 	scales = np.shape(basis)[0]
 	orientations = np.shape(basis)[1]
 
-#	kernels = []
+	kernels = []
 	outputs = []
 	for i in range(scales):
 		for j in range(orientations):
@@ -416,7 +415,7 @@ def _rfnn_conv_layer_pure_2d_SO_max(input, basis, omaps, is_training, bn_mom, rn
 			kernel = kernel[0,0,:,:,:,:]
 			conv = tf.nn.conv2d(input, kernel, strides=strides, padding=padding)
 
-#			kernels.append(kernel)
+			kernels.append(kernel)
 			outputs.append(conv)
 
 	outputs = tf.stack(outputs)
@@ -424,7 +423,13 @@ def _rfnn_conv_layer_pure_2d_SO_max(input, basis, omaps, is_training, bn_mom, rn
 	output = tf.reduce_max(outputs, reduction_indices=[0])
 #	kernel = tf.reduce_max(kernels, reduction_indices=[0])
 
-	return output, alphas
+	kernels = tf.stack(kernels)
+	kernels = tf.transpose(kernels, (1,2,3,4,0))
+	kernels = tf.reshape(kernels, (kernels.get_shape()[0].value,kernels.get_shape()[1].value,
+								   kernels.get_shape()[2].value,
+								   kernels.get_shape()[3].value*kernels.get_shape()[4].value))
+
+	return output, alphas, kernels
 
 def _rfnn_conv_layer_pure_2d_SO_avg(input, basis, omaps, is_training, bn_mom, rn_mom, strides=[1, 1, 1, 1], padding='SAME'):
 	with tf.device('/cpu:0'):
@@ -437,7 +442,7 @@ def _rfnn_conv_layer_pure_2d_SO_avg(input, basis, omaps, is_training, bn_mom, rn
 	scales = np.shape(basis)[0]
 	orientations = np.shape(basis)[1]
 
-#	kernels = []
+	kernels = []
 	outputs = []
 	for i in range(scales):
 		for j in range(orientations):
@@ -448,14 +453,20 @@ def _rfnn_conv_layer_pure_2d_SO_avg(input, basis, omaps, is_training, bn_mom, rn
 			kernel = kernel[0,0,:,:,:,:]
 			conv = tf.nn.conv2d(input, kernel, strides=strides, padding=padding)
 
-#			kernels.append(kernel)
+			kernels.append(kernel)
 			outputs.append(conv)
 
 	outputs = tf.stack(outputs)
 	output = tf.reduce_mean(outputs, reduction_indices=[0])
 #	kernel = tf.reduce_mean(kernels, reduction_indices=[0])
 
-	return output, alphas
+	kernels = tf.stack(kernels)
+	kernels = tf.transpose(kernels, (1,2,3,4,0))
+	kernels = tf.reshape(kernels, (kernels.get_shape()[0].value,kernels.get_shape()[1].value,
+								   kernels.get_shape()[2].value,
+								   kernels.get_shape()[3].value*kernels.get_shape()[4].value))
+
+	return output, alphas, kernels
 
 def _rfnn_conv_layer_pure_2d_SO_learn_sq_bc(input, basis, omaps, is_training, bn_mom, rn_mom, strides=[1, 1, 1, 1], padding='SAME'):
 	with tf.device('/cpu:0'):
@@ -469,6 +480,7 @@ def _rfnn_conv_layer_pure_2d_SO_learn_sq_bc(input, basis, omaps, is_training, bn
 	orientations = np.shape(basis)[1]
 
 	outputs = []
+	kernels = []
 	for i in range(scales):
 		for j in range(orientations):
 			kernel = tf.reduce_sum(
@@ -476,6 +488,8 @@ def _rfnn_conv_layer_pure_2d_SO_learn_sq_bc(input, basis, omaps, is_training, bn
 				, axis=2, name='weights_' + str(i))
 
 			kernel = kernel[0,0,:,:,:,:]
+			kernels.append(kernel)
+
 			conv = tf.nn.conv2d(input, kernel, strides=strides, padding=padding)
 
 			outputs.append(conv)
@@ -512,7 +526,13 @@ def _rfnn_conv_layer_pure_2d_SO_learn_sq_bc(input, basis, omaps, is_training, bn
 	#
 	#			tf.summary.image('filters', kernel_transposed, max_outputs=batch)
 
-	return output, alphas
+	kernels = tf.stack(kernels)
+	kernels = tf.transpose(kernels, (1,2,3,4,0))
+	kernels = tf.reshape(kernels, (kernels.get_shape()[0].value,kernels.get_shape()[1].value,
+								   kernels.get_shape()[2].value,
+								   kernels.get_shape()[3].value*kernels.get_shape()[4].value))
+
+	return output, alphas, kernels
 
 def _rfnn_conv_layer_pure_2d_SO_learn_fl_bc(input, basis, omaps, strides=[1, 1, 1, 1], padding='SAME'):
 	with tf.device('/cpu:0'):
@@ -562,10 +582,8 @@ def _rfnn_conv_layer_pure_2d_SO_learn_fl_bc(input, basis, omaps, strides=[1, 1, 
 
 	return output, alphas, kernel
 
-
-
 # === altered output size, omaps*S*O ===
-def _rfnn_conv_layer_pure_2d_SO_learn_flatten(input, basis, omaps, strides=[1, 1, 1, 1], padding='SAME'):
+def _rfnn_conv_layer_pure_2d_SO_learn_flatten(input, basis, omaps, is_training, bn_mom, rn_mom, strides=[1, 1, 1, 1], padding='SAME'):
 	# flattening all scales and orientation -> output size = omaps*scales*orientations
 	# number of alphas stays omaps
 	with tf.device('/cpu:0'):
@@ -584,7 +602,7 @@ def _rfnn_conv_layer_pure_2d_SO_learn_flatten(input, basis, omaps, strides=[1, 1
 								 kernel.get_shape()[3].value*kernel.get_shape()[4].value*kernel.get_shape()[5].value))
 
 	output = tf.nn.conv2d(input, kernel, strides=strides, padding=padding)
-	print(output.get_shape())
+#	print(output.get_shape())
 	#	print(merged_outputs.get_shape())
 
 	#		with tf.variable_scope('sigma%d' % i):
@@ -873,7 +891,7 @@ def init_basis_hermite_steerable_2D(kernel, sigmas, theta=90.0, order=4):
 																							  g1, axis=1) \
 				+ np.power(np.cos(np.pi / 2.0 - t * angle), 4) * conv(gauss0x, g4, axis=0)
 
-		hermiteBasis[i, :, :, :, :] /= sigma
+		hermiteBasis[i, :, :, :, :] /= np.sqrt(sigma)
 
 	with tf.device('/cpu:0'):
 		return tf.constant(hermiteBasis[:, :, 0:order + 1, :, :], dtype=tf.float32)
@@ -948,7 +966,7 @@ def init_basis_hermite_steerable_full(kernel, sigmas, theta=90.0, order=4):
 			hermiteBasis[i, t, 8, :, :] = \
 				rotate(conv(conv(impulse, g2, axis=1), g2, axis=0), -t * theta, reshape=False)
 
-		hermiteBasis[i, :, :, :, :] /= sigma
+		hermiteBasis[i, :, :, :, :] /= np.sqrt(sigma)
 
 	with tf.device('/cpu:0'):
 		return tf.constant(hermiteBasis[:, :, 0:threshold, :, :], dtype=tf.float32)

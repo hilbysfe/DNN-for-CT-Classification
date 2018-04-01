@@ -107,9 +107,17 @@ def split_datasets(datapath, labelpath, output, label_name='', val_folds=4, val_
 	labels_wb = ox.load_workbook(labelpath)
 	labels_ws = labels_wb['Registrydatabase']
 
+	# USE THIS FOR ALL IAT DEPENDENT LABELS
 	label_dict = {key[0].value: value[0].value
 				  for i, (key, value) in enumerate(zip(labels_ws[followid_attribute], labels_ws[label_attribute]))
-				  if value[0].value is not None and value[0].value is not ''}
+				  if value[0].value is not None and value[0].value is not '' and labels_ws['O' + str(i + 2)].value == 3}
+
+	# USE THIS FOR COLLATERALS AND AFFECTED SIDE
+#	label_dict = {key[0].value: value[0].value
+#				  for i, (key, value) in enumerate(zip(labels_ws[followid_attribute], labels_ws[label_attribute]))
+#				  if value[0].value is not None and value[0].value is not ''}
+
+
 
 	# --- Split regarding classes ---
 	class0_images = [os.path.join(root, name)
@@ -238,6 +246,7 @@ class DataSet(object):
 		self._Test = []
 		self._Training = []
 		self._Validation = []
+		self._folds = len(training_points_list)
 		for i in range(len(training_points_list)):
 			training_points = training_points_list[i]
 			test_points = test_points_list[i]
@@ -317,6 +326,9 @@ class DataSet(object):
 
 	def next_fold(self):
 		self._current_fold += 1
+
+	def reset(self):
+		self._current_fold = 0
 
 	@property
 	def Training(self):
