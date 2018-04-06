@@ -57,25 +57,25 @@ def _conv_layer_pure_2d(input, shape, strides=[1, 1, 1, 1], padding='SAME'):
 
 	conv = tf.nn.conv2d(input, kernel, strides=strides, padding=padding, name='Pre-Activation')
 
-	with tf.variable_scope('/visualization'):
-		# scale weights to [0 1], type is still float
-		kernel_avg = tf.reduce_mean(kernel, axis=2)
-		x_min = tf.reduce_min(kernel_avg)
-		x_max = tf.reduce_max(kernel_avg)
-		kernel_0_to_1 = (kernel_avg - x_min) / (x_max - x_min)
+#	with tf.variable_scope('/visualization'):
+#		# scale weights to [0 1], type is still float
+#		kernel_avg = tf.reduce_mean(kernel, axis=2)
+#		x_min = tf.reduce_min(kernel_avg)
+#		x_max = tf.reduce_max(kernel_avg)
+#		kernel_0_to_1 = (kernel_avg - x_min) / (x_max - x_min)
 
 		# to tf.image_summary format [channels, height, width]
-		kernel_transposed = tf.transpose(kernel_0_to_1, [2, 0, 1])
-		kernel_transposed = tf.expand_dims(kernel_transposed, axis=3)
-		channels = kernel_transposed.get_shape()[0].value
+#		kernel_transposed = tf.transpose(kernel_0_to_1, [2, 0, 1])
+#		kernel_transposed = tf.expand_dims(kernel_transposed, axis=3)
+#		channels = kernel_transposed.get_shape()[0].value
+#
+#		tf.summary.image('filters', kernel_transposed, max_outputs=channels)
+#
+#		conv_transposed = tf.transpose(conv[0], [2, 0, 1])
+#		conv_transposed = tf.expand_dims(conv_transposed, axis=3)
+#		tf.summary.image('activation', conv_transposed, max_outputs=channels)
 
-		tf.summary.image('filters', kernel_transposed, max_outputs=channels)
-
-		conv_transposed = tf.transpose(conv[0], [2, 0, 1])
-		conv_transposed = tf.expand_dims(conv_transposed, axis=3)
-		tf.summary.image('activation', conv_transposed, max_outputs=channels)
-
-		return conv, kernel
+	return conv, kernel
 
 def _conv_layer_2d_with_kernel(input, kernel, strides, padding, is_training, name, bnorm=False):
 	# No bias when BN
@@ -168,7 +168,7 @@ def _conv_layer_pure_3d(input, shape, strides=[1, 1, 1, 1, 1], padding='SAME'):
 		'weights',
 		shape,
 		initializer=tf.contrib.layers.variance_scaling_initializer(),
-		dtype=tf.float32)
+		dtype=tf.float16)
 
 	conv = tf.nn.conv3d(input, kernel, strides=strides, padding=padding, name='Pre-Activation')
 
