@@ -6,6 +6,7 @@ import tensorflow as tf
 import shutil
 from train_cifar import train_cifar
 from train_model import train_ctnet
+from train_model_cnn import train_ctnet_cnn
 
 NUM_GPUS = 1
 
@@ -72,12 +73,13 @@ FLAGS.X_dim = 433
 FLAGS.bases3d = False
 FLAGS.init_kernel = 11
 FLAGS.comp_kernel = 5
-FLAGS.keep_prob = 0.9
 FLAGS.init_order = 3
 FLAGS.comp_order = 3
 FLAGS.bnorm_mom = 0.7
 FLAGS.renorm = 0.7
 FLAGS.beta_wd = 1e-4
+
+FLAGS.keep_prob = 0.9
 
 # DenseNet
 FLAGS.total_blocks = 4
@@ -91,28 +93,34 @@ FLAGS.eval_freq = 1
 
 configs = [
 #	SHAllOW
-#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', 'collaterals_imp'],
-#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', 'nihss_imp'],
-#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', 'tici_imp'],
-#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', 'mrs'],
-#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', 'affected_side']
+#	[0.0003, 8, 21, 200, 200, '2.0', '0.5', "single", False, '45, 45', 'nihss_imp'],
+#	[0.0003, 8, 21, 200, 200, '2.0', '0.5', "single", False, '45, 45', 'tici_imp'],
+#	[0.0003, 8, 21, 200, 200, '2.0', '0.5', "single", False, '45, 45', 'mrs'],
+	[0.0003, 5, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'collaterals_imp'],
+	[0.0003, 5, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'nihss_imp'],
+	[0.0003, 5, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'tici_imp'],
+	[0.0003, 5, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'mrs']
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'affected_side'],
 
+#	[0.0003, 5, 21, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'affected_side'],
 #	[0.0003, 5, 21, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'nihss_imp'],
-	[0.0003, 5, 21, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'tici_imp'],
-	[0.0003, 5, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'affected_side']
+#	[0.0003, 5, 21, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'tici_imp'],
+#	[0.0003, 5, 21, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'mrs']
 
 #	DEEP
-#	[0.0003, 8, 37, 200, 200, '2.0', '0.5', "single", False, '45, 45', 'collaterals_imp'],
-#	[0.0003, 8, 37, 200, 200, '2.0', '0.5', "single", False, '45, 45', 'nihss_imp'],
-#	[0.0003, 8, 37, 200, 200, '2.0', '0.5', "single", False, '45, 45', 'tici_imp'],
-#	[0.0003, 8, 37, 200, 200, '2.0', '0.5', "single", False, '45, 45', 'mrs'],
-#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45'],
-#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "avg", False, '45, 45'],
+#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'affected_side'],
+#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "avg", False, '45, 45', 'collaterals_imp'],
+#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', 'nihss_imp'],
+#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'tici_imp'],
+#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "avg", False, '45, 45', 'mrs'],
 #	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "max", False, '45, 45']
 ]
 
 
-for config in configs:
+for i, config in enumerate(configs):
+	if i == 1:
+		FLAGS.max_epochs = 100
+
 	FLAGS.datapath = r'D:\Adam Hilbert\Data\data_binaries\MIP2D\\'
 
 	FLAGS.learning_rate = config[0]
@@ -127,7 +135,7 @@ for config in configs:
 	FLAGS.thetas = config[9]
 	FLAGS.datapath = FLAGS.datapath + config[10]
 
-	FLAGS.log_dir = r'D:\Experiments\logs\MIP2D_' + config[10] + '\\cnn\Shallow\\' \
+	FLAGS.log_dir = r'D:\Experiments\logs\MIP2D_' + config[10] + '\\rfnn\Shallow\\' \
 					+ str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
 					+ str(FLAGS.learning_rate) + '_' \
 					+ str(FLAGS.growth_rate) + '_' \
@@ -148,7 +156,7 @@ for config in configs:
 	if FLAGS.bnorm_inc:
 		FLAGS.log_dir += '_bnorm_inc' + '-0.75'
 
-	FLAGS.checkpoint_dir = r'D:\Experiments\checkpoints\MIP2D_' + config[10] + '\\cnn\Shallow\\' \
+	FLAGS.checkpoint_dir = r'D:\Experiments\checkpoints\MIP2D_' + config[10] + '\\rfnn\Shallow\\' \
 						   + str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
 						   + str(FLAGS.learning_rate) + '_' \
 						   + str(FLAGS.growth_rate) + '_' \
@@ -169,7 +177,7 @@ for config in configs:
 	if FLAGS.bnorm_inc:
 		FLAGS.checkpoint_dir += '_bnorm_inc' + '-0.75'
 
-	FLAGS.stat_dir = r'D:\Experiments\stats\MIP2D_' + config[10] + '\\cnn\Shallow\\' \
+	FLAGS.stat_dir = r'D:\Experiments\stats\MIP2D_' + config[10] + '\\rfnn\Shallow\\' \
 					 + str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
 					 + str(FLAGS.learning_rate) + '_' \
 					 + str(FLAGS.growth_rate) + '_' \

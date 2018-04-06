@@ -8,11 +8,11 @@ import pickle
 import tensorflow as tf
 
 # CTA / MIP
-MIN_BOUND = 50.0
-MAX_BOUND = 300.0
+#MIN_BOUND = 50.0
+#MAX_BOUND = 300.0
 # NCCT
-#MIN_BOUND = 0.0
-#MAX_BOUND = 100.0
+MIN_BOUND = 0.0
+MAX_BOUND = 100.0
 
 
 def online_flattened_mean(files):
@@ -90,12 +90,15 @@ def split_datasets(datapath, labelpath, output, label_name='', val_folds=4, val_
 		'tici_imp': 'I2:I1489',
 		'nihss': 'K2:K1489',
 		'nihss_imp': 'M2:M1489',
-		'mrs': 'N2:N1489'
+		'mrs': 'N2:N1489',
+		'aspects': 'R2:R1489',
+		'aspects_imp': 'S2:S1489'
 	}
 
 	if 'affected' in labelpath:
 		followid_attribute = 'A1:A1527'
 		label_attribute = 'B1:B1527'
+		label_name = "affected_side"
 	else:
 		followid_attribute = 'A2:A1489'
 		label_attribute = attribute_dict[label_name]

@@ -65,9 +65,9 @@ FLAGS.tol_var = 0.01
 #FLAGS.cifar_path = '/home/hilbysfe/dev/DNN-for-CT-Classification/Training/cifar-10-batches-py'
 #FLAGS.cifar_path = r'D:\Adam Hilbert\CT_Classification\code\Training\cifar10\cifar-10-batches-py'
 FLAGS.normalization = True
-FLAGS.X_dim = 433
-#	FLAGS.X_dim = 336
-#	FLAGS.Z_dim = 252
+# FLAGS.X_dim = 433
+FLAGS.X_dim = 336
+FLAGS.Z_dim = 252
 
 # General CNN
 FLAGS.bases3d = False
@@ -93,26 +93,13 @@ FLAGS.eval_freq = 1
 
 configs = [
 #	SHAllOW
-#	[0.0003, 8, 21, 200, 200, '2.0', '0.5', "single", False, '45, 45', 'nihss_imp'],
-#	[0.0003, 8, 21, 200, 200, '2.0', '0.5', "single", False, '45, 45', 'tici_imp'],
-#	[0.0003, 8, 21, 200, 200, '2.0', '0.5', "single", False, '45, 45', 'mrs'],
-	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'collaterals_imp'],
-	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'nihss_imp'],
-	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'tici_imp'],
-	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'mrs'],
-	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'affected_side'],
-#	DEEP
-#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'affected_side'],
-#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "avg", False, '45, 45', 'collaterals_imp'],
-#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', 'nihss_imp'],
-#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'tici_imp'],
-#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "avg", False, '45, 45', 'mrs'],
-#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "max", False, '45, 45']
+	[0.0003, 4, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '30, 30', 'affected_side']
 ]
 
 
-for config in configs:
-	FLAGS.datapath = r'D:\Adam Hilbert\Data\data_binaries\MIP2D\\'
+for i, config in enumerate(configs):
+
+	FLAGS.datapath = r'D:\Adam Hilbert\Data\data_binaries\NCCT\\'
 
 	FLAGS.learning_rate = config[0]
 	FLAGS.growth_rate = config[1]
@@ -126,7 +113,7 @@ for config in configs:
 	FLAGS.thetas = config[9]
 	FLAGS.datapath = FLAGS.datapath + config[10]
 
-	FLAGS.log_dir = r'D:\Experiments\logs\MIP2D_' + config[10] + '\\rfnn\Shallow\\' \
+	FLAGS.log_dir = r'D:\Experiments\logs\NCCT_' + config[10] + '\\rfnn\Shallow\\' \
 					+ str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
 					+ str(FLAGS.learning_rate) + '_' \
 					+ str(FLAGS.growth_rate) + '_' \

@@ -1,17 +1,35 @@
 import numpy as np
 import tensorflow as tf
 
+from Utils.rfnn_utils import init_basis_hermite_3D
+from Utils.rfnn_utils import init_basis_hermite_3D_steerable
+
+# single scale/orientation
+from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d
+
+
+# multi-scale/orientation keeping output
+from Utils.rfnn_utils import _rfnn_conv_layer_pure_3d
+from Utils.rfnn_utils import _rfnn_conv_layer_pure_3d_SO_learn_sq_bc
+
 from Utils.cnn_utils import _conv_layer_pure_3d
 
 TF_VERSION = float('.'.join(tf.__version__.split('.')[:2]))
 
-class DenseNet3d(object):
+class RFNNDenseNet3D(object):
 	def __init__(self, growth_rate, depth,
 				 total_blocks, keep_prob,
 				 model_type,
 				 is_training,
 				 init_kernel,
 				 comp_kernel,
+				 init_sigmas,
+				 comp_sigmas,
+				 init_order,
+				 comp_order,
+				 thetas,
+				 phis,
+				 rfnn,
 				 bnorm_momentum,
 				 renorm=0.7,
 				 reduction=1.0,
@@ -24,8 +42,8 @@ class DenseNet3d(object):
 		self.kernels = []
 		self.alphas = []
 		self.conv_act = []
-		#		self.bc_conv_act = []
-		#		self.bc_weights = []
+#		self.bc_conv_act = []
+#		self.bc_weights = []
 		self.weights = []
 		self.fl_act = []
 		self.bnorm_momentum = bnorm_momentum
@@ -54,6 +72,19 @@ class DenseNet3d(object):
 
 		self.initial_kernel = init_kernel
 		self.comp_kernel = comp_kernel
+		self.init_sigmas = init_sigmas
+		self.comp_sigmas = comp_sigmas
+		self.thetas = thetas
+		self.phis = phis
+
+		self.hermit_initial = init_basis_hermite_3D_steerable(self.initial_kernel, self.init_sigmas, theta=self.thetas[0], phi=self.phis[0], order=init_order) \
+			if rfnn is not "single" else init_basis_hermite_3D(self.initial_kernel, self.init_sigmas[0], init_order)
+		self.hermit_composite = init_basis_hermite_3D_steerable(self.comp_kernel, self.comp_sigmas, theta=self.thetas[1], phi=self.phis[1], order=comp_order) \
+			if rfnn is not "single" else init_basis_hermite_3D(self.comp_kernel, self.comp_sigmas[0], comp_order)
+
+		self.rfnn_layer = \
+			_rfnn_conv_layer_pure_3d_SO_learn_sq_bc if rfnn=="learn_sq" else \
+			_rfnn_conv_layer_pure_3d
 
 		if not bc_mode:
 			print("Build %s model with %d blocks, "
@@ -74,7 +105,6 @@ class DenseNet3d(object):
 		total_parameters = 0
 		for variable in tf.trainable_variables():
 			shape = variable.get_shape()
-#			print(variable.name + '-' + str(shape))
 			variable_parametes = 1
 			for dim in shape:
 				variable_parametes *= dim.value
@@ -98,14 +128,13 @@ class DenseNet3d(object):
 			output = tf.nn.relu(_input)
 			# convolution
 			if kernel_size == 1:
-				output, weights = _conv_layer_pure_3d(output, shape=[kernel_size, kernel_size, kernel_size,
-																 int(output.get_shape()[-1]), out_features])
-			#				self.bc_weights.append(weights)
-			#				self.bc_conv_act.append(output)
+				output, weights = _conv_layer_pure_3d(output, shape=[1, 1, 1, output.get_shape()[-1].value, out_features], padding='VALID')
+#				self.bc_weights.append(weights)
+#				self.bc_conv_act.append(output)
 			else:
-				output, kernel = _conv_layer_pure_3d(output, shape=[kernel_size, kernel_size, kernel_size,
-																 int(output.get_shape()[-1]), out_features])
-				#				self.kernels.append(kernel)
+				output, alphas, _ = self.rfnn_layer(output, self.hermit_composite, out_features)
+#				self.kernels.append(kernel)
+				self.alphas.append(alphas)
 				self.conv_act.append(output)
 			# dropout(in case of training and in case it is no 1.0)
 			output = self.dropout(output)
@@ -119,8 +148,9 @@ class DenseNet3d(object):
 			output = tf.nn.relu(_input)
 			inter_features = out_features * 2
 			# 1x1 convolution
-			output, weights = _conv_layer_pure_3d(output, shape=[1, 1, 1, int(output.get_shape()[-1]), inter_features],
-												  padding='VALID')
+			output, weights = _conv_layer_pure_3d(output, shape=[1, 1, 1, output.get_shape()[-1].value, inter_features], padding='VALID')
+#			self.bc_conv_act.append(output)
+#			self.bc_weights.append(weights)
 		output = self.dropout(output)
 		return output
 
@@ -174,7 +204,7 @@ class DenseNet3d(object):
 		- FC layer multiplication
 		"""
 		# BN
-		#		output = self.batch_norm(_input)
+#		output = self.batch_norm(_input)
 		# ReLU
 		output = tf.nn.relu(_input)
 		# average pooling
@@ -182,13 +212,14 @@ class DenseNet3d(object):
 							int(output.get_shape()[3].value), 1]
 		last_pool_stride = [1, int(output.get_shape()[1].value), int(output.get_shape()[2]) * self.avgpool_stride_ratio,
 							int(output.get_shape()[3].value), 1]
-		output = tf.cast(tf.nn.avg_pool3d(tf.cast(output, tf.float32), last_pool_kernel, last_pool_stride, 'VALID'),
-						 tf.float16)
+		output = tf.cast(tf.nn.avg_pool3d(tf.cast(output, tf.float32), last_pool_kernel, last_pool_stride, 'VALID'), tf.float16)
+		print(output.get_shape())
 		# FC
 		features_total = int(output.get_shape()[-1]) * int(output.get_shape()[-2]) * int(output.get_shape()[-3])
 		output = tf.reshape(output, [-1, features_total])
-		W = self.weight_variable_xavier(
+		W = self.weight_variable_msra(
 			[features_total, self.n_classes], name='W')
+		self.weights.append(W)
 		bias = self.bias_variable([self.n_classes])
 		logits = tf.matmul(output, W) + bias
 		self.fl_act.append(logits)
@@ -200,13 +231,13 @@ class DenseNet3d(object):
 		strides = [1, s, s, s, 1]
 		padding = 'VALID'
 		output = tf.cast(tf.nn.avg_pool3d(tf.cast(_input, tf.float32), ksize, strides, padding), tf.float16)
-
 		return output
 
 	def dropout(self, _input):
 		if self.keep_prob < 1:
 			output = tf.cond(
 				self.is_training,
+#				lambda: tf.cast(tf.nn.dropout(tf.cast(_input, dtype=tf.float16), self.keep_prob), dtype=tf.float32),
 				lambda: tf.nn.dropout(_input, self.keep_prob),
 				lambda: _input
 			)
@@ -225,12 +256,10 @@ class DenseNet3d(object):
 		return tf.get_variable(
 			name,
 			shape=shape,
-			initializer=tf.contrib.layers.xavier_initializer(),
-			dtype=tf.float16)
+			initializer=tf.contrib.layers.xavier_initializer())
 
 	def bias_variable(self, shape, name='bias'):
-		initial = tf.constant(0.0, shape=shape,
-			dtype=tf.float16)
+		initial = tf.constant(0.0, shape=shape, dtype=tf.float16)
 		return tf.get_variable(name, initializer=initial, dtype=tf.float16)
 
 	def inference(self, X):
@@ -238,13 +267,10 @@ class DenseNet3d(object):
 		layers_per_block = self.layers_per_block
 		# first - initial 3 x 3 conv to first_output_features
 		with tf.variable_scope("Initial_convolution"):
-			output, weights = _conv_layer_pure_3d(
-				X,
-				shape=[self.initial_kernel, self.initial_kernel, self.initial_kernel, int(X.get_shape()[-1]),
-					   self.first_output_features],
-				strides=[1, 2, 2, 2, 1])
+			output, alphas, kernel = self.rfnn_layer(X, self.hermit_initial, self.first_output_features, strides=[1,2,2,2,1])
 			print(output.get_shape())
-			self.kernels.append(weights)
+			self.kernels.append(kernel)
+			self.alphas.append(alphas)
 			self.conv_act.append(output)
 		with tf.variable_scope("Initial_pooling"):
 			output = tf.cast(tf.nn.max_pool3d(tf.cast(output, tf.float32), ksize=[1, 3, 3, 3, 1], strides=[1, 2, 2, 2, 1], padding='VALID'), tf.float16)

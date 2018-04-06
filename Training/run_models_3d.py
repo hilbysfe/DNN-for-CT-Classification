@@ -5,7 +5,7 @@ from __future__ import print_function
 import tensorflow as tf
 import shutil
 from train_cifar import train_cifar
-from train_model_cnn import train_ctnet_cnn
+from train_model import train_ctnet
 
 NUM_GPUS = 1
 
@@ -47,7 +47,6 @@ FLAGS = FLAGS()
 # Training
 FLAGS.pretraining = False
 FLAGS.max_epochs = 100
-FLAGS.batch_size = 32
 FLAGS.xvalidation_folds = 4
 FLAGS.trials = 3
 # Adam
@@ -63,16 +62,16 @@ FLAGS.tol_var = 0.01
 # Data
 #FLAGS.cifar_path = '/home/hilbysfe/dev/DNN-for-CT-Classification/Training/cifar-10-batches-py'
 #FLAGS.cifar_path = r'D:\Adam Hilbert\CT_Classification\code\Training\cifar10\cifar-10-batches-py'
-FLAGS.normalization = True
-FLAGS.X_dim = 433
-#	FLAGS.X_dim = 336
-#	FLAGS.Z_dim = 252
+FLAGS.normalization = False
+# FLAGS.X_dim = 433
+FLAGS.X_dim = 336
+FLAGS.Z_dim = 252
 
 # General CNN
-FLAGS.bases3d = False
+FLAGS.bases3d = True
 FLAGS.init_kernel = 11
 FLAGS.comp_kernel = 5
-FLAGS.keep_prob = 0.8
+FLAGS.keep_prob = 0.9
 FLAGS.init_order = 3
 FLAGS.comp_order = 3
 FLAGS.bnorm_mom = 0.7
@@ -81,9 +80,9 @@ FLAGS.beta_wd = 1e-4
 
 # DenseNet
 FLAGS.total_blocks = 4
-FLAGS.reduction = 0.5
+FLAGS.reduction = 1.0
 FLAGS.model_type = 'DenseNet'
-FLAGS.bc_mode = True
+FLAGS.bc_mode = False
 
 # Logging
 FLAGS.print_freq = 3
@@ -91,23 +90,40 @@ FLAGS.eval_freq = 1
 
 configs = [
 #	SHAllOW
-#	[0.0003, 8, 21, 200, 200, '2.0', '0.5', "cnn", False, '45, 45', 'affected_side'],
-	[0.0003, 8, 21, 200, 200, '2.0', '0.5', "cnn", False, '45, 45', 'collaterals_imp'],
-	[0.0003, 8, 21, 200, 200, '2.0', '0.5', "cnn", False, '45, 45', 'nihss_imp'],
-	[0.0003, 8, 21, 200, 200, '2.0', '0.5', "cnn", False, '45, 45', 'tici_imp'],
-	[0.0003, 8, 21, 200, 200, '2.0', '0.5', "cnn", False, '45, 45', 'mrs'],
+#	[0.0003, 8, 13, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'affected_side'],
+#	[0.0003, 8, 13, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'aspects_imp'],
+#	[0.0003, 8, 13, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'tici_imp'],
+#	[0.0003, 8, 13, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'mrs'],
+#
+#	[0.0003, 8, 13, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', 'affected_side'],
+#	[0.0003, 8, 13, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', 'aspects_imp'],
+#	[0.0003, 8, 13, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', 'tici_imp'],
+#	[0.0003, 8, 13, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', 'mrs'],
+#
+#	[0.0003, 8, 13, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'affected_side'],
+#	[0.0003, 8, 13, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'aspects_imp'],
+#	[0.0003, 8, 13, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'tici_imp'],
+#	[0.0003, 8, 13, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'mrs'],
 
+	[0.0003, 4, 13, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', '45, 45', 'affected_side', 16],
+	[0.0003, 4, 13, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', '45, 45', 'aspects_imp', 16],
+	[0.0003, 4, 13, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', '45, 45', 'tici_imp', 16],
+	[0.0003, 4, 13, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', '45, 45', 'mrs', 16],
 
-#	DEEP
-#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45'],
-#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45'],
-#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "avg", False, '45, 45'],
-#	[0.0003, 8, 37, 200, 200, '2.0,1.5', '1.0,0.5', "max", False, '45, 45']
+	[0.0003, 4, 13, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', '45, 45', 'affected_side', 16],
+	[0.0003, 4, 13, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', '45, 45', 'aspects_imp', 16],
+	[0.0003, 4, 13, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', '45, 45', 'tici_imp', 16],
+	[0.0003, 4, 13, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', '45, 45', 'mrs', 16],
+
+	[0.0003, 4, 13, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', '45, 45', 'affected_side', 2],
+	[0.0003, 4, 13, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', '45, 45', 'aspects_imp', 2],
+	[0.0003, 4, 13, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', '45, 45', 'tici_imp', 2],
+	[0.0003, 4, 13, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', '45, 45', 'mrs', 2]
 ]
 
 
 for config in configs:
-	FLAGS.datapath = r'D:\Adam Hilbert\Data\data_binaries\MIP2D\\'
+	FLAGS.datapath = r'D:\Adam Hilbert\Data\data_binaries\NCCT\\'
 
 	FLAGS.learning_rate = config[0]
 	FLAGS.growth_rate = config[1]
@@ -119,9 +135,11 @@ for config in configs:
 	FLAGS.rfnn = config[7]
 	FLAGS.bnorm_inc = config[8]
 	FLAGS.thetas = config[9]
-	FLAGS.datapath = FLAGS.datapath + config[10]
+	FLAGS.phis = config[10]
+	FLAGS.datapath = FLAGS.datapath + config[11]
+	FLAGS.batch_size = config[12]
 
-	FLAGS.log_dir = r'D:\Experiments\logs\MIP2D_' + config[10] + '\\cnn\Shallow\\' \
+	FLAGS.log_dir = r'D:\Experiments\logs\NCCT_' + config[11] + '\\cnn\\' \
 					+ str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
 					+ str(FLAGS.learning_rate) + '_' \
 					+ str(FLAGS.growth_rate) + '_' \
@@ -142,7 +160,7 @@ for config in configs:
 	if FLAGS.bnorm_inc:
 		FLAGS.log_dir += '_bnorm_inc' + '-0.75'
 
-	FLAGS.checkpoint_dir = r'D:\Experiments\checkpoints\MIP2D_' + config[10] + '\\cnn\Shallow\\' \
+	FLAGS.checkpoint_dir = r'D:\Experiments\checkpoints\NCCT_' + config[11] + '\\cnn\\' \
 					   + str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
 					   + str(FLAGS.learning_rate) + '_' \
 					   + str(FLAGS.growth_rate) + '_' \
@@ -163,7 +181,7 @@ for config in configs:
 	if FLAGS.bnorm_inc:
 		FLAGS.checkpoint_dir += '_bnorm_inc' + '-0.75'
 
-	FLAGS.stat_dir = r'D:\Experiments\stats\MIP2D_' + config[10] + '\\cnn\Shallow\\' \
+	FLAGS.stat_dir = r'D:\Experiments\stats\NCCT_' + config[11] + '\\cnn\\' \
 					   + str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
 					   + str(FLAGS.learning_rate) + '_' \
 					   + str(FLAGS.growth_rate) + '_' \
@@ -186,5 +204,5 @@ for config in configs:
 
 
 	initialize_folders()
-	train_ctnet_cnn(FLAGS, NUM_GPUS)
+	train_ctnet(FLAGS, NUM_GPUS)
 #	train_cifar(FLAGS, NUM_GPUS)

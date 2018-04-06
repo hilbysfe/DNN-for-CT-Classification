@@ -3,11 +3,6 @@ import tensorflow as tf
 
 from Utils.cnn_utils import _conv_layer_pure_2d
 
-import os
-import time
-import shutil
-from datetime import timedelta
-
 TF_VERSION = float('.'.join(tf.__version__.split('.')[:2]))
 
 
@@ -274,7 +269,6 @@ class DenseNet(object):
 		self._count_trainable_params()
 
 		return logits
-
 
 class DenseNetCifar(object):
 	def __init__(self, growth_rate, depth,

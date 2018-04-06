@@ -63,7 +63,7 @@ def tower_accuracy(logits, labels, scope):
 	with tf.name_scope('correct_prediction'):
 		correct_prediction = tf.equal(tf.argmax(softmax, 1), tf.argmax(labels, 1))
 	with tf.name_scope('Accuracy'):
-		accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+		accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float16))
 	#        tf.summary.scalar('Accuracy', accuracy)
 
 	return accuracy, correct_prediction, softmax
@@ -92,7 +92,7 @@ def tower_loss(logits, labels, scope):
 
 def tower_loss_dense(logits, labels):
 	with tf.name_scope('Cross_Entropy_Loss'):
-		cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels,
+		cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=labels,
 																name='cross_entropy_per_example')
 		cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
 

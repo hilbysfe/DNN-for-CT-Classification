@@ -4,6 +4,7 @@ from Utils import utils_final
 from Models.densenet import DenseNet
 from Models.densenet3d import DenseNet3d
 from Models.RFNN_densenet import RFNNDenseNet
+from Models.RFNN_densenet3d import RFNNDenseNet3D
 
 from Utils.training_utils import average_gradients
 from Utils.training_utils import tower_loss_dense
@@ -45,15 +46,15 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			# ====== DEFINE SPACEHOLDERS ======
 			with tf.name_scope('input'):
 				if FLAGS.bases3d:
-					image_batch = tf.placeholder(tf.float32, [NUM_GPUS, FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, FLAGS.Z_dim, 1],
+					image_batch = tf.placeholder(tf.float16, [NUM_GPUS, FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, FLAGS.Z_dim, 1],
 												 name='x-input')
 				else:
-					image_batch = tf.placeholder(tf.float32, [NUM_GPUS, FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, 1], name='x-input')
-				label_batch = tf.placeholder(tf.float32, [NUM_GPUS, FLAGS.batch_size, 2], name='y-input')
+					image_batch = tf.placeholder(tf.float16, [NUM_GPUS, FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, 1], name='x-input')
+				label_batch = tf.placeholder(tf.float16, [NUM_GPUS, FLAGS.batch_size, 2], name='y-input')
 			with tf.name_scope('alg-parameters'):
 				is_training = tf.placeholder(tf.bool, name='is-training')
-				weight_decay = tf.placeholder(tf.float32, shape=[], name='weight_decay')
-				bnorm_momentum = tf.placeholder(tf.float32, shape=[], name='bnorm_momentum')
+				weight_decay = tf.placeholder(tf.float16, shape=[], name='weight_decay')
+				bnorm_momentum = tf.placeholder(tf.float16, shape=[], name='bnorm_momentum')
 
 			# ====== DEFINE FEED_DICTIONARY ======
 			def feed_dict(flag):
@@ -81,47 +82,87 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			init_sigmas = [float(x) for x in FLAGS.init_sigmas.split(',')]
 			comp_sigmas = [float(x) for x in FLAGS.comp_sigmas.split(',')]
 			thetas = [float(x) for x in FLAGS.thetas.split(',')]
+			phis = [float(x) for x in FLAGS.phis.split(',')]
 
 			if FLAGS.rfnn == "cnn":
-				model = DenseNet(
-					growth_rate=FLAGS.growth_rate,
-					depth=FLAGS.depth,
-					total_blocks=FLAGS.total_blocks,
-					keep_prob=FLAGS.keep_prob,
-					model_type=FLAGS.model_type,
-					is_training=is_training,
-					init_kernel=FLAGS.init_kernel,
-					comp_kernel=FLAGS.comp_kernel,
-					bnorm_momentum=FLAGS.bnorm_mom,
-					renorm=FLAGS.renorm,
-					beta_wd=FLAGS.beta_wd,
-					reduction=FLAGS.reduction,
-					bc_mode=FLAGS.bc_mode,
-					n_classes=2
-				)
+				if FLAGS.bases3d:
+					model = DenseNet3d(
+						growth_rate=FLAGS.growth_rate,
+						depth=FLAGS.depth,
+						total_blocks=FLAGS.total_blocks,
+						keep_prob=FLAGS.keep_prob,
+						model_type=FLAGS.model_type,
+						is_training=is_training,
+						init_kernel=FLAGS.init_kernel,
+						comp_kernel=FLAGS.comp_kernel,
+						bnorm_momentum=FLAGS.bnorm_mom,
+						renorm=FLAGS.renorm,
+						beta_wd=FLAGS.beta_wd,
+						reduction=FLAGS.reduction,
+						bc_mode=FLAGS.bc_mode,
+						n_classes=2)
+				else:
+					model = DenseNet(
+						growth_rate=FLAGS.growth_rate,
+						depth=FLAGS.depth,
+						total_blocks=FLAGS.total_blocks,
+						keep_prob=FLAGS.keep_prob,
+						model_type=FLAGS.model_type,
+						is_training=is_training,
+						init_kernel=FLAGS.init_kernel,
+						comp_kernel=FLAGS.comp_kernel,
+						bnorm_momentum=FLAGS.bnorm_mom,
+						renorm=FLAGS.renorm,
+						beta_wd=FLAGS.beta_wd,
+						reduction=FLAGS.reduction,
+						bc_mode=FLAGS.bc_mode,
+						n_classes=2)
 			else:
-				model = RFNNDenseNet(
-					growth_rate=FLAGS.growth_rate,
-					depth=FLAGS.depth,
-					total_blocks=FLAGS.total_blocks,
-					keep_prob=FLAGS.keep_prob,
-					model_type=FLAGS.model_type,
-					is_training=is_training,
-					init_kernel=FLAGS.init_kernel,
-					comp_kernel=FLAGS.comp_kernel,
-					init_sigmas=init_sigmas,
-					comp_sigmas=comp_sigmas,
-					init_order=FLAGS.init_order,
-					comp_order=FLAGS.comp_order,
-					thetas=thetas,
-					rfnn=FLAGS.rfnn,
-					bnorm_momentum=FLAGS.bnorm_mom,
-					renorm=FLAGS.renorm,
-					beta_wd=FLAGS.beta_wd,
-					reduction=FLAGS.reduction,
-					bc_mode=FLAGS.bc_mode,
-					n_classes=2
-				)
+				if FLAGS.bases3d:
+					model = RFNNDenseNet3D(
+						growth_rate=FLAGS.growth_rate,
+						depth=FLAGS.depth,
+						total_blocks=FLAGS.total_blocks,
+						keep_prob=FLAGS.keep_prob,
+						model_type=FLAGS.model_type,
+						is_training=is_training,
+						init_kernel=FLAGS.init_kernel,
+						comp_kernel=FLAGS.comp_kernel,
+						init_sigmas=init_sigmas,
+						comp_sigmas=comp_sigmas,
+						init_order=FLAGS.init_order,
+						comp_order=FLAGS.comp_order,
+						thetas=thetas,
+						phis=phis,
+						rfnn=FLAGS.rfnn,
+						bnorm_momentum=FLAGS.bnorm_mom,
+						renorm=FLAGS.renorm,
+						beta_wd=FLAGS.beta_wd,
+						reduction=FLAGS.reduction,
+						bc_mode=FLAGS.bc_mode,
+						n_classes=2)
+				else:
+					model = RFNNDenseNet(
+						growth_rate=FLAGS.growth_rate,
+						depth=FLAGS.depth,
+						total_blocks=FLAGS.total_blocks,
+						keep_prob=FLAGS.keep_prob,
+						model_type=FLAGS.model_type,
+						is_training=is_training,
+						init_kernel=FLAGS.init_kernel,
+						comp_kernel=FLAGS.comp_kernel,
+						init_sigmas=init_sigmas,
+						comp_sigmas=comp_sigmas,
+						init_order=FLAGS.init_order,
+						comp_order=FLAGS.comp_order,
+						thetas=thetas,
+						rfnn=FLAGS.rfnn,
+						bnorm_momentum=FLAGS.bnorm_mom,
+						renorm=FLAGS.renorm,
+						beta_wd=FLAGS.beta_wd,
+						reduction=FLAGS.reduction,
+						bc_mode=FLAGS.bc_mode,
+						n_classes=2)
 			print('Defining model...done.')
 
 			# ====== DEFINE LOSS, ACCURACY TENSORS ======
@@ -131,7 +172,7 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			# === DEFINE QUEUE OPS ===
 			batch_queue = tf.FIFOQueue(
 				capacity=NUM_GPUS,
-				dtypes=[tf.float32, tf.float32],
+				dtypes=[tf.float16, tf.float16],
 				shapes=[(FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, FLAGS.Z_dim, 1) if FLAGS.bases3d else (FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, 1),
 						(FLAGS.batch_size, 2)]
 			)
@@ -289,34 +330,61 @@ def train_ctnet(FLAGS, NUM_GPUS):
 						# ======== LSUV INIT WEIGHTS WITH A FORWARD PASS ==========
 						xs = []
 						ys = []
-						print("Dequeue data for init...")
-						for i in range(FLAGS.t_max):
-							sess.run(batch_enqueue, feed_dict=feed_dict(0))
-							batch, label = sess.run([x,y], feed_dict=feed_dict(0))
-							xs.append(batch)
-							ys.append(label)
-						print("Dequeue data for init...done.")
+						if not FLAGS.bases3d:
+							print("Dequeue data for init...")
+							for i in range(FLAGS.t_max):
+								sess.run(batch_enqueue, feed_dict=feed_dict(0))
+								batch, label = sess.run([x,y], feed_dict=feed_dict(0))
+								xs.append(batch)
+								ys.append(label)
+							print("Dequeue data for init...done.")
 
-						print("Initializing weights with LSUV...")
-						for l in range(len(model.alphas)):
-							var = 0.0
-							t_i = 0
-							while (abs(var - 1.0) >= FLAGS.tol_var or t_i <= FLAGS.t_min) and t_i < FLAGS.t_max:
-								alphas, b_l = sess.run([model.alphas[l], model.conv_act[l]], feed_dict={x: xs[t_i], is_training: False, bnorm_momentum: bnorm_mom})
-								var = np.var(b_l)
-								sess.run(model.alphas[l].assign(alphas / np.sqrt(var)))
-								t_i += 1
-						print("Initializing weights with LSUV...done.")
+							print("Initializing weights with LSUV...")
+							for l in range(len(model.alphas)):
+								var = 0.0
+								t_i = 0
+								while (abs(var - 1.0) >= FLAGS.tol_var or t_i <= FLAGS.t_min) and t_i < FLAGS.t_max:
+									alphas, b_l = sess.run([model.alphas[l], model.conv_act[l]], feed_dict={x: xs[t_i], is_training: False, bnorm_momentum: bnorm_mom})
+									var = np.var(b_l)
+									sess.run(model.alphas[l].assign(alphas / np.sqrt(var)))
+									t_i += 1
+							print("Initializing weights with LSUV...done.")
 
-						# ======== INIT WEIGHT DECAY ==========
-						print("Initializing weight decay...")
-						FLAGS.weight_decay = 0.0
-						for i in range(FLAGS.t_max):
-							x_loss, l2_loss = sess.run([avg_loss_entropy, avg_loss_l2],
-													   feed_dict={x: xs[i], y: ys[i], weight_decay: 1.0, is_training: False,
-																  bnorm_momentum: bnorm_mom})
-							FLAGS.weight_decay += x_loss/l2_loss/FLAGS.t_max
-						print("Initializing weight decay done....")
+							# ======== INIT WEIGHT DECAY ==========
+							print("Initializing weight decay...")
+							FLAGS.weight_decay = 0.0
+							for i in range(FLAGS.t_max):
+								x_loss, l2_loss = sess.run([avg_loss_entropy, avg_loss_l2],
+														   feed_dict={x: xs[i], y: ys[i], weight_decay: 1.0, is_training: False,
+																	  bnorm_momentum: bnorm_mom})
+								FLAGS.weight_decay += x_loss/l2_loss/FLAGS.t_max
+							print("Initializing weight decay done....")
+						else:
+							print("Initializing weights with LSUV...")
+#							for l in range(len(model.alphas)):
+#								var = 0.0
+#								t_i = 0
+#								while (abs(var - 1.0) >= FLAGS.tol_var or t_i <= FLAGS.t_min) and t_i < FLAGS.t_max:
+#									sess.run(batch_enqueue, feed_dict=feed_dict(0))
+#									alphas, b_l = sess.run([model.alphas[l], model.conv_act[l]],
+#														   feed_dict={is_training: False,
+#																	  bnorm_momentum: bnorm_mom})
+#									var = np.var(b_l)
+#									sess.run(model.alphas[l].assign(alphas / np.sqrt(var)))
+#									t_i += 1
+							print("Initializing weights with LSUV...done.")
+
+							# ======== INIT WEIGHT DECAY ==========
+							print("Initializing weight decay...")
+							FLAGS.weight_decay = 0.0
+							for i in range(FLAGS.t_max):
+								sess.run(batch_enqueue, feed_dict=feed_dict(0))
+								x_loss, l2_loss = sess.run([avg_loss_entropy, avg_loss_l2],
+														   feed_dict={weight_decay: 1.0,
+																	  is_training: False,
+																	  bnorm_momentum: bnorm_mom})
+								FLAGS.weight_decay += x_loss / l2_loss / FLAGS.t_max
+							print("Initializing weight decay done....")
 
 						max_acc = 0
 						min_loss = 1000.0

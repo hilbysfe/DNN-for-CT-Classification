@@ -32,7 +32,7 @@ def _rfnn_conv_layer_2d(input, basis, omaps, strides, padding, is_training, bnor
 			'alphas',
 			shape=[omaps, input.get_shape()[-1].value, np.shape(basis)[1]],
 			initializer=tf.random_uniform_initializer(-1.0, 1.0),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 	if not bnorm:
 		with tf.device('/cpu:0'):
@@ -40,7 +40,7 @@ def _rfnn_conv_layer_2d(input, basis, omaps, strides, padding, is_training, bnor
 				'biases',
 				shape=[omaps],
 				initializer=tf.constant_initializer(0.0),
-				dtype=tf.float32)
+				dtype=tf.float16)
 
 	kernels = []
 	outputs = []
@@ -83,7 +83,7 @@ def _rfnn_conv_layer_pure_2d(input, basis, omaps, is_training, bn_mom, rn_mom, s
 			'alphas',
 			shape=[omaps, input.get_shape()[-1].value, np.shape(basis)[0]],
 			initializer=tf.random_uniform_initializer(-1.0, 1.0),
-			dtype=tf.float32)
+			dtype=tf.float16)
 	kernel = tf.reduce_sum(
 		tf.transpose(alphas[:, :, :, None, None]) *
 		tf.transpose(basis[None, None, :, :, :])
@@ -112,7 +112,7 @@ def _rfnn_conv_layer_pure_2d_fast(input, basis, omaps, init, strides=[1, 1, 1, 1
 			'alphas',
 			shape=[input.get_shape()[-1].value, omaps, np.shape(basis)[0]],
 			initializer=tf.random_uniform_initializer(-init, init),
-			dtype=tf.float32)
+			dtype=tf.float16)
 	basis = tf.expand_dims(basis, 3)
 #	basis = tf.tile(basis, [input.get_shape()[-1].value,1,1,1])
 #	print(basis.get_shape())
@@ -153,7 +153,7 @@ def _rfnn_conv_layer_pure_2d_scales_max2(input, basis, omaps, strides=[1, 1, 1, 
 			'alphas',
 			shape=[omaps, input.get_shape()[-1].value, np.shape(basis)[0]],
 			initializer=tf.random_uniform_initializer(-0.05, 0.05),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 #	print(basis.get_shape())
 
@@ -207,7 +207,7 @@ def _rfnn_conv_layer_pure_2d_scales_max(input, basis, omaps, strides=[1, 1, 1, 1
 			'alphas',
 			shape=[omaps, input.get_shape()[-1].value, np.shape(basis)[0]],
 			initializer=tf.random_uniform_initializer(-0.05, 0.05),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 	scales = np.shape(basis)[1]
 	basis = tf.transpose(basis, [1, 0, 2, 3])
@@ -235,7 +235,7 @@ def _rfnn_conv_layer_pure_2d_scales_avg(input, basis, omaps, strides=[1, 1, 1, 1
 			'alphas',
 			shape=[omaps, input.get_shape()[-1].value, np.shape(basis)[0]],
 			initializer=tf.random_uniform_initializer(-0.05, 0.05),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 	scales = np.shape(basis)[1]
 	basis = tf.transpose(basis, [1, 0, 2, 3])
@@ -263,7 +263,7 @@ def _rfnn_conv_layer_pure_2d_scales_learn(input, basis, omaps, strides=[1, 1, 1,
 			'alphas',
 			shape=[omaps, input.get_shape()[-1].value, np.shape(basis)[0]],
 			initializer=tf.random_uniform_initializer(-0.05, 0.05),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 	kernel = tf.reduce_sum(
 		tf.transpose(alphas[:, :, :, None, None]) *
@@ -284,7 +284,7 @@ def _rfnn_conv_layer_pure_2d_scales_learn(input, basis, omaps, strides=[1, 1, 1,
 			'scale_bottleneck',
 			shape=[1, 1, merged_kernel.get_shape()[-1].value, omaps],
 			initializer=tf.contrib.layers.variance_scaling_initializer(),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 	output = tf.nn.conv2d(merged_outputs, scale_bc, strides=[1, 1, 1, 1], padding='SAME')
 
@@ -310,7 +310,7 @@ def _rfnn_conv_layer_pure_2d_scales_learn_bc(input, basis, omaps, is_training, s
 			'alphas',
 			shape=[omaps, input.get_shape()[-1].value, np.shape(basis)[0]],
 			initializer=tf.random_uniform_initializer(-0.05, 0.05),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 	kernel = tf.reduce_sum(
 		tf.transpose(alphas[:, :, :, None, None]) *
@@ -331,7 +331,7 @@ def _rfnn_conv_layer_pure_2d_scales_learn_bc(input, basis, omaps, is_training, s
 			'scale_bottleneck',
 			shape=[1, 1, merged_kernel.get_shape()[-1].value, omaps],
 			initializer=tf.contrib.layers.variance_scaling_initializer(),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 	# BN
 	output = batch_norm(merged_outputs, is_training=is_training)
@@ -362,7 +362,7 @@ def _rfnn_conv_layer_pure_2d_scales_learn_flatten(input, basis, omaps, strides=[
 			'alphas',
 			shape=[omaps, input.get_shape()[-1].value, basis.get_shape()[0].value*basis.get_shape()[1].value],
 			initializer=tf.random_uniform_initializer(-1.0, 1.0),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 	basis = tf.reshape(basis, (basis.get_shape()[0].value*basis.get_shape()[1].value,
 							   basis.get_shape()[2].value, basis.get_shape()[3].value))
@@ -399,7 +399,7 @@ def _rfnn_conv_layer_pure_2d_SO_max(input, basis, omaps, is_training, bn_mom, rn
 			'alphas',
 			shape=[basis.get_shape()[2].value, input.get_shape()[-1].value, omaps],
 			initializer=tf.random_uniform_initializer(-1.0, 1.0),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 	scales = np.shape(basis)[0]
 	orientations = np.shape(basis)[1]
@@ -437,7 +437,7 @@ def _rfnn_conv_layer_pure_2d_SO_avg(input, basis, omaps, is_training, bn_mom, rn
 			'alphas',
 			shape=[basis.get_shape()[2].value, input.get_shape()[-1].value, omaps],
 			initializer=tf.random_uniform_initializer(-1.0, 1.0),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 	scales = np.shape(basis)[0]
 	orientations = np.shape(basis)[1]
@@ -474,7 +474,7 @@ def _rfnn_conv_layer_pure_2d_SO_learn_sq_bc(input, basis, omaps, is_training, bn
 			'alphas',
 			shape=[basis.get_shape()[2].value, input.get_shape()[-1].value, omaps],
 			initializer=tf.random_uniform_initializer(-1.0, 1.0),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 	scales = np.shape(basis)[0]
 	orientations = np.shape(basis)[1]
@@ -485,7 +485,7 @@ def _rfnn_conv_layer_pure_2d_SO_learn_sq_bc(input, basis, omaps, is_training, bn
 		for j in range(orientations):
 			kernel = tf.reduce_sum(
 				alphas[None, None, :, None, None, :, :] * basis[i, j, :, :, :, None, None]
-				, axis=2, name='weights_' + str(i))
+				, axis=2, name='weights_' + str(i) + str(j))
 
 			kernel = kernel[0,0,:,:,:,:]
 			kernels.append(kernel)
@@ -503,7 +503,7 @@ def _rfnn_conv_layer_pure_2d_SO_learn_sq_bc(input, basis, omaps, is_training, bn
 			'scale_bottleneck',
 			shape=[1, 1, outputs.get_shape()[-1].value, omaps],
 			initializer=tf.contrib.layers.variance_scaling_initializer(),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 	# BN
 	outputs = batch_norm(outputs, is_training, bn_mom, rn_mom)
@@ -540,7 +540,7 @@ def _rfnn_conv_layer_pure_2d_SO_learn_fl_bc(input, basis, omaps, strides=[1, 1, 
 			'alphas',
 			shape=[basis.get_shape()[2].value, input.get_shape()[-1].value, omaps],
 			initializer=tf.random_uniform_initializer(-1.0, 1.0),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 	kernel = tf.reduce_sum(alphas[None,None,:,None,None,:,:] * basis[:,:,:,:,:,None,None]
 		,axis=2, name='weights')
@@ -557,7 +557,7 @@ def _rfnn_conv_layer_pure_2d_SO_learn_fl_bc(input, basis, omaps, strides=[1, 1, 
 			'scale_bottleneck',
 			shape=[1, 1, output.get_shape()[-1].value, omaps],
 			initializer=tf.contrib.layers.variance_scaling_initializer(),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 	# BN
 #	output = batch_norm(output, is_training=is_training)
@@ -591,7 +591,7 @@ def _rfnn_conv_layer_pure_2d_SO_learn_flatten(input, basis, omaps, is_training, 
 			'alphas',
 			shape=[basis.get_shape()[2].value, input.get_shape()[-1].value, omaps],
 			initializer=tf.random_uniform_initializer(-1.0, 1.0),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 	kernel = tf.reduce_sum(alphas[None,None,:,None,None,:,:] * basis[:,:,:,:,:,None,None]
 		,axis=2, name='weights')
@@ -628,13 +628,13 @@ def _rfnn_deconv_layer_2d(input, basis, omaps, oshape, strides, padding, bnorm=F
 		'alphas',
 		shape=[input.get_shape()[-1].value, omaps, np.shape(basis)[1]],
 		initializer=tf.random_uniform_initializer(-1.0, 1.0),
-		dtype=tf.float32)
+		dtype=tf.float16)
 
 	biases = tf.get_variable(
 		'biases',
 		shape=[omaps],
 		initializer=tf.constant_initializer(0.0),
-		dtype=tf.float32)
+		dtype=tf.float16)
 
 	kernels = []
 	outputs = []
@@ -652,6 +652,7 @@ def _rfnn_deconv_layer_2d(input, basis, omaps, oshape, strides, padding, bnorm=F
 
 	return outputs
 
+# ======== 3D layers ==========
 
 def _rfnn_conv_layer_3d(input, basis, omaps, strides, padding, is_training, bnorm=False):
 	with tf.device('/cpu:0'):
@@ -659,7 +660,7 @@ def _rfnn_conv_layer_3d(input, basis, omaps, strides, padding, is_training, bnor
 			'alphas',
 			shape=[omaps, input.get_shape()[-1].value, np.shape(basis)[1]],
 			initializer=tf.random_uniform_initializer(-1.0, 1.0),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 	if not bnorm:
 		with tf.device('/cpu:0'):
@@ -667,7 +668,7 @@ def _rfnn_conv_layer_3d(input, basis, omaps, strides, padding, is_training, bnor
 				'biases',
 				shape=[omaps],
 				initializer=tf.constant_initializer(0.0),
-				dtype=tf.float32)
+				dtype=tf.float16)
 
 	kernels = []
 	outputs = []
@@ -678,8 +679,8 @@ def _rfnn_conv_layer_3d(input, basis, omaps, strides, padding, is_training, bnor
 			, axis=3, name='weights_' + str(i))
 
 		conv = tf.cast(
-			tf.nn.conv3d(tf.cast(input, tf.float32), tf.cast(kernel, tf.float32), strides=strides, padding=padding),
-			tf.float32)
+			tf.nn.conv3d(tf.cast(input, tf.float16), tf.cast(kernel, tf.float16), strides=strides, padding=padding),
+			tf.float16)
 		if bnorm:
 			conv = batch_norm_wrapper(conv, is_training, True)
 		else:
@@ -691,13 +692,13 @@ def _rfnn_conv_layer_3d(input, basis, omaps, strides, padding, is_training, bnor
 
 	return alphas, outputs, kernels
 
-def _rfnn_conv_layer_pure_3d(input, basis, omaps, strides, padding='SAME'):
+def _rfnn_conv_layer_pure_3d(input, basis, omaps, strides=[1, 1, 1, 1, 1], padding='SAME'):
 	with tf.device('/cpu:0'):
 		alphas = tf.get_variable(
 			'alphas',
-			shape=[omaps, input.get_shape()[-1].value, np.shape(basis)[0]],
-			initializer=tf.random_uniform_initializer(-0.1, 0.1),
-			dtype=tf.float32)
+			shape=[np.shape(basis)[0], input.get_shape()[-1].value, omaps],
+			initializer=tf.random_uniform_initializer(-1.0, 1.0),
+			dtype=tf.float16)
 
 	kernel = tf.reduce_sum(
 		alphas[:, None, None, None, :, :] * basis[:, :, :, :, None, None]
@@ -705,7 +706,74 @@ def _rfnn_conv_layer_pure_3d(input, basis, omaps, strides, padding='SAME'):
 
 	output = tf.nn.conv3d(input, kernel, strides=strides, padding=padding)
 
-	return output, alphas
+	return output, alphas, kernel
+
+def _rfnn_conv_layer_pure_3d_SO_learn_sq_bc(input, basis, omaps, strides=[1, 1, 1, 1, 1], padding='SAME'):
+	with tf.device('/cpu:0'):
+		alphas = tf.get_variable(
+			'alphas',
+			shape=[basis.get_shape()[2].value, input.get_shape()[-1].value, omaps],
+			initializer=tf.random_uniform_initializer(-1.0, 1.0),
+			dtype=tf.float16)
+
+	scales = np.shape(basis)[0]
+	orientations = np.shape(basis)[1]
+
+	outputs = []
+	kernels = []
+	for i in range(scales):
+		for j in range(orientations):
+			kernel = tf.reduce_sum(
+				alphas[None, None, :, None, None, None, :, :] * basis[i, j, :, :, :, :, None, None]
+				, axis=2, name='weights_' + str(i) + str(j))
+
+			kernel = kernel[0,0,:,:,:,:]
+			kernels.append(kernel)
+
+			conv = tf.nn.conv3d(input, kernel, strides=strides, padding=padding)
+
+			outputs.append(conv)
+
+	with tf.device('/cpu:0'):
+		scale_bc = tf.get_variable(
+			'scale_bottleneck',
+			shape=[1, 1, 1, len(outputs)*outputs[0].get_shape()[-1].value, omaps],
+			initializer=tf.contrib.layers.variance_scaling_initializer(),
+			dtype=tf.float16)
+
+	# BN
+#	outputs = batch_norm(outputs, is_training, bn_mom, rn_mom)
+	# ReLU
+	outputs = tf.nn.relu(
+		tf.reshape(
+			tf.transpose(
+				tf.stack(outputs), (1,2,3,4,0,5)),
+				(outputs[0].get_shape()[0].value, outputs[0].get_shape()[1].value, outputs[0].get_shape()[2].value,
+						outputs[0].get_shape()[3].value, len(outputs) * outputs[0].get_shape()[4].value)))
+	# Conv
+	output = tf.nn.conv3d(outputs, scale_bc, [1, 1, 1, 1, 1], padding='SAME')
+
+	#		with tf.variable_scope('sigma%d' % i):
+	#			# scale weights to [0 1], type is still float
+	#			kernel_avg = tf.reduce_mean(kernel, axis=2)
+	#			x_min = tf.reduce_min(kernel_avg)
+	#			x_max = tf.reduce_max(kernel_avg)
+	#			kernel_0_to_1 = (kernel_avg - x_min) / (x_max - x_min)
+	#
+	#			# to tf.image_summary format [batch_size, height, width, channels]
+	#			kernel_transposed = tf.transpose(kernel_0_to_1, [2, 0, 1])
+	#			kernel_transposed = tf.expand_dims(kernel_transposed, axis=3)
+	#			batch = kernel_transposed.get_shape()[0].value
+	#
+	#			tf.summary.image('filters', kernel_transposed, max_outputs=batch)
+
+	kernels = tf.stack(kernels)
+	kernels = tf.transpose(kernels, (1,2,3,4,5,0))
+	kernels = tf.reshape(kernels, (kernels.get_shape()[0].value,kernels.get_shape()[1].value,kernels.get_shape()[2].value,
+								   kernels.get_shape()[3].value,
+								   kernels.get_shape()[4].value*kernels.get_shape()[5].value))
+
+	return output, alphas, kernels
 
 
 def _rfnn_deconv_layer_3d(input, basis, omaps, oshape, strides, padding, bnorm=False):
@@ -713,13 +781,13 @@ def _rfnn_deconv_layer_3d(input, basis, omaps, oshape, strides, padding, bnorm=F
 		'alphas',
 		shape=[input.get_shape()[-1].value, omaps, np.shape(basis)[1]],
 		initializer=tf.random_uniform_initializer(-1.0, 1.0),
-		dtype=tf.float32)
+		dtype=tf.float16)
 
 	biases = tf.get_variable(
 		'biases',
 		shape=[omaps],
 		initializer=tf.constant_initializer(0.0),
-		dtype=tf.float32)
+		dtype=tf.float16)
 
 	kernels = []
 	outputs = []
@@ -746,7 +814,7 @@ def init_basis_hermite_2D(kernel, sigma, order):
 		else 10 if order == 3 \
 		else 15
 
-	x = np.arange(-np.int(kernel - 1 / 2), np.int(kernel - 1 / 2) + 1, dtype=np.float)
+	x = np.arange(-np.int(kernel - 1 / 2), np.int(kernel - 1 / 2) + 1, dtype=np.float16)
 	impulse = np.zeros((kernel, kernel))
 	impulse[np.int((kernel - 1) / 2), np.int((kernel - 1) / 2)] = 1.0
 
@@ -784,7 +852,7 @@ def init_basis_hermite_2D(kernel, sigma, order):
 #		hermiteBasis[i, :, :] /= rms(hermiteBasis[i, :, :])
 
 	with tf.device('/cpu:0'):
-		return tf.constant(hermiteBasis[0:threshold, :, :], dtype=tf.float32)
+		return tf.constant(hermiteBasis[0:threshold, :, :], dtype=tf.float16)
 
 def init_basis_hermite_2D_scales(kernel, sigmas, order):
 	nrBasis = 15
@@ -795,7 +863,7 @@ def init_basis_hermite_2D_scales(kernel, sigmas, order):
 		else 15
 
 	for i, sigma in enumerate(sigmas):
-		x = np.arange(-np.int(kernel - 1 / 2), np.int(kernel - 1 / 2) + 1, dtype=np.float)
+		x = np.arange(-np.int(kernel - 1 / 2), np.int(kernel - 1 / 2) + 1, dtype=np.float16)
 		impulse = np.zeros((kernel, kernel))
 		impulse[np.int((kernel - 1) / 2), np.int((kernel - 1) / 2)] = 1.0
 
@@ -834,7 +902,7 @@ def init_basis_hermite_2D_scales(kernel, sigmas, order):
 #			hermiteBasis[j, i, :, :] /= rms(hermiteBasis[j, i, :, :])
 
 	with tf.device('/cpu:0'):
-		return tf.constant(hermiteBasis[0:threshold, :, :, :], dtype=tf.float32)
+		return tf.constant(hermiteBasis[0:threshold, :, :, :], dtype=tf.float16)
 
 def init_basis_hermite_steerable_2D(kernel, sigmas, theta=90.0, order=4):
 	angle = theta * np.pi / 180.0
@@ -843,7 +911,7 @@ def init_basis_hermite_steerable_2D(kernel, sigmas, theta=90.0, order=4):
 		(np.int(np.shape(sigmas)[0]), orients1, 5, np.int(kernel), np.int(kernel)))
 
 	for i, sigma in enumerate(sigmas):
-		x = np.arange(-(np.int(kernel - 1)) / 2, (np.int(kernel - 1)) / 2 + 1, dtype=np.float)
+		x = np.arange(-(np.int(kernel - 1)) / 2, (np.int(kernel - 1)) / 2 + 1, dtype=np.float16)
 		impulse = np.zeros((np.int(kernel), np.int(kernel)))
 		impulse[np.int((kernel - 1) / 2), np.int((kernel - 1) / 2)] = 1.0
 
@@ -885,7 +953,7 @@ def init_basis_hermite_steerable_2D(kernel, sigmas, theta=90.0, order=4):
 				np.power(np.cos(t * angle), 4) * conv(gauss0y, g4, axis=1) \
 				+ 4 * np.power(np.cos(t * angle), 3) * np.cos(np.pi / 2.0 - t * angle) * conv(conv(impulse, g3, axis=1),
 																							  g1, axis=0) \
-				+ 12 * np.power(np.cos(t * angle), 2) * np.power(np.cos(np.pi / 2.0 - t * angle), 2) * conv(
+				+ 6 * np.power(np.cos(t * angle), 2) * np.power(np.cos(np.pi / 2.0 - t * angle), 2) * conv(
 					conv(impulse, g2, axis=1), g2, axis=0) \
 				+ 4 * np.cos(t * angle) * np.power(np.cos(np.pi / 2.0 - t * angle), 3) * conv(conv(impulse, g3, axis=0),
 																							  g1, axis=1) \
@@ -894,7 +962,7 @@ def init_basis_hermite_steerable_2D(kernel, sigmas, theta=90.0, order=4):
 		hermiteBasis[i, :, :, :, :] /= np.sqrt(sigma)
 
 	with tf.device('/cpu:0'):
-		return tf.constant(hermiteBasis[:, :, 0:order + 1, :, :], dtype=tf.float32)
+		return tf.constant(hermiteBasis[:, :, 0:order + 1, :, :], dtype=tf.float16)
 
 def init_basis_hermite_steerable_full(kernel, sigmas, theta=90.0, order=4):
 	angle = theta * np.pi / 180.0
@@ -906,7 +974,7 @@ def init_basis_hermite_steerable_full(kernel, sigmas, theta=90.0, order=4):
 	hermiteBasis = np.zeros(
 		(np.int(np.shape(sigmas)[0]), orients1, 10, np.int(kernel), np.int(kernel)))
 	for i, sigma in enumerate(sigmas):
-		x = np.arange(-(np.int(kernel - 1)) / 2, (np.int(kernel - 1)) / 2 + 1, dtype=np.float)
+		x = np.arange(-(np.int(kernel - 1)) / 2, (np.int(kernel - 1)) / 2 + 1, dtype=np.float16)
 		impulse = np.zeros((np.int(kernel), np.int(kernel)))
 		impulse[np.int((kernel - 1) / 2), np.int((kernel - 1) / 2)] = 1.0
 
@@ -969,12 +1037,12 @@ def init_basis_hermite_steerable_full(kernel, sigmas, theta=90.0, order=4):
 		hermiteBasis[i, :, :, :, :] /= np.sqrt(sigma)
 
 	with tf.device('/cpu:0'):
-		return tf.constant(hermiteBasis[:, :, 0:threshold, :, :], dtype=tf.float32)
+		return tf.constant(hermiteBasis[:, :, 0:threshold, :, :], dtype=tf.float16)
 
 
 def init_basis_hermite_3D(kernel, sigma, order):
 	nrBasis = 35
-	hermiteBasis = np.empty(
+	hermiteBasis = np.zeros(
 		(np.int(nrBasis), np.int(kernel), np.int(kernel), np.int(kernel)))
 
 	threshold = 4 if order == 1 \
@@ -982,7 +1050,7 @@ def init_basis_hermite_3D(kernel, sigma, order):
 		else 20 if order == 3 \
 		else 35
 
-	x = np.arange(-np.int((kernel - 1) / 2), np.int((kernel - 1) / 2) + 1, dtype=np.float32)
+	x = np.arange(-np.int((kernel - 1) / 2), np.int((kernel - 1) / 2) + 1, dtype=np.float16)
 	impulse = np.zeros((kernel, kernel, kernel))
 	impulse[np.int((kernel - 1) / 2), np.int((kernel - 1) / 2), np.int((kernel - 1) / 2)] = 1.0
 
@@ -1086,7 +1154,7 @@ def init_basis_hermite_3D(kernel, sigma, order):
 	hermiteBasis[34, :, :, :] = gauss4xzzy_
 
 	with tf.device('/cpu:0'):
-		return tf.constant(hermiteBasis[0:threshold, :, :, :], dtype=tf.float32)
+		return tf.constant(hermiteBasis[0:threshold, :, :, :], dtype=tf.float16)
 
 def init_basis_hermite_3D_scales(kernel, sigmas, order):
 	nrBasis = 35
@@ -1098,7 +1166,7 @@ def init_basis_hermite_3D_scales(kernel, sigmas, order):
 		else 20 if order == 3 \
 		else 35
 
-	x = np.arange(-np.int((kernel - 1) / 2), np.int((kernel - 1) / 2) + 1, dtype=np.float32)
+	x = np.arange(-np.int((kernel - 1) / 2), np.int((kernel - 1) / 2) + 1, dtype=np.float16)
 	impulse = np.zeros((kernel, kernel, kernel))
 	impulse[np.int((kernel - 1) / 2), np.int((kernel - 1) / 2), np.int((kernel - 1) / 2)] = 1.0
 
@@ -1202,8 +1270,86 @@ def init_basis_hermite_3D_scales(kernel, sigmas, order):
 		hermiteBasis[i, 34, :, :, :] = gauss4xzzy_
 
 	with tf.device('/cpu:0'):
-		return tf.constant(hermiteBasis[:, 0:threshold, :, :, :], dtype=tf.float32)
+		return tf.constant(hermiteBasis[:, 0:threshold, :, :, :], dtype=tf.float16)
 
+def init_basis_hermite_3D_steerable(kernel, sigmas, theta, phi, order=4):
+	angle1 = theta * np.pi / 180
+	angle2 = phi * np.pi / 180
+	orients1 = np.int(180 / theta)
+	orients2 = np.int(180 / phi)
+	hermiteBasis = np.zeros(
+		(np.int(np.shape(sigmas)[0]), orients1 * orients2, 5, np.int(kernel), np.int(kernel), np.int(kernel)))
+	x = np.arange(-np.int((kernel - 1) / 2), np.int((kernel - 1) / 2) + 1, dtype=np.float16)
+	impulse = np.zeros((kernel, kernel, kernel))
+	impulse[np.int((kernel - 1) / 2), np.int((kernel - 1) / 2), np.int((kernel - 1) / 2)] = 1.0
+
+	for i, sigma in enumerate(sigmas):
+		g = 1.0 / (np.sqrt(2 * np.pi) * sigma) * np.exp(np.square(x) / (-2 * np.square(sigma)))
+		g = g / g.sum()
+		g1 = sigma * -(x / np.square(sigma)) * g
+		g2 = np.square(sigma) * ((np.square(x) - np.power(sigma, 2)) / np.power(sigma, 4)) * g
+		g3 = np.power(sigma, 3) * -((np.power(x, 3) - 3 * x * np.square(sigma)) / np.power(sigma, 6)) * g
+		g4 = np.power(sigma, 4) * (
+		((np.power(x, 4) - 6 * np.square(x) * np.square(sigma) + 3 * np.power(sigma, 4)) / np.power(sigma, 8))) * g
+
+		gauss0x = conv(impulse, g, axis=1)
+		gauss0y = conv(impulse, g, axis=0)
+		gauss0z = conv(impulse, g, axis=2)
+		gauss1x = conv(impulse, g1, axis=1)
+		gauss1y = conv(impulse, g1, axis=0)
+		gauss1z = conv(impulse, g1, axis=2)
+
+		for t in range(orients1):
+			for f in range(orients2):
+				alpha = np.cos(t * angle1) * np.sin(f * angle2)
+				beta = np.sin(t * angle1) * np.sin(f * angle2)
+				gamma = np.cos(f * angle2)
+				# g
+				hermiteBasis[i, t * orients2 + f, 0, :, :, :] = conv(conv(gauss0x, g, axis=0), g, axis=2)
+
+				# g_x g_y g_z
+				hermiteBasis[i, t * orients2 + f, 1, :, :, :] = \
+					+ alpha * conv(conv(gauss0y, g, axis=2), g1, axis=1) \
+					+ beta * conv(conv(gauss0x, g, axis=2), g1, axis=0) \
+					+ gamma * conv(conv(gauss0x, g, axis=0), g1, axis=2)
+
+				# g_xx g_yy g_zz g_xy g_xy g_yz
+				hermiteBasis[i, t * orients2 + f, 2, :, :] = \
+					+ np.power(alpha, 2) * conv(conv(gauss0y, g, axis=2), g2, axis=1) \
+					+ np.power(beta, 2) * conv(conv(gauss0x, g, axis=2), g2, axis=0) \
+					+ np.power(gamma, 2) * conv(conv(gauss0x, g, axis=0), g2, axis=2) \
+					+ 2 * alpha * beta * conv(conv(gauss0z, g1, axis=1), g1, axis=0) \
+					+ 2 * alpha * gamma * conv(conv(gauss0y, g1, axis=1), g1, axis=2) \
+					+ 2 * beta * gamma * conv(conv(gauss0x, g1, axis=0), g1, axis=2)
+
+				# g_xxx g_yyy g_zzz g_xxy g_xxz g_yyx g_yyz g_xzz g_yzz g_xyz
+				hermiteBasis[i, t * orients2 + f, 3, :, :] = \
+					+ np.power(alpha, 3) * conv(conv(gauss0y, g, axis=2), g3, axis=1) \
+					+ np.power(beta, 3) * conv(conv(gauss0x, g, axis=2), g3, axis=0) \
+					+ np.power(gamma, 3) * conv(conv(gauss0x, g, axis=0), g3, axis=2) \
+					+ 3 * np.power(alpha, 2) * beta * conv(conv(gauss1y, g, axis=2), g2, axis=1) \
+					+ 3 * np.power(alpha, 2) * gamma * conv(conv(gauss1z, g, axis=0), g2, axis=1) \
+					+ 3 * np.power(beta, 2) * alpha * conv(conv(gauss1x, g, axis=2), g2, axis=0) \
+					+ 3 * np.power(beta, 2) * gamma * conv(conv(gauss1z, g, axis=1), g2, axis=0) \
+					+ 3 * np.power(gamma, 2) * alpha * conv(conv(gauss1x, g, axis=0), g2, axis=2) \
+					+ 3 * np.power(gamma, 2) * beta * conv(conv(gauss1y, g, axis=1), g2, axis=2) \
+					+ 6 * alpha * beta * gamma * conv(conv(gauss1y, g1, axis=1), g1, axis=2)
+
+		# g_xxxx g_yyyy g_zzzz g_xxxy g_xxxz g_xyyy g_yyyz g_xzzz g_yzzz g_xxyy g_xxzz g_yyzz g_xxyz g_xyyz g_xyzz
+		#            hermiteBasis[i, t, 4, :, :] = \
+		#               np.power(np.cos(t * angle), 4) * conv(gauss0y, g4, axis=1) \
+		#                + 4 * np.power(np.cos(t * angle), 3) * np.cos(np.pi / 2.0 - t * angle) * conv(conv(impulse, g3, axis=1),
+		#                                                                                              g1, axis=0) \
+		#                + 12 * np.power(np.cos(t * angle), 2) * np.power(np.cos(np.pi / 2.0 - t * angle), 2) * conv(
+		#                    conv(impulse, g2, axis=1), g2, axis=0) \
+		#                + 4 * np.cos(t * angle) * np.power(np.cos(np.pi / 2.0 - t * angle), 3) * conv(conv(impulse, g3, axis=0),
+		#                                                                                              g1, axis=1) \
+		#                + np.power(np.cos(np.pi / 2.0 - t * angle), 4) * conv(gauss0x, g4, axis=0)
+
+		hermiteBasis[i, :, :, :, :, :] /= np.sqrt(sigma)
+
+	with tf.device('/cpu:0'):
+		return tf.constant(hermiteBasis[:, :, 0:order + 1, :, :, :], dtype=tf.float16)
 
 
 
@@ -1213,14 +1359,14 @@ def init_alphas(nrFilters, channels, nrBasis, name):
 			name,
 			shape=[nrFilters, channels, nrBasis],
 			initializer=tf.random_uniform_initializer(-1.0, 1.0),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 def init_biases(channels, name):
 	with tf.device('/cpu:0'):
 		return tf.get_variable(
 			name, shape=[channels],
 			initializer=tf.constant_initializer(0.0),
-			dtype=tf.float32)
+			dtype=tf.float16)
 
 def rms(x):
 	return np.sqrt(np.mean(np.square(x)))
