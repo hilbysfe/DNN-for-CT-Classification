@@ -115,7 +115,7 @@ def read_dataset(datapath, labelpath, test_ratio=0.0):
 
 	# --- Load labels from file ---
 	labels_wb = ox.load_workbook(labelpath)
-	labels_ws = labels_wb['Registry_affected_sides']
+	labels_ws = labels_wb['Registrydatabase']
 
 #	label_dict = {key[0].value: value[0].value
 #				  for i, (key, value) in enumerate(zip(labels_ws[followid_attribute], labels_ws[label_attribute]))
