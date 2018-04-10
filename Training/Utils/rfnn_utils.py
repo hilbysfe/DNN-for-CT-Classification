@@ -698,7 +698,7 @@ def _rfnn_conv_layer_pure_3d(input, basis, omaps, strides=[1, 1, 1, 1, 1], paddi
 			'alphas',
 			shape=[np.shape(basis)[0], input.get_shape()[-1].value, omaps],
 			initializer=tf.random_uniform_initializer(-1.0, 1.0),
-			dtype=tf.float16)
+			dtype=tf.float32)
 
 	kernel = tf.reduce_sum(
 		alphas[:, None, None, None, :, :] * basis[:, :, :, :, None, None]
@@ -714,7 +714,7 @@ def _rfnn_conv_layer_pure_3d_SO_learn_sq_bc(input, basis, omaps, strides=[1, 1, 
 			'alphas',
 			shape=[basis.get_shape()[2].value, input.get_shape()[-1].value, omaps],
 			initializer=tf.random_uniform_initializer(-1.0, 1.0),
-			dtype=tf.float16)
+			dtype=tf.float32)
 
 	scales = np.shape(basis)[0]
 	orientations = np.shape(basis)[1]
@@ -739,7 +739,7 @@ def _rfnn_conv_layer_pure_3d_SO_learn_sq_bc(input, basis, omaps, strides=[1, 1, 
 			'scale_bottleneck',
 			shape=[1, 1, 1, len(outputs)*outputs[0].get_shape()[-1].value, omaps],
 			initializer=tf.contrib.layers.variance_scaling_initializer(),
-			dtype=tf.float16)
+			dtype=tf.float32)
 
 	# BN
 #	outputs = batch_norm(outputs, is_training, bn_mom, rn_mom)
@@ -774,6 +774,55 @@ def _rfnn_conv_layer_pure_3d_SO_learn_sq_bc(input, basis, omaps, strides=[1, 1, 
 								   kernels.get_shape()[4].value*kernels.get_shape()[5].value))
 
 	return output, alphas, kernels
+
+def _rfnn_conv_layer_pure_3d_SO_learn_fl_bc(input, basis, omaps, strides=[1, 1, 1, 1, 1], padding='SAME'):
+	with tf.device('/cpu:0'):
+		alphas = tf.get_variable(
+			'alphas',
+			shape=[basis.get_shape()[2].value, input.get_shape()[-1].value, omaps],
+			initializer=tf.random_uniform_initializer(-1.0, 1.0),
+			dtype=tf.float32)
+
+	kernel = tf.reduce_sum(alphas[None,None,:,None,None,None,:,:] * basis[:,:,:,:,:,:,None,None]
+		,axis=2, name='weights')
+
+	# to shape: [k,k,i,scales,orientations,o]
+	kernel = tf.transpose(kernel, (2,3,4,5,0,1,6))
+	kernel = tf.reshape(kernel, (kernel.get_shape()[0].value, kernel.get_shape()[1].value, kernel.get_shape()[2].value,
+								 kernel.get_shape()[3].value,
+								 kernel.get_shape()[4].value*kernel.get_shape()[5].value*kernel.get_shape()[6].value))
+
+	output = tf.nn.conv3d(input, kernel, strides=strides, padding=padding)
+
+	with tf.device('/cpu:0'):
+		scale_bc = tf.get_variable(
+			'scale_bottleneck',
+			shape=[1, 1, 1, output.get_shape()[-1].value, omaps],
+			initializer=tf.contrib.layers.variance_scaling_initializer(),
+			dtype=tf.float32)
+
+	# BN
+#	output = batch_norm(output, is_training=is_training)
+	# ReLU
+#	output = tf.nn.relu(output)
+	# Conv
+	output = tf.nn.conv3d(output, scale_bc, [1, 1, 1, 1, 1], padding='SAME')
+
+	#		with tf.variable_scope('sigma%d' % i):
+	#			# scale weights to [0 1], type is still float
+	#			kernel_avg = tf.reduce_mean(kernel, axis=2)
+	#			x_min = tf.reduce_min(kernel_avg)
+	#			x_max = tf.reduce_max(kernel_avg)
+	#			kernel_0_to_1 = (kernel_avg - x_min) / (x_max - x_min)
+	#
+	#			# to tf.image_summary format [batch_size, height, width, channels]
+	#			kernel_transposed = tf.transpose(kernel_0_to_1, [2, 0, 1])
+	#			kernel_transposed = tf.expand_dims(kernel_transposed, axis=3)
+	#			batch = kernel_transposed.get_shape()[0].value
+	#
+	#			tf.summary.image('filters', kernel_transposed, max_outputs=batch)
+
+	return output, alphas, kernel
 
 
 def _rfnn_deconv_layer_3d(input, basis, omaps, oshape, strides, padding, bnorm=False):
@@ -1050,7 +1099,7 @@ def init_basis_hermite_3D(kernel, sigma, order):
 		else 20 if order == 3 \
 		else 35
 
-	x = np.arange(-np.int((kernel - 1) / 2), np.int((kernel - 1) / 2) + 1, dtype=np.float16)
+	x = np.arange(-np.int((kernel - 1) / 2), np.int((kernel - 1) / 2) + 1, dtype=np.float32)
 	impulse = np.zeros((kernel, kernel, kernel))
 	impulse[np.int((kernel - 1) / 2), np.int((kernel - 1) / 2), np.int((kernel - 1) / 2)] = 1.0
 
@@ -1154,7 +1203,7 @@ def init_basis_hermite_3D(kernel, sigma, order):
 	hermiteBasis[34, :, :, :] = gauss4xzzy_
 
 	with tf.device('/cpu:0'):
-		return tf.constant(hermiteBasis[0:threshold, :, :, :], dtype=tf.float16)
+		return tf.constant(hermiteBasis[0:threshold, :, :, :], dtype=tf.float32)
 
 def init_basis_hermite_3D_scales(kernel, sigmas, order):
 	nrBasis = 35
@@ -1279,7 +1328,7 @@ def init_basis_hermite_3D_steerable(kernel, sigmas, theta, phi, order=4):
 	orients2 = np.int(180 / phi)
 	hermiteBasis = np.zeros(
 		(np.int(np.shape(sigmas)[0]), orients1 * orients2, 5, np.int(kernel), np.int(kernel), np.int(kernel)))
-	x = np.arange(-np.int((kernel - 1) / 2), np.int((kernel - 1) / 2) + 1, dtype=np.float16)
+	x = np.arange(-np.int((kernel - 1) / 2), np.int((kernel - 1) / 2) + 1, dtype=np.float32)
 	impulse = np.zeros((kernel, kernel, kernel))
 	impulse[np.int((kernel - 1) / 2), np.int((kernel - 1) / 2), np.int((kernel - 1) / 2)] = 1.0
 
@@ -1349,7 +1398,7 @@ def init_basis_hermite_3D_steerable(kernel, sigmas, theta, phi, order=4):
 		hermiteBasis[i, :, :, :, :, :] /= np.sqrt(sigma)
 
 	with tf.device('/cpu:0'):
-		return tf.constant(hermiteBasis[:, :, 0:order + 1, :, :, :], dtype=tf.float16)
+		return tf.constant(hermiteBasis[:, :, 0:order + 1, :, :, :], dtype=tf.float32)
 
 
 

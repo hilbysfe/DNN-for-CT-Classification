@@ -36,9 +36,13 @@ def online_flattened_std(files, mean):
 def online_flattened_mean_3d(files):
 	# Calculates mean of all pixels in the dataset, considering the intensities normalized
 	mean = 0
-	for file in files:
+	d0 = np.shape(sitk.GetArrayFromImage(sitk.ReadImage(files[0])))[0]
+	d1 = np.shape(sitk.GetArrayFromImage(sitk.ReadImage(files[0])))[1]
+	d2 = np.shape(sitk.GetArrayFromImage(sitk.ReadImage(files[0])))[2]
+	l = len(files)
+	for i,file in enumerate(files):
 		data = normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(file)))
-		mean += (np.sum(data) / (len(files) * np.shape(data)[0] * np.shape(data)[1] * np.shape(data)[2]))
+		mean += (np.sum(data) / (l*d0*d1*d2))
 
 	return mean
 
@@ -111,14 +115,14 @@ def split_datasets(datapath, labelpath, output, label_name='', val_folds=4, val_
 	labels_ws = labels_wb['Registrydatabase']
 
 	# USE THIS FOR ALL IAT DEPENDENT LABELS
-	label_dict = {key[0].value: value[0].value
-				  for i, (key, value) in enumerate(zip(labels_ws[followid_attribute], labels_ws[label_attribute]))
-				  if value[0].value is not None and value[0].value is not '' and labels_ws['O' + str(i + 2)].value == 3}
-
-	# USE THIS FOR COLLATERALS AND AFFECTED SIDE
 #	label_dict = {key[0].value: value[0].value
 #				  for i, (key, value) in enumerate(zip(labels_ws[followid_attribute], labels_ws[label_attribute]))
-#				  if value[0].value is not None and value[0].value is not ''}
+#				  if value[0].value is not None and value[0].value is not '' and labels_ws['O' + str(i + 2)].value == 3}
+
+	# USE THIS FOR COLLATERALS AND AFFECTED SIDE
+	label_dict = {key[0].value: value[0].value
+				  for i, (key, value) in enumerate(zip(labels_ws[followid_attribute], labels_ws[label_attribute]))
+				  if value[0].value is not None and value[0].value is not ''}
 
 
 
@@ -303,14 +307,16 @@ class DataSet(object):
 
 			# --- prepare normalization ---
 			if normalize:
-				print('Computing mean...')
 				if not self.img3d:
 					mean = online_flattened_mean(self._Training[i].images)
 					std = online_flattened_std(self._Training[i].images, mean)
 				else:
+					print('Computing mean...')
 					mean = online_flattened_mean_3d(self._Training[i].images)
+					print('Computing mean...done.')
+					print('Computing std...')
 					std = online_flattened_std_3d(self._Training[i].images, mean)
-				print('Computing mean...done.')
+					print('Computing std...done.')
 
 				self.Normalization = True
 				self._Training[i].Normalization = True
@@ -440,6 +446,248 @@ class SubSet(object):
 			image_batch = np.expand_dims(image_batch, axis=3)
 
 		return image_batch, label_batch
+
+	def getImageArray(self, image_path):
+		"""
+		Returns:
+			Numpy array of the loaded image
+		Args:
+			image_path: Path of image to read from.
+		"""
+		if self.Normalization:
+			return np.divide(normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(image_path))) - self._mean, self._std)
+		else:
+			sl = normalize_image(sitk.GetArrayFromImage(sitk.ReadImage(image_path)))
+			return sl
+
+
+class DataSetCombined(object):
+
+	def __init__(self, training_points_list, test_points_list, validation_points_list,
+				 training_vars_list, testing_vars_list, validation_vars_list, normalize=False, img3d=False):
+		print('Init Dataset...')
+		self.img3d = img3d
+		self._current_fold = 0
+		self._Test = []
+		self._Training = []
+		self._Validation = []
+		self._folds = len(training_points_list)
+		for i in range(len(training_points_list)):
+			training_points = training_points_list[i]
+			test_points = test_points_list[i]
+			validation_points = validation_points_list[i]
+
+			training_vars = training_vars_list[i]
+			test_vars = testing_vars_list[i]
+			validation_vars = validation_vars_list[i]
+
+			# === TEST-SET ===
+			# --- Split and shuffle ---
+			perm = np.arange(int(len(test_points) / 2))
+			np.random.shuffle(perm)
+			test_images0 = np.array([key for i, (key, value) in enumerate(test_points.items()) if value == 0])[perm]
+			test_vars0 = np.array([test_vars[i] for i, (key, value) in enumerate(test_points.items()) if value == 0])[perm]
+			np.random.shuffle(perm)
+			test_images1 = np.array([key for i, (key, value) in enumerate(test_points.items()) if value == 1])[perm]
+			test_vars1 = np.array([test_vars[i] for i, (key, value) in enumerate(test_points.items()) if value == 1])[perm]
+
+			test_labels0 = np.array(
+				[np.ndarray((2,), buffer=np.array([1, 0]), dtype=int) for i in range(len(test_images0))])
+			test_labels1 = np.array(
+				[np.ndarray((2,), buffer=np.array([0, 1]), dtype=int) for i in range(len(test_images1))])
+
+			self._Test.append(SubSetCombined(test_images0, test_images1, test_vars0, test_vars1,
+											 test_labels0, test_labels1))
+
+			# === TRAINING-SET ===
+			# --- Split and shuffle ---
+			perm = np.arange(int(len(training_points)/2))
+			np.random.shuffle(perm)
+			training_images0 = np.array([key for i, (key, value) in enumerate(training_points.items()) if value == 0])[perm]
+			training_vars0 = np.array([training_vars[i] for i, (key, value) in enumerate(training_points.items()) if value == 0])[perm]
+			np.random.shuffle(perm)
+			training_images1 = np.array([key for i, (key, value) in enumerate(training_points.items()) if value == 1])[perm]
+			training_vars1 = np.array([training_vars[i] for i, (key, value) in enumerate(training_points.items()) if value == 1])[perm]
+
+			training_labels0 = np.array(
+				[np.ndarray((2,), buffer=np.array([1, 0]), dtype=int) for i in range(len(training_images0))])
+			training_labels1 = np.array(
+				[np.ndarray((2,), buffer=np.array([0, 1]), dtype=int) for i in range(len(training_images1))])
+
+			self._Training.append(SubSetCombined(training_images0, training_images1, training_vars0, training_vars1,
+											training_labels0, training_labels1))
+
+			# === VALIDATION-SET ===
+			perm = np.arange(int(len(validation_points)/2))
+			np.random.shuffle(perm)
+			validation_images0 = np.array([key for i, (key, value) in enumerate(validation_points.items()) if value == 0])[perm]
+			validation_vars0 = np.array([validation_vars[i] for i, (key, value) in enumerate(validation_points.items()) if value == 0])[perm]
+			np.random.shuffle(perm)
+			validation_images1 = np.array([key for i, (key, value) in enumerate(validation_points.items()) if value == 1])[perm]
+			validation_vars1 = np.array([validation_vars[i] for i, (key, value) in enumerate(validation_points.items()) if value == 1])[perm]
+
+			validation_labels0 = np.array(
+				[np.ndarray((2,), buffer=np.array([1, 0]), dtype=int) for i in range(len(validation_images0))])
+			validation_labels1 = np.array(
+				[np.ndarray((2,), buffer=np.array([0, 1]), dtype=int) for i in range(len(validation_images1))])
+
+			self._Validation.append(SubSetCombined(validation_images0, validation_images1, validation_vars0, validation_vars1,
+											validation_labels0, validation_labels1))
+
+			print('Creating folds...done.')
+
+			# --- prepare normalization ---
+			if normalize:
+				if not self.img3d:
+					mean = online_flattened_mean(self._Training[i].images)
+					std = online_flattened_std(self._Training[i].images, mean)
+				else:
+					print('Computing mean...')
+					mean = online_flattened_mean_3d(self._Training[i].images)
+					print('Computing mean...done.')
+					print('Computing std...')
+					std = online_flattened_std_3d(self._Training[i].images, mean)
+					print('Computing std...done.')
+
+				self.Normalization = True
+				self._Training[i].Normalization = True
+				self._Test[i].Normalization = True
+				self._Validation[i].Normalization = True
+				self._Training[i].setNormalizationParameters(mean, std)
+				self._Test[i].setNormalizationParameters(mean, std)
+				self._Validation[i].setNormalizationParameters(mean, std)
+			else:
+				self.Normalization = False
+				self._Training[i].Normalization = False
+				self._Validation[i].Normalization = False
+				self._Test[i].Normalization = False
+
+		print('Init Dataset...done.')
+
+	def next_fold(self):
+		self._current_fold += 1
+
+	def reset(self):
+		self._current_fold = 0
+
+	@property
+	def Training(self):
+		return self._Training[self._current_fold]
+
+	@property
+	def Validation(self):
+		return self._Validation[self._current_fold]
+
+	@property
+	def Test(self):
+		return self._Test[self._current_fold]
+
+class SubSetCombined(object):
+	"""
+	Utility class to handle training and validation set structure.
+	"""
+
+	def __init__(self, images0, images1, vars0, vars1, labels0, labels1):
+		"""
+		Builds dataset with images and labels.
+		Args:
+			images0: Images data of class0.
+			labels0: Labels data of class0.
+		"""
+		assert images0.shape[0] == labels0.shape[0], (
+			"images.shape: {0}, labels.shape: {1}".format(str(images0.shape), str(labels0.shape)))
+		assert images1.shape[0] == labels1.shape[0], (
+			"images.shape: {0}, labels.shape: {1}".format(str(images1.shape), str(labels1.shape)))
+
+		self._num_examples = images0.shape[0]
+		self._images = np.concatenate((images0, images1))
+		self._vars = np.concatenate((vars0, vars1))
+		self._labels = np.concatenate((labels0, labels1))
+		self._epochs_completed = 0
+		self._index_in_epoch = 0
+
+		perm = np.arange(self._num_examples)
+		np.random.shuffle(perm)
+
+		self._images0 = images0[perm]
+		self._vars0 = vars0[perm]
+		self._labels0 = labels0[perm]
+
+		self._images1 = images1[perm]
+		self._vars1 = vars1[perm]
+		self._labels1 = labels1[perm]
+
+	@property
+	def images(self):
+		return self._images
+	@property
+	def labels(self):
+		return self._labels
+	@property
+	def vars(self):
+		return self._vars
+	@property
+	def num_examples(self):
+		return self._num_examples
+	@property
+	def index_in_epoch(self):
+		return self._index_in_epoch
+	@property
+	def epochs_completed(self):
+		return self._epochs_completed
+
+	def reset(self):
+		self._epochs_completed = 0
+		self._index_in_epoch = 0
+
+	def setNormalizationParameters(self, mean, std):
+		self._mean = mean
+		self._std = std
+
+	def next_batch(self, batch_size, only_vars=True, bases3d=False):
+		"""
+		Return the next `batch_size` examples from this data set.
+		Args:
+			batch_size: Batch size.
+		"""
+		assert batch_size <= 2 * self._num_examples
+
+		start = self._index_in_epoch
+		self._index_in_epoch += int(batch_size / 2)
+		if self._index_in_epoch >= self._num_examples:
+			perm = np.arange(self._num_examples)
+			np.random.shuffle(perm)
+			self._images0 = self._images0[perm]
+			self._images1 = self._images1[perm]
+			self._vars0 = self._vars0[perm]
+			self._vars1 = self._vars1[perm]
+
+			start = 0
+			self._index_in_epoch = int(batch_size / 2)
+
+		end = self._index_in_epoch
+
+		perm = np.arange(batch_size)
+		np.random.shuffle(perm)
+
+		label_batch = np.concatenate((self._labels0[start:end], self._labels1[start:end]))[perm]
+		vars_batch = np.concatenate((self._vars0[start:end], self._vars1[start:end]))[perm]
+		if not only_vars:
+			image_batch = np.array(
+				[self.getImageArray(image0) for image0 in self._images0[start:end]] +
+				[self.getImageArray(image1) for image1 in self._images1[start:end]]
+			)[perm]
+			# --- Only in case of 3D model ---
+			if bases3d:
+				image_batch = np.expand_dims(image_batch, axis=4)
+				image_batch = np.swapaxes(image_batch, 1, 2)
+				image_batch = np.swapaxes(image_batch, 2, 3)
+			else:
+				image_batch = np.expand_dims(image_batch, axis=3)
+
+			return image_batch, vars_batch, label_batch
+		else:
+			return vars_batch, label_batch
 
 	def getImageArray(self, image_path):
 		"""

@@ -46,15 +46,15 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			# ====== DEFINE SPACEHOLDERS ======
 			with tf.name_scope('input'):
 				if FLAGS.bases3d:
-					image_batch = tf.placeholder(tf.float16, [NUM_GPUS, FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, FLAGS.Z_dim, 1],
+					image_batch = tf.placeholder(tf.float32, [NUM_GPUS, FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, FLAGS.Z_dim, 1],
 												 name='x-input')
 				else:
-					image_batch = tf.placeholder(tf.float16, [NUM_GPUS, FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, 1], name='x-input')
-				label_batch = tf.placeholder(tf.float16, [NUM_GPUS, FLAGS.batch_size, 2], name='y-input')
+					image_batch = tf.placeholder(tf.float32, [NUM_GPUS, FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, 1], name='x-input')
+				label_batch = tf.placeholder(tf.float32, [NUM_GPUS, FLAGS.batch_size, 2], name='y-input')
 			with tf.name_scope('alg-parameters'):
 				is_training = tf.placeholder(tf.bool, name='is-training')
-				weight_decay = tf.placeholder(tf.float16, shape=[], name='weight_decay')
-				bnorm_momentum = tf.placeholder(tf.float16, shape=[], name='bnorm_momentum')
+				weight_decay = tf.placeholder(tf.float32, shape=[], name='weight_decay')
+				bnorm_momentum = tf.placeholder(tf.float32, shape=[], name='bnorm_momentum')
 
 			# ====== DEFINE FEED_DICTIONARY ======
 			def feed_dict(flag):
@@ -172,7 +172,7 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			# === DEFINE QUEUE OPS ===
 			batch_queue = tf.FIFOQueue(
 				capacity=NUM_GPUS,
-				dtypes=[tf.float16, tf.float16],
+				dtypes=[tf.float32, tf.float32],
 				shapes=[(FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, FLAGS.Z_dim, 1) if FLAGS.bases3d else (FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, 1),
 						(FLAGS.batch_size, 2)]
 			)
@@ -268,7 +268,7 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			config = tf.ConfigProto(allow_soft_placement=True)
 			config.gpu_options.allow_growth = True
 
-		print('Training model...')
+
 		with tf.Session(config=config) as sess:
 			# Create a coordinator
 			coord = tf.train.Coordinator()
@@ -390,6 +390,7 @@ def train_ctnet(FLAGS, NUM_GPUS):
 						min_loss = 1000.0
 						# ==== TRAIN MODEL TILL max_epochs ====
 #						FLAGS.max_epochs = 1  # TEST!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+						print('Training model...')
 						for i in range(FLAGS.max_epochs):
 							if coord.should_stop():
 								break

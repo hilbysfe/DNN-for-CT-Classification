@@ -11,6 +11,7 @@ from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d
 # multi-scale/orientation keeping output
 from Utils.rfnn_utils import _rfnn_conv_layer_pure_3d
 from Utils.rfnn_utils import _rfnn_conv_layer_pure_3d_SO_learn_sq_bc
+from Utils.rfnn_utils import _rfnn_conv_layer_pure_3d_SO_learn_fl_bc
 
 from Utils.cnn_utils import _conv_layer_pure_3d
 
@@ -83,7 +84,7 @@ class RFNNDenseNet3D(object):
 			if rfnn is not "single" else init_basis_hermite_3D(self.comp_kernel, self.comp_sigmas[0], comp_order)
 
 		self.rfnn_layer = \
-			_rfnn_conv_layer_pure_3d_SO_learn_sq_bc if rfnn=="learn_sq" else \
+			_rfnn_conv_layer_pure_3d_SO_learn_fl_bc if rfnn=="learn_sq" else \
 			_rfnn_conv_layer_pure_3d
 
 		if not bc_mode:
@@ -192,7 +193,7 @@ class RFNNDenseNet3D(object):
 			_input, out_features=out_features, kernel_size=1)
 		print(output.get_shape())
 		# run average pooling
-		output = self.avg_pool(output, k=2, s=2)
+		output = self.avg_pool(output, k=3, s=3)
 		print(output.get_shape())
 		return output
 
@@ -212,7 +213,7 @@ class RFNNDenseNet3D(object):
 							int(output.get_shape()[3].value), 1]
 		last_pool_stride = [1, int(output.get_shape()[1].value), int(output.get_shape()[2]) * self.avgpool_stride_ratio,
 							int(output.get_shape()[3].value), 1]
-		output = tf.cast(tf.nn.avg_pool3d(tf.cast(output, tf.float32), last_pool_kernel, last_pool_stride, 'VALID'), tf.float16)
+		output = tf.nn.avg_pool3d(output, last_pool_kernel, last_pool_stride, 'VALID')
 		print(output.get_shape())
 		# FC
 		features_total = int(output.get_shape()[-1]) * int(output.get_shape()[-2]) * int(output.get_shape()[-3])
@@ -230,14 +231,13 @@ class RFNNDenseNet3D(object):
 		ksize = [1, k, k, k, 1]
 		strides = [1, s, s, s, 1]
 		padding = 'VALID'
-		output = tf.cast(tf.nn.avg_pool3d(tf.cast(_input, tf.float32), ksize, strides, padding), tf.float16)
+		output = tf.nn.avg_pool3d(_input, ksize, strides, padding)
 		return output
 
 	def dropout(self, _input):
 		if self.keep_prob < 1:
 			output = tf.cond(
 				self.is_training,
-#				lambda: tf.cast(tf.nn.dropout(tf.cast(_input, dtype=tf.float16), self.keep_prob), dtype=tf.float32),
 				lambda: tf.nn.dropout(_input, self.keep_prob),
 				lambda: _input
 			)
@@ -250,7 +250,7 @@ class RFNNDenseNet3D(object):
 			name=name,
 			shape=shape,
 			initializer=tf.contrib.layers.variance_scaling_initializer(),
-			dtype=tf.float16)
+			dtype=tf.float32)
 
 	def weight_variable_xavier(self, shape, name):
 		return tf.get_variable(
@@ -259,21 +259,21 @@ class RFNNDenseNet3D(object):
 			initializer=tf.contrib.layers.xavier_initializer())
 
 	def bias_variable(self, shape, name='bias'):
-		initial = tf.constant(0.0, shape=shape, dtype=tf.float16)
-		return tf.get_variable(name, initializer=initial, dtype=tf.float16)
+		initial = tf.constant(0.0, shape=shape, dtype=tf.float32)
+		return tf.get_variable(name, initializer=initial, dtype=tf.float32)
 
 	def inference(self, X):
 		growth_rate = self.growth_rate
 		layers_per_block = self.layers_per_block
 		# first - initial 3 x 3 conv to first_output_features
 		with tf.variable_scope("Initial_convolution"):
-			output, alphas, kernel = self.rfnn_layer(X, self.hermit_initial, self.first_output_features, strides=[1,2,2,2,1])
+			output, alphas, kernel = self.rfnn_layer(X, self.hermit_initial, self.first_output_features, strides=[1,3,3,3,1])
 			print(output.get_shape())
 			self.kernels.append(kernel)
 			self.alphas.append(alphas)
 			self.conv_act.append(output)
 		with tf.variable_scope("Initial_pooling"):
-			output = tf.cast(tf.nn.max_pool3d(tf.cast(output, tf.float32), ksize=[1, 3, 3, 3, 1], strides=[1, 2, 2, 2, 1], padding='VALID'), tf.float16)
+			output = tf.nn.max_pool3d(output, ksize=[1, 3, 3, 3, 1], strides=[1, 2, 2, 2, 1], padding='VALID')
 			print(output.get_shape())
 
 		# add N required blocks
