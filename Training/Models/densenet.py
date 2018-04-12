@@ -190,6 +190,7 @@ class DenseNet(object):
 		# FC
 		features_total = int(output.get_shape()[-1]) * int(output.get_shape()[-2])
 		output = tf.reshape(output, [-1, features_total])
+		self.penultimate = output
 		W = self.weight_variable_xavier(
 			[features_total, self.n_classes], name='W')
 		self.weights.append(W)
@@ -268,7 +269,7 @@ class DenseNet(object):
 
 		self._count_trainable_params()
 
-		return logits
+		return logits, self.penultimate
 
 class DenseNetCifar(object):
 	def __init__(self, growth_rate, depth,

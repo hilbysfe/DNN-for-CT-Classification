@@ -58,7 +58,7 @@ def exp_GB(logits, alpha):
 def pow3_GB(logits, alpha, beta):
 	return tf.add(tf.multiply(tf.pow(logits, 3), alpha), beta)
 
-def tower_accuracy(logits, labels, scope):
+def tower_accuracy(logits, labels):
 	softmax = tf.nn.softmax(logits)
 	with tf.name_scope('correct_prediction'):
 		correct_prediction = tf.equal(tf.argmax(softmax, 1), tf.argmax(labels, 1))
@@ -81,7 +81,7 @@ def tower_accuracy_exp(logits, labels, scope):
 
 def tower_loss(logits, labels, scope):
 	with tf.name_scope('Cross_Entropy_Loss'):
-		cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels,
+		cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=labels,
 																name='cross_entropy_per_example')
 		cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
 		tf.add_to_collection('losses', cross_entropy_mean)
