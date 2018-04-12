@@ -111,14 +111,14 @@ def split_datasets(datapath, labelpath, output, label_name='', val_folds=4, val_
 	labels_ws = labels_wb['Registrydatabase']
 
 	# USE THIS FOR ALL IAT DEPENDENT LABELS
-	label_dict = {key[0].value: value[0].value
-				  for i, (key, value) in enumerate(zip(labels_ws[followid_attribute], labels_ws[label_attribute]))
-				  if value[0].value is not None and value[0].value is not '' and labels_ws['O' + str(i + 2)].value == 3}
-
-	# USE THIS FOR COLLATERALS AND AFFECTED SIDE
 #	label_dict = {key[0].value: value[0].value
 #				  for i, (key, value) in enumerate(zip(labels_ws[followid_attribute], labels_ws[label_attribute]))
-#				  if value[0].value is not None and value[0].value is not ''}
+#				  if value[0].value is not None and value[0].value is not '' and labels_ws['O' + str(i + 2)].value == 3}
+
+	# USE THIS FOR COLLATERALS AND AFFECTED SIDE
+	label_dict = {key[0].value: value[0].value
+				  for i, (key, value) in enumerate(zip(labels_ws[followid_attribute], labels_ws[label_attribute]))
+				  if value[0].value is not None and value[0].value is not ''}
 
 
 
@@ -128,12 +128,13 @@ def split_datasets(datapath, labelpath, output, label_name='', val_folds=4, val_
 					 for name in files if name.endswith(".mha")
 					 if name.split('.')[0] in label_dict.keys() and
 					 label_dict[name.split('.')[0]] == 0]
+	print(len(class0_images))
 	class1_images = [os.path.join(root, name)
 					 for root, dirs, files in os.walk(datapath)
 					 for name in files if name.endswith(".mha")
 					 if name.split('.')[0] in label_dict.keys() and
 					 label_dict[name.split('.')[0]] == 1]
-
+	print(len(class1_images))
 	num_examples = 2 * min(len(class0_images), len(class1_images))
 
 	# --- Schuffle both classes ---
@@ -242,7 +243,7 @@ def read_dataset(datapath, val_folds=4):
 
 class DataSet(object):
 
-	def __init__(self, training_points_list, test_points_list, validation_points_list, normalize=False, img3d=False):
+	def __init__(self, training_points_list, test_points_list, validation_points_list, normalize=False, img3d=False, means=[], stds=[]):
 		print('Init Dataset...')
 		self.img3d = img3d
 		self._current_fold = 0
@@ -303,14 +304,18 @@ class DataSet(object):
 
 			# --- prepare normalization ---
 			if normalize:
-				print('Computing mean...')
-				if not self.img3d:
-					mean = online_flattened_mean(self._Training[i].images)
-					std = online_flattened_std(self._Training[i].images, mean)
+				if len(means) == 0:
+					print('Computing mean...')
+					if not self.img3d:
+						mean = online_flattened_mean(self._Training[i].images)
+						std = online_flattened_std(self._Training[i].images, mean)
+					else:
+						mean = online_flattened_mean_3d(self._Training[i].images)
+						std = online_flattened_std_3d(self._Training[i].images, mean)
+					print('Computing mean...done.')
 				else:
-					mean = online_flattened_mean_3d(self._Training[i].images)
-					std = online_flattened_std_3d(self._Training[i].images, mean)
-				print('Computing mean...done.')
+					mean = means[i]
+					std = stds[i]
 
 				self.Normalization = True
 				self._Training[i].Normalization = True

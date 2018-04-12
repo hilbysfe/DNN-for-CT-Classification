@@ -162,7 +162,7 @@ class DenseNet3d(object):
 			_input, out_features=out_features, kernel_size=1)
 		print(output.get_shape())
 		# run average pooling
-		output = self.avg_pool(output, k=2, s=2)
+		output = self.avg_pool(output, k=3, s=3)
 		print(output.get_shape())
 		return output
 
@@ -182,8 +182,7 @@ class DenseNet3d(object):
 							int(output.get_shape()[3].value), 1]
 		last_pool_stride = [1, int(output.get_shape()[1].value), int(output.get_shape()[2]) * self.avgpool_stride_ratio,
 							int(output.get_shape()[3].value), 1]
-		output = tf.cast(tf.nn.avg_pool3d(tf.cast(output, tf.float32), last_pool_kernel, last_pool_stride, 'VALID'),
-						 tf.float16)
+		output = tf.nn.avg_pool3d(output, last_pool_kernel, last_pool_stride, 'VALID')
 		# FC
 		features_total = int(output.get_shape()[-1]) * int(output.get_shape()[-2]) * int(output.get_shape()[-3])
 		output = tf.reshape(output, [-1, features_total])
@@ -199,7 +198,7 @@ class DenseNet3d(object):
 		ksize = [1, k, k, k, 1]
 		strides = [1, s, s, s, 1]
 		padding = 'VALID'
-		output = tf.cast(tf.nn.avg_pool3d(tf.cast(_input, tf.float32), ksize, strides, padding), tf.float16)
+		output = tf.nn.avg_pool3d(_input, ksize, strides, padding)
 
 		return output
 
@@ -219,19 +218,19 @@ class DenseNet3d(object):
 			name=name,
 			shape=shape,
 			initializer=tf.contrib.layers.variance_scaling_initializer(),
-			dtype=tf.float16)
+			dtype=tf.float32)
 
 	def weight_variable_xavier(self, shape, name):
 		return tf.get_variable(
 			name,
 			shape=shape,
 			initializer=tf.contrib.layers.xavier_initializer(),
-			dtype=tf.float16)
+			dtype=tf.float32)
 
 	def bias_variable(self, shape, name='bias'):
 		initial = tf.constant(0.0, shape=shape,
-			dtype=tf.float16)
-		return tf.get_variable(name, initializer=initial, dtype=tf.float16)
+			dtype=tf.float32)
+		return tf.get_variable(name, initializer=initial, dtype=tf.float32)
 
 	def inference(self, X):
 		growth_rate = self.growth_rate
@@ -242,12 +241,12 @@ class DenseNet3d(object):
 				X,
 				shape=[self.initial_kernel, self.initial_kernel, self.initial_kernel, int(X.get_shape()[-1]),
 					   self.first_output_features],
-				strides=[1, 2, 2, 2, 1])
+				strides=[1, 3, 3, 3, 1])
 			print(output.get_shape())
 			self.kernels.append(weights)
 			self.conv_act.append(output)
 		with tf.variable_scope("Initial_pooling"):
-			output = tf.cast(tf.nn.max_pool3d(tf.cast(output, tf.float32), ksize=[1, 3, 3, 3, 1], strides=[1, 2, 2, 2, 1], padding='VALID'), tf.float16)
+			output = tf.nn.max_pool3d(output, ksize=[1, 3, 3, 3, 1], strides=[1, 2, 2, 2, 1], padding='VALID')
 			print(output.get_shape())
 
 		# add N required blocks

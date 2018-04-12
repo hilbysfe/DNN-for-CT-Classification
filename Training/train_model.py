@@ -1,5 +1,4 @@
 
-from Utils import utils
 from Utils import utils_final
 from Models.densenet import DenseNet
 from Models.densenet3d import DenseNet3d
@@ -39,22 +38,42 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			print('Loading Dataset...')
 			training_points, test_points, validation_points = utils_final.read_dataset(FLAGS.datapath)
 
-			dataset = utils_final.DataSet(training_points, test_points, validation_points,
-									normalize=FLAGS.normalization, img3d=FLAGS.bases3d)
+			if FLAGS.normalization:
+				means = []
+				stds = []
+				for f in range(FLAGS.xvalidation_folds):
+					if tf.gfile.Exists(FLAGS.mean_dir + '/mean_' + str(f) + '.npy'):
+						means.append(np.load(FLAGS.mean_dir + '/mean_' + str(f) + '.npy'))
+						stds.append(np.load(FLAGS.mean_dir + '/std_' + str(f) + '.npy'))
+
+				dataset = utils_final.DataSet(training_points, test_points, validation_points,
+							normalize=FLAGS.normalization, img3d=FLAGS.bases3d, means=means, stds=stds)
+
+				if len(means) != 0:
+					if not tf.gfile.Exists(FLAGS.mean_dir):
+						tf.gfile.MakeDirs(FLAGS.mean_dir)
+					for f in range(FLAGS.xvalidation_folds):
+						np.save(FLAGS.mean_dir + '/mean_' + str(f) + '.npy', means[f])
+						np.save(FLAGS.mean_dir + '/std_' + str(f) + '.npy', stds[f])
+			else:
+				dataset = utils_final.DataSet(training_points, test_points, validation_points,
+							normalize=FLAGS.normalization, img3d=FLAGS.bases3d)
+
 			print('Loading Dataset...done.')
+
 
 			# ====== DEFINE SPACEHOLDERS ======
 			with tf.name_scope('input'):
 				if FLAGS.bases3d:
-					image_batch = tf.placeholder(tf.float16, [NUM_GPUS, FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, FLAGS.Z_dim, 1],
+					image_batch = tf.placeholder(tf.float32, [NUM_GPUS, FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, FLAGS.Z_dim, 1],
 												 name='x-input')
 				else:
-					image_batch = tf.placeholder(tf.float16, [NUM_GPUS, FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, 1], name='x-input')
-				label_batch = tf.placeholder(tf.float16, [NUM_GPUS, FLAGS.batch_size, 2], name='y-input')
+					image_batch = tf.placeholder(tf.float32, [NUM_GPUS, FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, 1], name='x-input')
+				label_batch = tf.placeholder(tf.float32, [NUM_GPUS, FLAGS.batch_size, 2], name='y-input')
 			with tf.name_scope('alg-parameters'):
 				is_training = tf.placeholder(tf.bool, name='is-training')
-				weight_decay = tf.placeholder(tf.float16, shape=[], name='weight_decay')
-				bnorm_momentum = tf.placeholder(tf.float16, shape=[], name='bnorm_momentum')
+				weight_decay = tf.placeholder(tf.float32, shape=[], name='weight_decay')
+				bnorm_momentum = tf.placeholder(tf.float32, shape=[], name='bnorm_momentum')
 
 			# ====== DEFINE FEED_DICTIONARY ======
 			def feed_dict(flag):
@@ -83,6 +102,7 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			comp_sigmas = [float(x) for x in FLAGS.comp_sigmas.split(',')]
 			thetas = [float(x) for x in FLAGS.thetas.split(',')]
 			phis = [float(x) for x in FLAGS.phis.split(',')]
+			FLAGS.gpu_list = [int(x) for x in FLAGS.gpu_list.split(',')]
 
 			if FLAGS.rfnn == "cnn":
 				if FLAGS.bases3d:
@@ -172,7 +192,7 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			# === DEFINE QUEUE OPS ===
 			batch_queue = tf.FIFOQueue(
 				capacity=NUM_GPUS,
-				dtypes=[tf.float16, tf.float16],
+				dtypes=[tf.float32, tf.float32],
 				shapes=[(FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, FLAGS.Z_dim, 1) if FLAGS.bases3d else (FLAGS.batch_size, FLAGS.X_dim, FLAGS.X_dim, 1),
 						(FLAGS.batch_size, 2)]
 			)
@@ -191,7 +211,7 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			for i in range(NUM_GPUS):
 				x, y = batch_queue.dequeue()
 
-				with tf.device('/gpu:%d' % i):
+				with tf.device('/gpu:%d' % FLAGS.gpu_list[i]):
 					# ====== INFERENCE ======
 					with tf.name_scope('%s_%d' % ('tower', i)) as scope:
 						# Calculate predictions
@@ -265,8 +285,8 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			summary_op = tf.summary.merge(summaries)
 
 			# ====== DEFINE SESSION AND OPTIMIZE ======
-			config = tf.ConfigProto(allow_soft_placement=True)
-			config.gpu_options.allow_growth = True
+			gpuOptions = tf.GPUOptions(allow_growth=True)
+			config = tf.ConfigProto(allow_soft_placement=True, gpu_options=gpuOptions)
 
 		print('Training model...')
 		with tf.Session(config=config) as sess:
@@ -275,7 +295,7 @@ def train_ctnet(FLAGS, NUM_GPUS):
 
 			try:
 				# ========= CROSS-VALIDATE RESULTS ==========
-				NUM_GPUS = 1
+#				NUM_GPUS = 1
 				best_trials = []
 #				FLAGS.xvalidation_folds = 1  # TEST!!!!!!!!!!!!!!!!!!!!
 				for f in range(FLAGS.xvalidation_folds):
