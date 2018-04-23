@@ -9,6 +9,7 @@ from Models.RFNN_densenet3d import RFNNDenseNet3D
 
 from Utils.training_utils import average_gradients
 from Utils.training_utils import tower_loss_dense
+from Utils.training_utils import tower_loss_dense_wd
 from Utils.training_utils import tower_loss
 from Utils.training_utils import tower_accuracy
 from Utils.training_utils import show_kernels
@@ -28,12 +29,12 @@ import re
 
 
 
-#import gradient_checkpointing_master.memory_saving_gradients as memory_saving_gradients
-#from tensorflow.python.ops import gradients
+import gradient_checkpointing_master.memory_saving_gradients as memory_saving_gradients
+from tensorflow.python.ops import gradients
 # monkey patch tf.gradients to point to our custom version, with automatic checkpoint selection
-#def gradients_memory(ys, xs, grad_ys=None, **kwargs):
-#    return memory_saving_gradients.gradients(ys, xs, grad_ys, checkpoints='memory', gate_gradients=True, **kwargs)
-#gradients.__dict__["gradients"] = gradients_memory
+def gradients_memory(ys, xs, grad_ys=None, **kwargs):
+    return memory_saving_gradients.gradients(ys, xs, grad_ys, checkpoints='memory', gate_gradients=True, **kwargs)
+gradients.__dict__["gradients"] = gradients_memory
 
 
 def Binarize_Labels(Y):
@@ -93,6 +94,8 @@ def train_ctnet(FLAGS):
 												 name='x-input')
 			with tf.name_scope('alg-parameters'):
 				is_training_cnn = tf.constant(False, tf.bool, name='is-training')
+				is_training_comb = tf.placeholder(tf.bool, name='is-training-combination')
+				is_refine = tf.placeholder(tf.bool, name='is-refine')
 
 # ===========================================================================
 # ========================= CNN MODEL =======================================
@@ -151,13 +154,11 @@ def train_ctnet(FLAGS):
 		# ========= LOAD BEST MODELS PER FOLD ==========
 		cnn_best_trials = []
 		for f in range(FLAGS.xvalidation_folds):
-			print('X-val fold: ' + str(f))
 			# ======== X TRIALS =========
 			best_trial = 0
 			best_loss = 1000.0
 			best_acc = 0.0
-			for trial in range(FLAGS.trials):
-				print('Trial: ' + str(trial))
+			for trial in range(3):
 				# Check if trial already run
 				if tf.gfile.Exists(FLAGS.stat_dir_cnn + '/min_loss_' + str(f) + '_' + str(trial) + '.npy'):
 					min_loss = np.load(FLAGS.stat_dir_cnn + '/min_loss_' + str(f) + '_' + str(trial) + '.npy')
@@ -216,18 +217,18 @@ def train_ctnet(FLAGS):
 				hidden_layer = tf.nn.dropout(hidden_layer, keep_prob=1.0, name='h2_dp')
 				# layer 3
 				hidden_layer = tf.add(tf.matmul(hidden_layer, nn_weights['hidden3']), nn_biases['hidden3'], name='h3_add')
-				nn_output = tf.stop_gradient(tf.nn.sigmoid(hidden_layer, name='h3_sg'))
+				nn_output = tf.cond(is_refine,
+									lambda: tf.nn.sigmoid(hidden_layer, name='h3_sg'),
+									lambda: tf.stop_gradient(tf.nn.sigmoid(hidden_layer, name='h3_sg')))
 
 		# ========= LOAD BEST MODELS PER FOLD ==========
 		nn_best_trials = []
 		for f in range(FLAGS.xvalidation_folds):
-			print('X-val fold: ' + str(f))
 			# ======== X TRIALS =========
 			best_trial = 0
 			best_loss = 1000.0
 			best_acc = 0.0
-			for trial in range(FLAGS.trials):
-				print('Trial: ' + str(trial))
+			for trial in range(3):
 				# Check if trial already run
 				if tf.gfile.Exists(FLAGS.stat_dir_vars + '/min_loss_' + str(f) + '_' + str(trial) + '.npy'):
 					min_loss = np.load(FLAGS.stat_dir_vars + '/min_loss_' + str(f) + '_' + str(trial) + '.npy')
@@ -276,98 +277,91 @@ def train_ctnet(FLAGS):
 
 		print('Loading Dataset...done.')
 
-		# ====== DEFINE SPACEHOLDERS ======
-		with tf.name_scope('alg-parameters'):
-			is_training_comb = tf.placeholder(tf.bool, name='is-training-combination')
+		# ====== MODEL DEFINITION ======
+		print('Defining model...')
+		model = CombinationModel(
+			embedding_neurons=FLAGS.embedding,
+			num_of_layers=FLAGS.num_of_layers,
+			num_of_neurons=FLAGS.num_of_neurons,
+			keep_prob = FLAGS.keep_prob_comb,
+			is_training=is_training_comb)
+		print('Defining model...done.')
 
-		# ========= CROSS-VALIDATE RESULTS ==========
-		best_trials = []
-		cv_acc_list = []
-		cv_auc_list = []
-		mean_fpr = np.linspace(0, 1, 100)
-		cv_tprs_list = []
+		# ====== DEFINE LOSS, ACCURACY TENSORS ======
+		print('Defining necessary OPs...')
+		opt = tf.train.AdamOptimizer(FLAGS.learning_rate)
 
-		for f in range(FLAGS.xvalidation_folds):
-			# ====== MODEL DEFINITION ======
-			print('Defining model...')
-			model = CombinationModel(
-				embedding_neurons=FLAGS.embedding,
-				num_of_layers=FLAGS.num_of_layers,
-				num_of_neurons=FLAGS.num_of_neurons,
-				is_training=is_training_comb)
-			print('Defining model...done.')
+		# ====== FORWARD PASS ======
+		with tf.variable_scope(tf.get_variable_scope()):#, reuse=True):
+			with tf.device('/gpu:0'):
+				# ====== INFERENCE ======
+				with tf.name_scope('tower0') as scope:
+					# Stop the gradient
+					cnn_output_sg = tf.cond(is_refine,
+										lambda: tf.nn.sigmoid(penultimate),
+										lambda: tf.stop_gradient(tf.nn.sigmoid(penultimate)))
 
-			# ====== DEFINE LOSS, ACCURACY TENSORS ======
-			print('Defining necessary OPs...')
-			opt = tf.train.AdamOptimizer(FLAGS.learning_rate)
+					# Define placeholder for labels
+					label_batch = tf.placeholder(tf.float32, [FLAGS.batch_size, 2], name='y-input')
+					# Calculate predictions
+					logits = model.inference([nn_output, cnn_output_sg])
+					train_vars = [var for var in tf.trainable_variables() if 'Combination_model' in var.name]
+					combined_loss, l2_loss, entropy = tower_loss_dense_wd(logits, label_batch, FLAGS.weight_decay, train_vars, scope)
+					combined_accuracy, _, combined_scores = tower_accuracy(logits, label_batch)
 
-			# ====== FORWARD PASS ======
-			with tf.variable_scope(tf.get_variable_scope()):
-				with tf.device('/gpu:0'):
-					# ====== INFERENCE ======
-					with tf.name_scope('tower0') as scope:
-						# Stop the gradient
-#						nn_output_sg = tf.stop_gradient(nn_output)
-						cnn_output_sg = tf.stop_gradient(penultimate)
+					# Reuse variables for the next tower.
+					tf.get_variable_scope().reuse_variables()
 
-						# Define placeholder for labels
-						label_batch = tf.placeholder(tf.float32, [FLAGS.batch_size, 2], name='y-input')
-						# Calculate predictions
-	#					logits = model.inference([cnn_output_sg, nn_output_sg])
-						logits = model.inference([nn_output])
-						combined_loss = tower_loss(logits, label_batch, scope)
-						combined_accuracy, _, combined_scores = tower_accuracy(logits, label_batch)
+					# Retain the summaries from the final tower.
+					summaries = tf.get_collection(tf.GraphKeys.SUMMARIES)
 
-						# Retain the summaries from the final tower.
-	#					summaries = tf.get_collection(tf.GraphKeys.SUMMARIES)
+					# Calculate the gradients for the batch of data on this tower.
+#					grads = tf.gradients(combined_loss, train_vars)
+#					grads_and_vars = list(zip(grads, train_vars))
 
-						# Calculate the gradients for the batch of data on this tower.
-	#					train_vars = [var for var in tf.trainable_variables() if 'Combination_model' in var.name]
-	#					grads = tf.gradients(combined_loss, train_vars)
-	#					grads_and_vars = list(zip(grads, train_vars))
-
-						grads = tf.gradients(combined_loss, tf.trainable_variables())
-						grads_and_vars = list(zip(grads, tf.trainable_variables()))
+					grads = tf.gradients(combined_loss, tf.trainable_variables())
+					grads_and_vars = list(zip(grads, tf.trainable_variables()))
 
 
-			# ====== BACKWARD PASS ======
-			with tf.device('/cpu:0'):
-				print('Defining necessary OPs...done.')
+		# ====== BACKWARD PASS ======
+		with tf.device('/cpu:0'):
+			print('Defining necessary OPs...done.')
 
-				# ====== ADD SUMMARIES ======
-				# Gradients
-	#			for grad, var in grads_and_vars:
-	#				if grad is not None:
-	#					summaries.append(tf.summary.histogram(var.op.name + '/gradients', grad))
-				# Trainable variables
-	#			for var in train_vars:
-	#				summaries.append(tf.summary.histogram(var.op.name, var))
+			# ====== ADD SUMMARIES ======
+			# Gradients
+			for grad, var in grads_and_vars:
+				if grad is not None:
+					summaries.append(tf.summary.histogram(var.op.name + '/gradients', grad))
+			# Trainable variables
+			for var in train_vars:
+				summaries.append(tf.summary.histogram(var.op.name, var))
 
-				# ====== UPDATE VARIABLES ======
-				print('Defining update OPs...')
-				# Apply the gradients to adjust the shared variables.
-	#			update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-	#			with tf.control_dependencies(update_ops):
+			# ====== UPDATE VARIABLES ======
+			print('Defining update OPs...')
+			# Apply the gradients to adjust the shared variables.
+			update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+			with tf.control_dependencies(update_ops):
 				train_op = opt.apply_gradients(grads_and_vars, global_step=gl_step)
-				print('Defining update OPs...done.')
+			print('Defining update OPs...done.')
 
-				# ====== SAVING OPS ======
-				# Create a saver.
-	#			saver = tf.train.Saver(train_vars, max_to_keep=None)
-				saver = tf.train.Saver(tf.trainable_variables(), max_to_keep=None)
-				# Build the summary operation from the last tower summaries.
-	#			summary_op = tf.summary.merge(summaries)
+			# ====== SAVING OPS ======
+			# Create a saver.
+			saver = tf.train.Saver(tf.global_variables(), max_to_keep=None)
+			# Build the summary operation from the last tower summaries.
+			summary_op = tf.summary.merge(summaries)
 
-				# ====== DEFINE SESSION AND OPTIMIZE ======
-				config = tf.ConfigProto(allow_soft_placement=True)
-				config.gpu_options.allow_growth = True
+			# ====== DEFINE SESSION AND OPTIMIZE ======
+			config = tf.ConfigProto(allow_soft_placement=True)
+			config.gpu_options.allow_growth = True
 
-			with tf.Session(config=config) as sess:
+		with tf.Session(config=config) as sess:
+			# ========= CROSS-VALIDATE RESULTS ==========
+			best_trials = []
+			for f in range(FLAGS.xvalidation_folds):
 				print('X-val fold: ' + str(f))
 				test_steps = int(np.ceil(2 * dataset.Test.num_examples / FLAGS.batch_size))
 				training_steps = int(np.ceil(2 * dataset.Training.num_examples / FLAGS.batch_size))
 				validation_steps = int(np.ceil(2 * dataset.Validation.num_examples / FLAGS.batch_size))
-
 				# ======== X TRIALS =========
 				best_trial = 0
 				best_loss = 1000.0
@@ -401,9 +395,19 @@ def train_ctnet(FLAGS):
 							"rb") as fp:
 						bias_dict = pickle.load(fp)
 					for i,(key, value) in enumerate(weights_dict.items()):
-						tf.assign(nn_weights[key], value)
+						sess.run(nn_weights[key].assign(value))
 					for i, (key, value) in enumerate(bias_dict.items()):
-						tf.assign(nn_biases[key], value)
+						sess.run(nn_biases[key].assign(value))
+
+					# Load saved weights for CNN
+					with open(os.path.join(
+							FLAGS.checkpoint_dir_cnn + '\\' + str(f) + '\\' + str(cnn_best_trials[f]), 'weights.npy'), "rb") as fp:
+						weights_dict = pickle.load(fp)
+					for i,(key, value) in enumerate(weights_dict.items()):
+						sess.run(cnn_model.variable_dict[key].assign(value))
+
+					weights_cnn = sess.run(cnn_model.variable_dict)
+					weights_nn = sess.run(nn_weights)
 
 					# Init writers
 					train_writer = tf.summary.FileWriter(FLAGS.log_dir + '/train/' + str(f) + '/' + str(trial), sess.graph)
@@ -416,51 +420,69 @@ def train_ctnet(FLAGS):
 					for i in range(FLAGS.max_epochs):
 						avg_acc_i = 0
 						avg_loss_i = 0
+						avg_l2_i = 0
+						avg_entropy_i = 0
 						# ------------ TRAIN -------------
 						for step in range(training_steps):
 							xi, vi, yi = dataset.Training.next_batch(FLAGS.batch_size, only_vars=False, bases3d=FLAGS.bases3d)
 							if step == training_steps - 1 and i % FLAGS.print_freq == 0:
-								_, acc_s, loss_s = sess.run([train_op, combined_accuracy, combined_loss],
-											feed_dict={label_batch: yi, x_vars: vi, is_training_comb: True})
+								_, summaries, acc_s, loss_s, l2_s, entropy_s = sess.run([train_op, summary_op,
+																						 combined_accuracy, combined_loss, l2_loss, entropy],
+									feed_dict={image_batch: xi, label_batch: yi, x_vars: vi,
+											   	is_training_comb: True, is_refine: i > FLAGS.refine})
 							else:
-								_, acc_s, loss_s = sess.run([train_op, combined_accuracy, combined_loss],
-											feed_dict={label_batch: yi, x_vars: vi, is_training_comb: True})
+								_, acc_s, loss_s, l2_s, entropy_s = sess.run([train_op, combined_accuracy, combined_loss, l2_loss, entropy],
+									feed_dict={image_batch: xi, label_batch: yi, x_vars: vi,
+												is_training_comb: True, is_refine: i > FLAGS.refine})
 
 							assert not np.isnan(loss_s), 'Model diverged with loss = NaN'
 
 							avg_acc_i += (acc_s / training_steps)
 							avg_loss_i += (loss_s / training_steps)
+							avg_l2_i += (l2_s / training_steps)
+							avg_entropy_i += (entropy_s / training_steps)
 
 						# ------------ PRINT -------------
 						if i % FLAGS.print_freq == 0:
 							summary = tf.Summary()
 							summary.value.add(tag="Accuracy", simple_value=avg_acc_i)
 							summary.value.add(tag="Total_Loss", simple_value=avg_loss_i)
+							summary.value.add(tag="L2_Loss", simple_value=avg_l2_i)
+							summary.value.add(tag="X-entropy_Loss", simple_value=avg_entropy_i)
 
 							train_writer.add_summary(summary, i)
+							train_writer.add_summary(summaries, i)
 
-						weights = sess.run(nn_weights)
+						weights_cnn = sess.run(cnn_model.variable_dict)
+						weights_nn = sess.run(nn_weights)
 
 						# ------------ VALIDATON -------------
 						if i % FLAGS.eval_freq == 0 or i == FLAGS.max_epochs-1:
 							tot_acc = 0.0
 							tot_loss = 0.0
+							tot_l2 = 0.0
+							tot_entropy = 0.0
 							for step in range(validation_steps):
 								xi, vi, yi = dataset.Validation.next_batch(FLAGS.batch_size, only_vars=False, bases3d=FLAGS.bases3d)
-								acc_s, loss_s = sess.run([combined_accuracy, combined_loss],
-										feed_dict={label_batch: yi, x_vars: vi, is_training_comb: False})
+								acc_s, loss_s, l2_s, entropy_s, softmax = sess.run([combined_accuracy, combined_loss, l2_loss, entropy, combined_scores],
+										feed_dict={image_batch: xi, label_batch: yi, x_vars: vi,
+												   	is_training_comb: False, is_refine: i > FLAGS.refine})
 
 								tot_acc += (acc_s / validation_steps)
 								tot_loss += (loss_s / validation_steps)
+								tot_l2 += (l2_s / validation_steps)
+								tot_entropy += (entropy_s / validation_steps)
 
 							summary = tf.Summary()
 							summary.value.add(tag="Accuracy", simple_value=tot_acc)
 							summary.value.add(tag="Total_Loss", simple_value=tot_loss)
+							summary.value.add(tag="L2_Loss", simple_value=tot_l2)
+							summary.value.add(tag="X-entropy_Loss", simple_value=tot_entropy)
 
 							test_writer.add_summary(summary, i)
 
 							# Save bets model so far
-							if tot_loss < min_loss and i > FLAGS.max_epochs * 0.6:
+							if tot_entropy < min_loss:# and i > FLAGS.max_epochs * 0.5:
 								max_acc = tot_acc
 								min_loss = tot_loss
 
@@ -470,6 +492,27 @@ def train_ctnet(FLAGS):
 								saver.save(sess, checkpoint_path)
 							print('Validation loss-acc at step %s: %s - %s' % (i, tot_loss, tot_acc))
 							print('Training loss-acc at step %s: %s - %s' % (i, avg_loss_i, avg_acc_i))
+
+					softmax_whole = []
+					labels_whole = []
+					test_acc = 0.0
+					# Get predictions for the whole test-set
+					for step in range(test_steps):
+						xi, vi, yi = dataset.Test.next_batch(FLAGS.batch_size, only_vars=False, bases3d=FLAGS.bases3d)
+						acc_s, softmax = sess.run([combined_accuracy, combined_scores],
+												  feed_dict={image_batch: xi, label_batch: yi, x_vars: vi,
+															 is_training_comb: False, is_refine: False})
+
+						softmax_whole.append(softmax)
+						labels_whole.append(yi)
+						test_acc += (acc_s / test_steps)
+					softmax_whole = np.reshape(softmax_whole,
+											   (np.shape(softmax_whole)[0] * np.shape(softmax_whole)[1], 2))
+					labels_whole = np.reshape(labels_whole, (np.shape(labels_whole)[0] * np.shape(labels_whole)[1], 2))
+
+					# Compute ROC curve and ROC area for each class
+					fpr, tpr, _ = roc_curve(labels_whole[:, 1], softmax_whole[:, 1])
+					auc_k = auc(fpr, tpr)
 
 					if not tf.gfile.Exists(FLAGS.stat_dir):
 						tf.gfile.MakeDirs(FLAGS.stat_dir)
@@ -490,9 +533,17 @@ def train_ctnet(FLAGS):
 					dataset.Validation.reset()
 
 				best_trials.append(best_trial)
+				dataset.next_fold()
 
+			dataset.reset()
+			cv_acc_list = []
+			cv_loss_list = []
+			cv_auc_list = []
+			mean_fpr = np.linspace(0, 1, 100)
+			cv_tprs_list = []
+			for f in range(FLAGS.xvalidation_folds):
 				# ===== LOAD BEST MODELS FOR ALL FOLDS AND COMPUTE STATISTICS FOR TEST SET =====
-				model_path = FLAGS.checkpoint_dir + '/' + str(f) + '/' + str(best_trial)
+				model_path = FLAGS.checkpoint_dir + '/' + str(f) + '/' + str(best_trials[f])
 				new_saver = tf.train.import_meta_graph(os.path.join(model_path, 'best_model.meta'))
 				new_saver.restore(sess, tf.train.latest_checkpoint(model_path))
 
@@ -501,19 +552,24 @@ def train_ctnet(FLAGS):
 				aucs = []
 				accs = []
 				tprs = []
+				losses = []
 				for k in range(iters):
 					softmax_whole = []
 					labels_whole = []
 					test_acc = 0.0
+					test_loss = 0.0
 					# Get predictions for the whole test-set
 					for step in range(test_steps):
 						xi, vi, yi = dataset.Test.next_batch(FLAGS.batch_size, only_vars=False, bases3d=FLAGS.bases3d)
-						acc_s, softmax, labels = sess.run([combined_accuracy, combined_scores, y],
-								feed_dict={label_batch: yi, x_vars: vi, is_training_comb: False})
+						acc_s, softmax, entropy_s = sess.run([combined_accuracy, combined_scores, entropy],
+								feed_dict={image_batch: xi, label_batch: yi, x_vars: vi,
+										   	is_training_comb: False, is_refine: False})
 
 						softmax_whole.append(softmax)
-						labels_whole.append(labels)
+						labels_whole.append(yi)
 						test_acc += (acc_s / test_steps)
+						test_loss += (entropy_s / test_steps)
+
 					softmax_whole = np.reshape(softmax_whole, (np.shape(softmax_whole)[0]*np.shape(softmax_whole)[1], 2))
 					labels_whole = np.reshape(labels_whole, (np.shape(labels_whole)[0]*np.shape(labels_whole)[1], 2))
 
@@ -525,9 +581,11 @@ def train_ctnet(FLAGS):
 					auc_k = auc(fpr, tpr)
 					aucs.append(auc_k)
 					accs.append(test_acc)
+					losses.append(test_loss)
 
 				cv_auc_list.append(np.mean(aucs))
 				cv_acc_list.append(np.mean(accs))
+				cv_loss_list.append(np.mean(losses))
 				cv_tprs_list.append(np.mean(tprs, axis=0))
 
 				dataset.next_fold()
@@ -537,6 +595,8 @@ def train_ctnet(FLAGS):
 
 		avg_acc = np.mean(np.array(cv_acc_list))
 		std_acc = np.std(np.array(cv_acc_list))
+
+		avg_loss = np.mean(np.array(cv_loss_list))
 
 		avg_tpr = np.mean(np.array(cv_tprs_list), axis=0)
 		avg_tpr[-1] = 1.0
@@ -569,6 +629,7 @@ def train_ctnet(FLAGS):
 		np.save(os.path.join(FLAGS.stat_dir + '/', 'mean_fpr.npy'), mean_fpr)
 		np.savetxt(os.path.join(FLAGS.stat_dir + '/', 'cv_auc_list.csv'), np.array(cv_auc_list), delimiter=",", fmt='%.5ef')
 		np.savetxt(os.path.join(FLAGS.stat_dir + '/', 'cv_acc_list.csv'), np.array(cv_acc_list), delimiter=",", fmt='%.5ef')
-
-		print('Acc/std/AUC/std : %s/%s/%s/%s' % (avg_acc, std_acc, avg_auc, std_auc))
+		np.savetxt(os.path.join(FLAGS.stat_dir + '/', 'cv_loss_list.csv'), np.array(cv_loss_list), delimiter=",",
+				   fmt='%.5ef')
+		print('Acc/std/AUC/std/loss: %s/%s/%s/%s/%s' % (avg_acc, std_acc, avg_auc, std_auc, avg_loss))
 

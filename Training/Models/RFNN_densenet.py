@@ -7,11 +7,6 @@ from Utils.rfnn_utils import init_basis_hermite_steerable_2D
 # single scale/orientation
 from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d
 
-# multi-scale
-from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_scales_max
-from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_scales_max2
-from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_scales_learn
-from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_scales_learn_bc
 
 # multi-scale/orientation altering output
 from Utils.rfnn_utils import _rfnn_conv_layer_pure_2d_SO_learn_flatten
@@ -67,6 +62,8 @@ class RFNNDenseNet(object):
 		self.avgpool_kernel_ratio = avgpool_kernel_ratio
 		self.avgpool_stride_ratio = avgpool_stride_ratio
 
+		self.variable_dict = dict()
+
 		# how many features will be received after first convolution
 		# value the same as in the original Torch code
 		if self.bc_mode:
@@ -134,7 +131,7 @@ class RFNNDenseNet(object):
 		- convolution with required kernel
 		- dropout, if required
 		"""
-		with tf.variable_scope("composite_function"):
+		with tf.variable_scope("composite_function") as scope:
 			# BN
 			output = self.batch_norm(_input)
 			# ReLU
@@ -144,18 +141,20 @@ class RFNNDenseNet(object):
 				output, weights = _conv_layer_pure_2d(output, shape=[1, 1, output.get_shape()[-1].value, out_features], padding='VALID')
 #				self.bc_weights.append(weights)
 #				self.bc_conv_act.append(output)
+				self.variable_dict[scope.name] = weights
 			else:
-				output, alphas, _ = self.rfnn_layer(output, self.hermit_composite, out_features,
+				output, alphas, kernel = self.rfnn_layer(output, self.hermit_composite, out_features,
 												 self.is_training, self.bnorm_momentum, self.renorm)
 #				self.kernels.append(kernel)
 				self.alphas.append(alphas)
 				self.conv_act.append(output)
+				self.variable_dict[scope.name] = alphas
 			# dropout(in case of training and in case it is no 1.0)
 			output = self.dropout(output)
 		return output
 
 	def bottleneck(self, _input, out_features):
-		with tf.variable_scope("bottleneck"):
+		with tf.variable_scope("bottleneck") as scope:
 			# BN
 			output = self.batch_norm(_input)
 			# ReLU
@@ -165,6 +164,7 @@ class RFNNDenseNet(object):
 			output, weights = _conv_layer_pure_2d(output, shape=[1, 1, output.get_shape()[-1].value, inter_features], padding='VALID')
 #			self.bc_conv_act.append(output)
 #			self.bc_weights.append(weights)
+			self.variable_dict[scope.name] = weights
 		output = self.dropout(output)
 		return output
 
@@ -210,7 +210,7 @@ class RFNNDenseNet(object):
 		print(output.get_shape())
 		return output
 
-	def transition_layer_to_classes(self, _input):
+	def transition_layer_to_classes(self, _input, scope):
 		"""This is last transition to get probabilities by classes. It perform:
 		- batch normalization
 		- ReLU nonlinearity
@@ -233,7 +233,9 @@ class RFNNDenseNet(object):
 		W = self.weight_variable_xavier(
 			[features_total, self.n_classes], name='W')
 		self.weights.append(W)
+		self.variable_dict[scope.name + '_weights'] = W
 		bias = self.bias_variable([self.n_classes])
+		self.variable_dict[scope.name + '_bias'] = bias
 		logits = tf.matmul(output, W) + bias
 		self.fl_act.append(logits)
 
@@ -283,13 +285,15 @@ class RFNNDenseNet(object):
 		growth_rate = self.growth_rate
 		layers_per_block = self.layers_per_block
 		# first - initial 3 x 3 conv to first_output_features
-		with tf.variable_scope("Initial_convolution"):
+		with tf.variable_scope("Initial_convolution") as scope:
 			output, alphas, kernel = self.rfnn_layer(X, self.hermit_initial, self.first_output_features,
 											 self.is_training, self.bnorm_momentum, self.renorm, strides=[1,2,2,1])
 			print(output.get_shape())
 			self.kernels.append(kernel)
 			self.alphas.append(alphas)
 			self.conv_act.append(output)
+
+			self.variable_dict[scope.name] = alphas
 		with tf.variable_scope("Initial_pooling"):
 			output = tf.nn.max_pool(output, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1], padding='VALID')
 			print(output.get_shape())
@@ -303,8 +307,8 @@ class RFNNDenseNet(object):
 				with tf.variable_scope("Transition_after_block_%d" % block):
 					output = self.transition_layer(output)
 
-		with tf.variable_scope("Transition_to_classes"):
-			logits = self.transition_layer_to_classes(output)
+		with tf.variable_scope("Transition_to_classes") as scope:
+			logits = self.transition_layer_to_classes(output, scope)
 
 		self._count_trainable_params()
 
@@ -324,11 +328,8 @@ class RFNNDenseNetCifar(object):
 				 comp_order,
 				 thetas,
 				 rfnn,
-				 bnorm_momentum,
-				 renorm=0.7,
 				 reduction=1.0,
 				 bc_mode=False,
-				 beta_wd=0.0,
 				 avgpool_kernel_ratio=1.0,
 				 avgpool_stride_ratio=1.0,
 				 n_classes=10):
@@ -336,13 +337,8 @@ class RFNNDenseNetCifar(object):
 		self.kernels = []
 		self.alphas = []
 		self.conv_act = []
-#		self.bc_conv_act = []
-#		self.bc_weights = []
 		self.weights = []
 		self.fl_act = []
-		self.bnorm_momentum = bnorm_momentum
-		self.renorm = renorm
-		self.beta_wd = beta_wd
 
 		self.n_classes = n_classes
 		self.depth = depth
@@ -426,12 +422,9 @@ class RFNNDenseNetCifar(object):
 			# convolution
 			if kernel_size == 1:
 				output, weights = _conv_layer_pure_2d(output, shape=[1, 1, output.get_shape()[-1].value, out_features], padding='VALID')
-#				self.bc_weights.append(weights)
-#				self.bc_conv_act.append(output)
 			else:
 				output, alphas, _ = self.rfnn_layer(output, self.hermit_composite, out_features,
-												 self.is_training, self.bnorm_momentum, self.renorm)
-#				self.kernels.append(kernel)
+												 self.is_training)
 				self.alphas.append(alphas)
 				self.conv_act.append(output)
 			# dropout(in case of training and in case it is no 1.0)
@@ -447,8 +440,6 @@ class RFNNDenseNetCifar(object):
 			inter_features = out_features * 4
 			# 1x1 convolution
 			output, weights = _conv_layer_pure_2d(output, shape=[1, 1, output.get_shape()[-1].value, inter_features], padding='VALID')
-#			self.bc_conv_act.append(output)
-#			self.bc_weights.append(weights)
 		output = self.dropout(output)
 		return output
 
@@ -513,7 +504,7 @@ class RFNNDenseNetCifar(object):
 		# FC
 		features_total = int(output.get_shape()[-1])*int(output.get_shape()[-2])
 		output = tf.reshape(output, [-1, features_total])
-		W = self.weight_variable_xavier(
+		W = self.weight_variable_msra(
 			[features_total, self.n_classes], name='W')
 		self.weights.append(W)
 		bias = self.bias_variable([self.n_classes])
@@ -531,8 +522,7 @@ class RFNNDenseNetCifar(object):
 
 	def batch_norm(self, _input):
 		output = tf.contrib.layers.batch_norm(
-			_input, decay=self.bnorm_momentum, is_training=self.is_training, center=False,
-			renorm=True, renorm_decay=self.renorm)#, param_regularizers={'beta': tf.contrib.layers.l2_regularizer(self.beta_wd)})
+			_input, is_training=self.is_training, center=True)#, param_regularizers={'beta': tf.contrib.layers.l2_regularizer(self.beta_wd)})
 		return output
 
 	def dropout(self, _input):
@@ -568,7 +558,7 @@ class RFNNDenseNetCifar(object):
 		# first - initial 3 x 3 conv to first_output_features
 		with tf.variable_scope("Initial_convolution"):
 			output, alphas, kernel = self.rfnn_layer(X, self.hermit_initial, self.first_output_features,
-											 self.is_training, self.bnorm_momentum, self.renorm, strides=[1,1,1,1])
+											 self.is_training, strides=[1,1,1,1])
 			print(output.get_shape())
 			self.kernels.append(kernel)
 			self.alphas.append(alphas)

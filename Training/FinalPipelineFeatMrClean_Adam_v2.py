@@ -213,7 +213,6 @@ with tf.Session(config=config) as sess:
 			# ==== TRAIN MODEL TILL max_epochs ====
 			print('Training model...')
 			for i in range(FLAGS.max_epochs):
-				avg_acc = 0
 				avg_loss = 0
 				# ------------ TRAIN -------------
 				for step in range(training_steps):
@@ -312,6 +311,8 @@ with tf.Session(config=config) as sess:
 		cv_auc_list.append(np.mean(aucs))
 		cv_acc_list.append(np.mean(accs))
 		cv_tprs_list.append(np.mean(tprs, axis=0))
+
+		dataset.next_fold()
 
 	plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', label='Luck', alpha=.8)
 

@@ -40,6 +40,8 @@ class DenseNet(object):
 		self.avgpool_kernel_ratio = avgpool_kernel_ratio
 		self.avgpool_stride_ratio = avgpool_stride_ratio
 
+		self.variable_dict = dict()
+
 		# how many features will be received after first convolution
 		# value the same as in the original Torch code
 		if self.bc_mode:
@@ -92,7 +94,7 @@ class DenseNet(object):
 		- convolution with required kernel
 		- dropout, if required
 		"""
-		with tf.variable_scope("composite_function"):
+		with tf.variable_scope("composite_function") as scope:
 			# BN
 			output = self.batch_norm(_input)
 			# ReLU
@@ -101,11 +103,13 @@ class DenseNet(object):
 			if kernel_size == 1:
 				output, weights = _conv_layer_pure_2d(output, shape=[1, 1, output.get_shape()[-1].value, out_features],
 													  padding='VALID')
+				self.variable_dict[scope.name] = weights
 			#				self.bc_weights.append(weights)
 			#				self.bc_conv_act.append(output)
 			else:
 				output, kernel = _conv_layer_pure_2d(output, shape=[self.comp_kernel, self.comp_kernel, int(output.get_shape()[-1]),
 															out_features])
+				self.variable_dict[scope.name] = kernel
 				#				self.kernels.append(kernel)
 				self.conv_act.append(output)
 			# dropout(in case of training and in case it is no 1.0)
@@ -113,7 +117,7 @@ class DenseNet(object):
 		return output
 
 	def bottleneck(self, _input, out_features):
-		with tf.variable_scope("bottleneck"):
+		with tf.variable_scope("bottleneck") as scope:
 			# BN
 			output = self.batch_norm(_input)
 			# ReLU
@@ -122,6 +126,7 @@ class DenseNet(object):
 			# 1x1 convolution
 			output, weights = _conv_layer_pure_2d(output, shape=[1, 1, output.get_shape()[-1].value, inter_features],
 												  padding='VALID')
+			self.variable_dict[scope.name] = weights
 		#			self.bc_conv_act.append(output)
 		#			self.bc_weights.append(weights)
 		output = self.dropout(output)
@@ -169,7 +174,7 @@ class DenseNet(object):
 		print(output.get_shape())
 		return output
 
-	def transition_layer_to_classes(self, _input):
+	def transition_layer_to_classes(self, _input, scope):
 		"""This is last transition to get probabilities by classes. It perform:
 		- batch normalization
 		- ReLU nonlinearity
@@ -191,10 +196,15 @@ class DenseNet(object):
 		features_total = int(output.get_shape()[-1]) * int(output.get_shape()[-2])
 		output = tf.reshape(output, [-1, features_total])
 		self.penultimate = output
+
 		W = self.weight_variable_xavier(
 			[features_total, self.n_classes], name='W')
 		self.weights.append(W)
+		self.variable_dict[scope.name + '_weights'] = W
+
 		bias = self.bias_variable([self.n_classes])
+		self.variable_dict[scope.name + '_bias'] = bias
+
 		logits = tf.matmul(output, W) + bias
 		self.fl_act.append(logits)
 
@@ -245,12 +255,14 @@ class DenseNet(object):
 		growth_rate = self.growth_rate
 		layers_per_block = self.layers_per_block
 		# first - initial 3 x 3 conv to first_output_features
-		with tf.variable_scope("Initial_convolution"):
+		with tf.variable_scope("Initial_convolution") as scope:
 			output, kernel = _conv_layer_pure_2d(X, shape=[self.initial_kernel, self.initial_kernel, int(X.get_shape()[-1]), self.first_output_features],
 													 strides=[1, 2, 2, 1])
 			print(output.get_shape())
 			self.kernels.append(kernel)
 			self.conv_act.append(output)
+
+			self.variable_dict[scope.name] = kernel
 		with tf.variable_scope("Initial_pooling"):
 			output = tf.nn.max_pool(output, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1], padding='VALID')
 			print(output.get_shape())
@@ -264,8 +276,8 @@ class DenseNet(object):
 				with tf.variable_scope("Transition_after_block_%d" % block):
 					output = self.transition_layer(output)
 
-		with tf.variable_scope("Transition_to_classes"):
-			logits = self.transition_layer_to_classes(output)
+		with tf.variable_scope("Transition_to_classes") as scope:
+			logits = self.transition_layer_to_classes(output, scope)
 
 		self._count_trainable_params()
 
@@ -278,11 +290,8 @@ class DenseNetCifar(object):
 				 is_training,
 				 init_kernel,
 				 comp_kernel,
-				 bnorm_momentum,
-				 renorm=0.7,
 				 reduction=1.0,
 				 bc_mode=False,
-				 beta_wd=0.0,
 				 avgpool_kernel_ratio=1.0,
 				 avgpool_stride_ratio=1.0,
 				 n_classes=10):
@@ -294,9 +303,6 @@ class DenseNetCifar(object):
 		#		self.bc_weights = []
 		self.weights = []
 		self.fl_act = []
-		self.bnorm_momentum = bnorm_momentum
-		self.renorm = renorm
-		self.beta_wd = beta_wd
 
 		self.n_classes = n_classes
 		self.depth = depth
@@ -473,9 +479,7 @@ class DenseNetCifar(object):
 
 	def batch_norm(self, _input):
 		output = tf.contrib.layers.batch_norm(
-			_input, decay=self.bnorm_momentum, is_training=self.is_training, center=False,
-			renorm=True,
-			renorm_decay=self.renorm)  # , param_regularizers={'beta': tf.contrib.layers.l2_regularizer(self.beta_wd)})
+			_input, is_training=self.is_training, center=True)
 		return output
 
 	def dropout(self, _input):

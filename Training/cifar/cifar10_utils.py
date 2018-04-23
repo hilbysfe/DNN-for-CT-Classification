@@ -207,7 +207,7 @@ class DataSet(object):
 		return self._images[start:end], self._labels[start:end]
 
 
-def read_data_sets(data_dir, one_hot=True, validation_size=0):
+def read_data_sets(data_dir, one_hot=True, training_size=45000, validation_size=0):
 	"""
   Returns the dataset readed from data_dir.
   Uses or not uses one-hot encoding for the labels.
@@ -228,7 +228,7 @@ def read_data_sets(data_dir, one_hot=True, validation_size=0):
 	# Apply one-hot encoding if specified
 	if one_hot:
 		num_classes = len(np.unique(train_labels))
-		train_labels = dense_to_one_hot(train_labels, num_classes)
+#		train_labels = dense_to_one_hot(train_labels, num_classes)
 		test_labels = dense_to_one_hot(test_labels, num_classes)
 
 	# Subsample the validation set from the train set
@@ -236,20 +236,67 @@ def read_data_sets(data_dir, one_hot=True, validation_size=0):
 		raise ValueError("Validation size should be between 0 and {0}. Received: {1}.".format(
 			len(train_images), validation_size))
 
-	validation_images = train_images[:validation_size]
-	validation_labels = train_labels[:validation_size]
-	train_images = train_images[validation_size:]
-	train_labels = train_labels[validation_size:]
+	perm = np.arange(len(train_images))
+	np.random.shuffle(perm)
+	train_images = train_images[perm]
+	train_labels = train_labels[perm]
+
+#	if training_size+validation_size < 50000:
+	images_dict = dict()
+	for i in range(10):
+		images_dict[i] = [image for j,image in enumerate(train_images) if train_labels[j] == i]
+
+	train_images = np.array([])
+	validation_images = np.array([])
+	train_labels = np.array([])
+	validation_labels = np.array([])
+	for i in range(10):
+		if i == 0:
+			validation_images = np.array(images_dict[i][:int(validation_size / 10)])
+			train_images = np.array(
+				images_dict[i][int(validation_size / 10):int(validation_size / 10) + int(training_size / 10)])
+
+			validation_labels = dense_to_one_hot(np.full((int(validation_size / 10), 1), i), 10)
+			train_labels = dense_to_one_hot(np.full((int(training_size / 10), 1), i), 10)
+		else:
+			validation_images = np.concatenate((validation_images, np.array(images_dict[i][:int(validation_size / 10)])))
+			train_images = np.concatenate((train_images, np.array(images_dict[i][int(validation_size / 10):int(validation_size / 10) + int(training_size / 10)])))
+
+			validation_labels = np.concatenate((validation_labels, dense_to_one_hot(np.full((int(validation_size / 10),1), i), 10)))
+			train_labels = np.concatenate((train_labels, dense_to_one_hot(np.full((int(training_size / 10), 1), i), 10)))
+
+#		train_images = np.array(train_images).reshape((training_size, 32, 32, 3))
+#		validation_images = np.array(validation_images).reshape((validation_size, 32, 32, 3))
+
+#		train_labels = np.array(train_labels).reshape((training_size, 10))
+#		validation_labels = np.array(train_labels).reshape((validation_size, 10))
+
+	perm = np.arange(len(train_images))
+	np.random.shuffle(perm)
+	train_images = train_images[perm]
+	train_labels = train_labels[perm]
+
+	perm = np.arange(len(validation_images))
+	np.random.shuffle(perm)
+	validation_images = validation_images[perm]
+	validation_labels = validation_labels[perm]
+
+	perm = np.arange(len(test_images))
+	np.random.shuffle(perm)
+	test_images = test_images[perm]
+	test_labels = test_labels[perm]
 
 	# Create datasets
 	train = DataSet(train_images, train_labels)
 	validation = DataSet(validation_images, validation_labels)
 	test = DataSet(test_images, test_labels)
 
+	print(len(train.images))
+
 	return base.Datasets(train=train, validation=validation, test=test)
 
 
-def get_cifar10(data_dir=CIFAR10_FOLDER, one_hot=True, validation_size=0):
+def get_cifar10(data_dir=CIFAR10_FOLDER, one_hot=True, training_size=45000, validation_size=0):
 	"""
   Prepares CIFAR10 dataset.
   Args:
@@ -259,4 +306,4 @@ def get_cifar10(data_dir=CIFAR10_FOLDER, one_hot=True, validation_size=0):
   Returns:
     Train, Validation, Test Datasets
   """
-	return read_data_sets(data_dir, one_hot, validation_size)
+	return read_data_sets(data_dir, one_hot, training_size=training_size, validation_size=validation_size)

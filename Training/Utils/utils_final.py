@@ -8,11 +8,11 @@ import pickle
 import tensorflow as tf
 
 # CTA / MIP
-#MIN_BOUND = 50.0
-#MAX_BOUND = 300.0
+MIN_BOUND = 50.0
+MAX_BOUND = 300.0
 # NCCT
-MIN_BOUND = 0.0
-MAX_BOUND = 100.0
+#MIN_BOUND = 0.0
+#MAX_BOUND = 100.0
 
 
 def online_flattened_mean(files):

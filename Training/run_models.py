@@ -47,7 +47,7 @@ FLAGS = FLAGS()
 
 # Training
 FLAGS.pretraining = False
-FLAGS.max_epochs = 100
+FLAGS.max_epochs = 150
 FLAGS.batch_size = 32
 FLAGS.xvalidation_folds = 4
 FLAGS.trials = 3
@@ -65,9 +65,9 @@ FLAGS.tol_var = 0.01
 #FLAGS.cifar_path = '/home/hilbysfe/dev/DNN-for-CT-Classification/Training/cifar-10-batches-py'
 #FLAGS.cifar_path = r'D:\Adam Hilbert\CT_Classification\code\Training\cifar10\cifar-10-batches-py'
 FLAGS.normalization = True
-# FLAGS.X_dim = 433
-FLAGS.X_dim = 336
-FLAGS.Z_dim = 252
+FLAGS.X_dim = 433
+#FLAGS.X_dim = 336
+#FLAGS.Z_dim = 252
 
 # General CNN
 FLAGS.bases3d = False
@@ -79,7 +79,7 @@ FLAGS.bnorm_mom = 0.7
 FLAGS.renorm = 0.7
 FLAGS.beta_wd = 1e-4
 
-FLAGS.keep_prob = 0.9
+FLAGS.keep_prob = 0.8
 
 # DenseNet
 FLAGS.total_blocks = 4
@@ -93,13 +93,42 @@ FLAGS.eval_freq = 1
 
 configs = [
 #	SHAllOW
-	[0.0003, 4, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '30, 30', 'affected_side']
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'tici_imp',
+#		'11x5_0.0003_8_21_4_0.9_32_cnn_2.0,1.51.0,0.5_200_200_100_0.70.7_0.9-0.999-0.001_red-0.5adaptWD-nobeta_45, 45'],
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'tici_imp',
+#		'11x5_0.0003_8_21_4_0.9_32_learn_sq_2.0,1.51.0,0.5_200_200_100_0.70.7_0.9-0.999-0.001_red-0.5adaptWD-nobeta_45, 45'],
+#
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'mrs',
+#		'11x5_0.0003_8_21_4_0.9_32_cnn_2.0,1.51.0,0.5_200_200_100_0.70.7_0.9-0.999-0.001_red-0.5adaptWD-nobeta_45, 45'],
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'mrs',
+#		'11x5_0.0003_8_21_4_0.9_32_learn_sq_2.0,1.51.0,0.5_200_200_100_0.70.7_0.9-0.999-0.001_red-0.5adaptWD-nobeta_45, 45']
+
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'affected_side'],
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', 'affected_side'],
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'affected_side'],
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '30, 30', 'affected_side'],
+
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'collaterals_imp'],
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', 'collaterals_imp'],
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'collaterals_imp'],
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '30, 30', 'collaterals_imp'],
+
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'tici_imp'],
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', 'tici_imp'],
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'tici_imp'],
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '30, 30', 'tici_imp'],
+
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'mrs'],
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "single", False, '45, 45', 'mrs'],
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'mrs'],
+#	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '30, 30', 'mrs'],
+
 ]
 
 
 for i, config in enumerate(configs):
 
-	FLAGS.datapath = r'D:\Adam Hilbert\Data\data_binaries\NCCT\\'
+	FLAGS.datapath = r'D:\Adam Hilbert\Data\data_binaries\MIP2D\\'
 
 	FLAGS.learning_rate = config[0]
 	FLAGS.growth_rate = config[1]
@@ -113,7 +142,11 @@ for i, config in enumerate(configs):
 	FLAGS.thetas = config[9]
 	FLAGS.datapath = FLAGS.datapath + config[10]
 
-	FLAGS.log_dir = r'D:\Experiments\logs\NCCT_' + config[10] + '\\rfnn\Shallow\\' \
+#	FLAGS.log_dir = r'D:\Experiments\logs\MIP2D_' + config[10] + '\\' + 'rfnn' + '\\' + 'Shallow' + '\\' + config[11]
+#	FLAGS.checkpoint_dir = r'D:\Experiments\checkpoints\MIP2D_' + config[10] + '\\' + 'rfnn' + '\\' + 'Shallow' + '\\' + config[11]
+#	FLAGS.stat_dir = r'D:\Experiments\stats\MIP2D_' + config[10] + '\\' + 'rfnn' + '\\' + 'Shallow' + '\\' + config[11]
+
+	FLAGS.log_dir = r'D:\Experiments\logs\Test' + config[10] + '\\rfnn\Shallow\\' \
 					+ str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
 					+ str(FLAGS.learning_rate) + '_' \
 					+ str(FLAGS.growth_rate) + '_' \

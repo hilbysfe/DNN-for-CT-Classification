@@ -37,8 +37,7 @@ def train_cifar(FLAGS, NUM_GPUS):
 
 			# ====== LOAD DATASET ======
 			print('Loading Dataset...')
-			cifar10_dataset = cifar10_utils.get_cifar10(FLAGS.cifar_path)
-
+			cifar10_dataset = cifar10_utils.get_cifar10(FLAGS.cifar_path, training_size=FLAGS.training_size, validation_size=5000)
 			print('Loading Dataset...done.')
 
 			# ====== DEFINE SPACEHOLDERS ======
@@ -52,7 +51,6 @@ def train_cifar(FLAGS, NUM_GPUS):
 			with tf.name_scope('alg-parameters'):
 				is_training = tf.placeholder(tf.bool, name='is-training')
 				weight_decay = tf.placeholder(tf.float32, shape=[], name='weight_decay')
-				bnorm_momentum = tf.placeholder(tf.float32, shape=[], name='bnorm_momentum')
 				learning_rate = tf.placeholder(tf.float32, shape=[], name='learning_rate')
 
 			# ====== DEFINE FEED_DICTIONARY ======
@@ -65,6 +63,11 @@ def train_cifar(FLAGS, NUM_GPUS):
 						xs.append(xi)
 						ys.append(yi)
 				elif flag == 1:
+					for i in np.arange(NUM_GPUS):
+						xi, yi = cifar10_dataset.validation.next_batch(FLAGS.batch_size)
+						xs.append(xi)
+						ys.append(yi)
+				elif flag == 2:
 					for i in np.arange(NUM_GPUS):
 						xi, yi = cifar10_dataset.test.next_batch(FLAGS.batch_size)
 						xs.append(xi)
@@ -87,14 +90,11 @@ def train_cifar(FLAGS, NUM_GPUS):
 					is_training=is_training,
 					init_kernel=FLAGS.init_kernel,
 					comp_kernel=FLAGS.comp_kernel,
-					bnorm_momentum=FLAGS.bnorm_mom,
-					renorm=FLAGS.renorm,
-					beta_wd=FLAGS.beta_wd,
 					reduction=FLAGS.reduction,
 					bc_mode=FLAGS.bc_mode,
 					avgpool_kernel_ratio=1.0,
 					avgpool_stride_ratio=1.0,
-					n_classes=2
+					n_classes=10
 				)
 			else:
 				model = RFNNDenseNetCifar(
@@ -112,14 +112,11 @@ def train_cifar(FLAGS, NUM_GPUS):
 					comp_order=FLAGS.comp_order,
 					thetas=thetas,
 					rfnn=FLAGS.rfnn,
-					bnorm_momentum=FLAGS.bnorm_mom,
-					renorm=FLAGS.renorm,
-					beta_wd=FLAGS.beta_wd,
 					reduction=FLAGS.reduction,
 					bc_mode=FLAGS.bc_mode,
 					avgpool_kernel_ratio=1.0,
 					avgpool_stride_ratio=1.0,
-					n_classes=2
+					n_classes=10
 				)
 			print('Defining model...done.')
 
@@ -163,7 +160,7 @@ def train_cifar(FLAGS, NUM_GPUS):
 						with tf.name_scope('Total_Loss'):
 							loss = tf.add_n(tf.get_collection('losses', scope), name='total_loss')
 
-						accuracy, _, scores = tower_accuracy(logits, y, scope)
+						accuracy, _, scores = tower_accuracy(logits, y)
 
 						# Reuse variables for the next tower.
 						tf.get_variable_scope().reuse_variables()
@@ -237,9 +234,9 @@ def train_cifar(FLAGS, NUM_GPUS):
 				NUM_GPUS = 1
 
 				training_steps = int(cifar10_dataset.train.num_examples / (NUM_GPUS * FLAGS.batch_size))
-				validation_steps = int(cifar10_dataset.test.num_examples / (NUM_GPUS *FLAGS.batch_size))
+				validation_steps = int(cifar10_dataset.validation.num_examples / (NUM_GPUS * FLAGS.batch_size))
+				test_steps = int(cifar10_dataset.test.num_examples / (NUM_GPUS * FLAGS.batch_size))
 
-				bnorm_mom = FLAGS.bnorm_mom
 				# ======== X TRIALS =========
 				best_trial = 0
 				best_loss = 1000.0
@@ -272,8 +269,8 @@ def train_cifar(FLAGS, NUM_GPUS):
 					kernels = sess.run(kernels_tensor)
 					kernels = np.mean(kernels, axis=2)
 
-					if not tf.gfile.Exists(os.path.join(FLAGS.checkpoint_dir + '/' + '/' + str(trial))):
-						tf.gfile.MakeDirs(os.path.join(FLAGS.checkpoint_dir + '/' + '/' + str(trial)))
+					if not tf.gfile.Exists(os.path.join(FLAGS.checkpoint_dir + '/' + str(trial))):
+						tf.gfile.MakeDirs(os.path.join(FLAGS.checkpoint_dir + '/' + str(trial)))
 					checkpoint_path = FLAGS.checkpoint_dir + '/' + '/' + str(trial) + '/' + 'kernels_init.npy'
 					np.save(checkpoint_path, kernels)
 #						show_kernels(kernels)
@@ -302,21 +299,20 @@ def train_cifar(FLAGS, NUM_GPUS):
 							var = 0.0
 							t_i = 0
 							while (abs(var - 1.0) >= FLAGS.tol_var or t_i <= FLAGS.t_min) and t_i < FLAGS.t_max:
-								alphas, b_l = sess.run([model.alphas[l], model.conv_act[l]], feed_dict={x: xs[t_i], is_training: False, bnorm_momentum: bnorm_mom})
+								alphas, b_l = sess.run([model.alphas[l], model.conv_act[l]], feed_dict={x: xs[t_i], is_training: False})
 								var = np.var(b_l)
 								sess.run(model.alphas[l].assign(alphas / np.sqrt(var)))
 								t_i += 1
 						print("Initializing weights with LSUV...done.")
 
 					# ======== INIT WEIGHT DECAY ==========
-					print("Initializing weight decay...")
-					FLAGS.weight_decay = 0.0
-					for i in range(FLAGS.t_max):
-						x_loss, l2_loss = sess.run([avg_loss_entropy, avg_loss_l2],
-												   feed_dict={x: xs[i], y: ys[i], weight_decay: 1.0, is_training: False,
-															  bnorm_momentum: bnorm_mom})
-						FLAGS.weight_decay += x_loss/l2_loss/FLAGS.t_max
-					print("Initializing weight decay done....")
+#					print("Initializing weight decay...")
+#					FLAGS.weight_decay = 0.0
+#					for i in range(FLAGS.t_max):
+#						x_loss, l2_loss = sess.run([avg_loss_entropy, avg_loss_l2],
+#												   feed_dict={x: xs[i], y: ys[i], weight_decay: 1.0, is_training: False})
+#						FLAGS.weight_decay += x_loss/l2_loss/FLAGS.t_max
+#					print("Initializing weight decay done....")
 
 					max_acc = 0
 					min_loss = 1000.0
@@ -329,12 +325,8 @@ def train_cifar(FLAGS, NUM_GPUS):
 						# ----- Reduce learning rate / increase bnorm momentum ------
 						if i == FLAGS.reduce_lr_epoch_1:
 							lr = lr /10
-							if FLAGS.bnorm_inc:
-								bnorm_mom = bnorm_mom * 1.0714
 						if i == FLAGS.reduce_lr_epoch_2:
 							lr = lr /10
-							if FLAGS.bnorm_inc:
-								bnorm_mom = bnorm_mom * 1.0714
 
 						avg_acc_i = 0
 						avg_loss_i = 0
@@ -346,11 +338,11 @@ def train_cifar(FLAGS, NUM_GPUS):
 							if step == training_steps - 1 and i % FLAGS.print_freq == 0:
 								_, summaries, acc_s, loss_s, l2_loss_value_s, xentropy_loss_value_s \
 									= sess.run([train_op, summary_op, avg_accuracy, avg_loss, avg_loss_l2, avg_loss_entropy],
-											feed_dict={is_training: True, weight_decay: FLAGS.weight_decay, bnorm_momentum: bnorm_mom, learning_rate: lr})
+											feed_dict={is_training: True, weight_decay: FLAGS.weight_decay, learning_rate: lr})
 							else:
 								_, acc_s, loss_s, l2_loss_value_s, xentropy_loss_value_s\
 									= sess.run([train_op, avg_accuracy, avg_loss, avg_loss_l2, avg_loss_entropy],
-											feed_dict={is_training: True, weight_decay: FLAGS.weight_decay, bnorm_momentum: bnorm_mom, learning_rate: lr})
+											feed_dict={is_training: True, weight_decay: FLAGS.weight_decay, learning_rate: lr})
 
 							assert not np.isnan(loss_s), 'Model diverged with loss = NaN'
 
@@ -380,7 +372,7 @@ def train_cifar(FLAGS, NUM_GPUS):
 								sess.run(batch_enqueue, feed_dict=feed_dict(1))
 								acc_s, loss_s, l2_loss_value_s, xentropy_loss_value_s\
 									= sess.run([avg_accuracy, avg_loss, avg_loss_l2, avg_loss_entropy],
-										feed_dict={is_training: False, weight_decay: FLAGS.weight_decay, bnorm_momentum: bnorm_mom})
+										feed_dict={is_training: False, weight_decay: FLAGS.weight_decay})
 
 								tot_acc += (acc_s / validation_steps)
 								tot_loss += (loss_s / validation_steps)
@@ -400,9 +392,9 @@ def train_cifar(FLAGS, NUM_GPUS):
 								max_acc = tot_acc
 								min_loss = tot_loss_entropy
 
-								if not tf.gfile.Exists(os.path.join(FLAGS.checkpoint_dir + '/' + str(f) + '/' + str(trial))):
-									tf.gfile.MakeDirs(os.path.join(FLAGS.checkpoint_dir + '/' + str(f) + '/' + str(trial)))
-								checkpoint_path = FLAGS.checkpoint_dir + '/' + str(f) + '/' + str(trial) + '/' + 'best_model'
+								if not tf.gfile.Exists(os.path.join(FLAGS.checkpoint_dir + '/' + str(trial))):
+									tf.gfile.MakeDirs(os.path.join(FLAGS.checkpoint_dir + '/' + str(trial)))
+								checkpoint_path = FLAGS.checkpoint_dir + '/' + str(trial) + '/' + 'best_model'
 								saver.save(sess, checkpoint_path)
 							print('Validation loss-acc at step %s: %s - %s' % (i, tot_loss, tot_acc))
 
@@ -426,42 +418,51 @@ def train_cifar(FLAGS, NUM_GPUS):
 					kernels = sess.run(kernels_tensor)
 					kernels = np.mean(kernels, axis=2)
 
-					if not tf.gfile.Exists(os.path.join(FLAGS.checkpoint_dir + '/' + '/' + str(trial))):
-						tf.gfile.MakeDirs(os.path.join(FLAGS.checkpoint_dir + '/' + '/' + str(trial)))
+					if not tf.gfile.Exists(os.path.join(FLAGS.checkpoint_dir + '/' + str(trial))):
+						tf.gfile.MakeDirs(os.path.join(FLAGS.checkpoint_dir + '/' + str(trial)))
 					checkpoint_path = FLAGS.checkpoint_dir + '/' + '/' + str(
 						trial) + '/' + 'kernels_trained.npy'
 					np.save(checkpoint_path, kernels)
 #						show_kernels(kernels)
 
-					cifar10_dataset.reset()
+					cifar10_dataset.train.reset()
+					cifar10_dataset.validation.reset()
+					cifar10_dataset.test.reset()
 
-
+#				best_trial = 0
 				# ===== LOAD BEST MODELS FOR ALL FOLDS AND COMPUTE STATISTICS FOR TEST SET =====
-				model_path = FLAGS.checkpoint_dir + '/' + '/' + str(best_trial)
+				model_path = FLAGS.checkpoint_dir + '/' + str(best_trial)
 				new_saver = tf.train.import_meta_graph(os.path.join(model_path, 'best_model.meta'))
 				new_saver.restore(sess, tf.train.latest_checkpoint(model_path))
 
 				iters=10
 				accs = []
+				losses = []
 				for k in range(iters):
 					test_acc = 0.0
+					test_loss = 0.0
 					# Get predictions for the whole test-set
-					for step in range(validation_steps):
-						sess.run(batch_enqueue, feed_dict=feed_dict(1))
-						acc_s, softmax, labels = sess.run([avg_accuracy, scores, y], feed_dict={is_training: False})
+					for step in range(test_steps):
+						sess.run(batch_enqueue, feed_dict=feed_dict(2))
+						acc_s, softmax, labels, entropy = sess.run([avg_accuracy, scores, y, avg_loss_entropy], feed_dict={is_training: False})
 
-						test_acc += (acc_s / validation_steps)
+						test_acc += (acc_s / test_steps)
+						test_loss += (entropy / test_steps)
 					accs.append(test_acc)
+					losses.append(test_loss)
 
 				avg_acc = np.mean(np.array(accs))
+				avg_loss = np.mean(np.array(losses))
 				std_acc = np.std(np.array(accs))
 
 				# Save statistics
 				if not tf.gfile.Exists(FLAGS.stat_dir):
 					tf.gfile.MakeDirs(FLAGS.stat_dir)
 				np.savetxt(os.path.join(FLAGS.stat_dir + '/', 'cv_acc_list.csv'), np.array(accs), delimiter=",", fmt='%.5ef')
+				np.savetxt(os.path.join(FLAGS.stat_dir + '/', 'cv_loss_list.csv'), np.array(losses), delimiter=",",
+						   fmt='%.5ef')
 
-				print('Acc/std : %s/%s' % (avg_acc, std_acc))
+				print('Acc/std : %s/%s/%s' % (avg_acc, std_acc, avg_loss))
 
 			except Exception as e:
 				# Report exceptions to the coordinator.

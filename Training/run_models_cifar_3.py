@@ -83,36 +83,13 @@ FLAGS.eval_freq = 1
 
 configs = [
 #	DEEP
-#	[12, 40, 45, 200, '1.0,0.5', '1.0,0.5', "learn_fl", '45, 45', 45000, 60],
-#	[12, 40, 45, 200, '1.0,0.5', '1.0,0.5', "learn_fl", '45, 45', 25000, 60],
-#	[12, 40, 45, 200, '1.0,0.5', '1.0,0.5', "learn_fl", '45, 45', 10000, 60],
-#	[12, 40, 30, 55, '1.0,0.5', '1.0,0.5', "learn_fl", '45, 45', 5000, 75],
-#	[12, 40, 30, 55, '1.5,1.0', '1.0,0.5', "learn_fl", '45, 45', 1000, 75],
-#	[12, 40, 30, 55, '1.0,0.5', '1.0,0.5', "learn_fl", '45, 45', 500, 75],
-
-#	[12, 40, 45, 200, '1.0,0.5', '1.0,0.5', "avg", '45, 45', 45000, 60],
-#	[12, 40, 45, 200, '1.0,0.5', '1.0,0.5', "max", '45, 45', 45000, 60],
-
-#	[12, 40, 45, 200, '1.0', '1.0', "single", '45, 45', 45000, 60],
-#	[12, 40, 45, 200, '1.0,0.5', '1.0,0.5', "cnn", '45, 45', 5000, 60],
-#	[12, 40, 45, 200, '1.0', '1.0', "single", '45, 45', 10000, 60],
-#	[12, 40, 30, 55, '1.0', '1.0', "single", '45, 45', 5000, 75],
-#	[12, 40, 30, 55, '1.0', '1.0', "single", '45, 45', 1000, 75],
-#	[12, 40, 30, 55, '1.0', '1.0', "single", '45, 45', 500, 75],
-
-#	[12, 40, 45, 200, '1.0,0.5', '1.0,0.5', "cnn", '45, 45', 45000, 60],
-#	[12, 40, 45, 200, '1.0,0.5', '1.0,0.5', "cnn", '45, 45', 25000, 60],
-#	[12, 40, 45, 200, '1.0,0.5', '1.0,0.5', "cnn", '45, 45', 10000, 60],
-	[12, 40, 30, 55, '1.0,0.5', '1.0,0.5', "single", '45, 45', 500, 75],
-#	[12, 40, 30, 55, '1.0,0.5', '1.0,0.5', "cnn", '45, 45', 1000, 75],
-#	[12, 40, 30, 55, '1.0,0.5', '1.0,0.5', "cnn", '45, 45', 500, 75]
+	[12, 40, 45, 200, '1.0,0.5', '1.0,0.5', "cnn", '45, 45', 10000, 60],
+	[12, 40, 30, 55, '1.0,0.5', '1.0,0.5', "cnn", '45, 45', 5000, 75],
+	[12, 40, 30, 55, '1.0,0.5', '1.0,0.5', "cnn", '45, 45', 1000, 75]
 ]
 
 
-for i, config in enumerate(configs):
-
-	if i > 2:
-		FLAGS.trials = 3
+for config in configs:
 
 	FLAGS.growth_rate = config[0]
 	FLAGS.depth = config[1]
@@ -141,34 +118,34 @@ for i, config in enumerate(configs):
 					+ str(FLAGS.thetas)
 
 	FLAGS.checkpoint_dir = r'D:\Experiments\checkpoints\CIFAR' + str(int(FLAGS.training_size/1000)) + 'K\\' \
-					+ str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
-					+ str(FLAGS.learning_rate) + '_' \
-					+ str(FLAGS.growth_rate) + '_' \
-					+ str(FLAGS.depth) + '_' \
-					+ str(FLAGS.total_blocks) + '_' \
-					+ str(FLAGS.keep_prob) + '_' \
-					+ str(FLAGS.batch_size) + '_' \
-					+ str(FLAGS.rfnn) + '_' \
-					+ str(FLAGS.init_sigmas) + str(FLAGS.comp_sigmas) + '_' \
-					+ str(FLAGS.reduce_lr_epoch_1) + '_' \
-					+ str(FLAGS.reduce_lr_epoch_2) + '_' + str(FLAGS.max_epochs) + '_' \
-					+ str(FLAGS.reduction) + 'adaptWD' \
-					+ str(FLAGS.thetas)
+					   + str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
+					   + str(FLAGS.learning_rate) + '_' \
+					   + str(FLAGS.growth_rate) + '_' \
+					   + str(FLAGS.depth) + '_' \
+					   + str(FLAGS.total_blocks) + '_' \
+					   + str(FLAGS.keep_prob) + '_' \
+					   + str(FLAGS.batch_size) + '_' \
+					   + str(FLAGS.rfnn) + '_' \
+					   + str(FLAGS.init_sigmas) + str(FLAGS.comp_sigmas) + '_' \
+					   + str(FLAGS.reduce_lr_epoch_1) + '_' \
+					   + str(FLAGS.reduce_lr_epoch_2) + '_' + str(FLAGS.max_epochs) + '_' \
+					   + str(FLAGS.reduction) + 'adaptWD' \
+					   + str(FLAGS.thetas)
 
 	FLAGS.stat_dir = r'D:\Experiments\stats\CIFAR' + str(int(FLAGS.training_size/1000)) + 'K\\' \
-					+ str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
-					+ str(FLAGS.learning_rate) + '_' \
-					+ str(FLAGS.growth_rate) + '_' \
-					+ str(FLAGS.depth) + '_' \
-					+ str(FLAGS.total_blocks) + '_' \
-					+ str(FLAGS.keep_prob) + '_' \
-					+ str(FLAGS.batch_size) + '_' \
-					+ str(FLAGS.rfnn) + '_' \
-					+ str(FLAGS.init_sigmas) + str(FLAGS.comp_sigmas) + '_' \
-					+ str(FLAGS.reduce_lr_epoch_1) + '_' \
-					+ str(FLAGS.reduce_lr_epoch_2) + '_' + str(FLAGS.max_epochs) + '_' \
-					+ str(FLAGS.reduction) + 'adaptWD' \
-					+ str(FLAGS.thetas)
+					 + str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
+					 + str(FLAGS.learning_rate) + '_' \
+					 + str(FLAGS.growth_rate) + '_' \
+					 + str(FLAGS.depth) + '_' \
+					 + str(FLAGS.total_blocks) + '_' \
+					 + str(FLAGS.keep_prob) + '_' \
+					 + str(FLAGS.batch_size) + '_' \
+					 + str(FLAGS.rfnn) + '_' \
+					 + str(FLAGS.init_sigmas) + str(FLAGS.comp_sigmas) + '_' \
+					 + str(FLAGS.reduce_lr_epoch_1) + '_' \
+					 + str(FLAGS.reduce_lr_epoch_2) + '_' + str(FLAGS.max_epochs) + '_' \
+					 + str(FLAGS.reduction) + 'adaptWD' \
+					 + str(FLAGS.thetas)
 
 	initialize_folders()
 	train_cifar(FLAGS, NUM_GPUS)

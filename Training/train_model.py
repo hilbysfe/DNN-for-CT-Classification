@@ -82,7 +82,7 @@ def train_ctnet(FLAGS, NUM_GPUS):
 			init_sigmas = [float(x) for x in FLAGS.init_sigmas.split(',')]
 			comp_sigmas = [float(x) for x in FLAGS.comp_sigmas.split(',')]
 			thetas = [float(x) for x in FLAGS.thetas.split(',')]
-			phis = [float(x) for x in FLAGS.phis.split(',')]
+#			phis = [float(x) for x in FLAGS.phis.split(',')]
 
 			if FLAGS.rfnn == "cnn":
 				if FLAGS.bases3d:
@@ -195,7 +195,7 @@ def train_ctnet(FLAGS, NUM_GPUS):
 					# ====== INFERENCE ======
 					with tf.name_scope('%s_%d' % ('tower', i)) as scope:
 						# Calculate predictions
-						logits = model.inference(x)
+						logits, penultimate = model.inference(x)
 						x_entropy, l2 = tower_loss_dense(logits, y)
 
 						l2_loss = l2*weight_decay
@@ -204,7 +204,7 @@ def train_ctnet(FLAGS, NUM_GPUS):
 						with tf.name_scope('Total_Loss'):
 							loss = tf.add_n(tf.get_collection('losses', scope), name='total_loss')
 
-						accuracy, _, scores = tower_accuracy(logits, y, scope)
+						accuracy, _, scores = tower_accuracy(logits, y)
 
 						# Reuse variables for the next tower.
 						tf.get_variable_scope().reuse_variables()
@@ -511,6 +511,7 @@ def train_ctnet(FLAGS, NUM_GPUS):
 				# ===== LOAD BEST MODELS FOR ALL FOLDS AND COMPUTE STATISTICS FOR TEST SET =====
 				dataset.reset()
 				cv_acc_list = []
+				cv_loss_list = []
 				cv_auc_list = []
 				mean_fpr = np.linspace(0, 1, 100)
 				cv_tprs_list = []
@@ -519,6 +520,14 @@ def train_ctnet(FLAGS, NUM_GPUS):
 					model_path = FLAGS.checkpoint_dir + '/' + str(f) + '/' + str(best_trials[f])
 					new_saver = tf.train.import_meta_graph(os.path.join(model_path, 'best_model.meta'))
 					new_saver.restore(sess, tf.train.latest_checkpoint(model_path))
+
+					# Save parameters
+#					weights_dict = sess.run(model.variable_dict)
+#					with open(os.path.join(FLAGS.checkpoint_dir + '\\' + str(f) + '\\' + str(best_trials[f]),
+#										   'weights.npy'),
+#							  'wb') as output:
+#						pickle.dump(weights_dict, output)
+
 #						# restore
 #					for j in range(3):
 #						model_path = FLAGS.checkpoint_dir + '/' + str(f) + '/' + str(j)
@@ -534,18 +543,21 @@ def train_ctnet(FLAGS, NUM_GPUS):
 					aucs = []
 					accs = []
 					tprs = []
+					losses = []
 					for k in range(iters):
 						softmax_whole = []
 						labels_whole = []
 						test_acc = 0.0
+						test_loss = 0.0
 						# Get predictions for the whole test-set
 						for step in range(test_steps):
 							sess.run(batch_enqueue, feed_dict=feed_dict(2))
-							acc_s, softmax, labels = sess.run([avg_accuracy, scores, y], feed_dict={is_training: False})
+							acc_s, softmax, labels, entropy_s = sess.run([avg_accuracy, scores, y, avg_loss_entropy], feed_dict={is_training: False})
 
 							softmax_whole.append(softmax)
 							labels_whole.append(labels)
 							test_acc += (acc_s / test_steps)
+							test_loss += (entropy_s / test_steps)
 						softmax_whole = np.reshape(softmax_whole, (np.shape(softmax_whole)[0]*np.shape(softmax_whole)[1], 2))
 						labels_whole = np.reshape(labels_whole, (np.shape(labels_whole)[0]*np.shape(labels_whole)[1], 2))
 
@@ -560,11 +572,14 @@ def train_ctnet(FLAGS, NUM_GPUS):
 						auc_k = auc(fpr, tpr)
 						aucs.append(auc_k)
 						accs.append(test_acc)
+						losses.append(test_loss)
 
 					cv_auc_list.append(np.mean(aucs))
 					cv_acc_list.append(np.mean(accs))
+					cv_loss_list.append(np.mean(losses))
 					cv_tprs_list.append(np.mean(tprs, axis=0))
 
+					dataset.next_fold()
 
 #				plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',
 #						 label='Luck', alpha=.8)
@@ -574,6 +589,8 @@ def train_ctnet(FLAGS, NUM_GPUS):
 
 				avg_acc = np.mean(np.array(cv_acc_list))
 				std_acc = np.std(np.array(cv_acc_list))
+
+				avg_loss = np.mean(np.array(cv_loss_list))
 
 				avg_tpr = np.mean(np.array(cv_tprs_list), axis=0)
 				avg_tpr[-1] = 1.0
@@ -603,6 +620,10 @@ def train_ctnet(FLAGS, NUM_GPUS):
 				np.save(os.path.join(FLAGS.stat_dir + '/', 'mean_fpr.npy'), mean_fpr)
 				np.savetxt(os.path.join(FLAGS.stat_dir + '/', 'cv_auc_list.csv'), np.array(cv_auc_list), delimiter=",", fmt='%.5ef')
 				np.savetxt(os.path.join(FLAGS.stat_dir + '/', 'cv_acc_list.csv'), np.array(cv_acc_list), delimiter=",", fmt='%.5ef')
+				np.savetxt(os.path.join(FLAGS.stat_dir + '/', 'cv_loss_list.csv'), np.array(cv_loss_list),
+						   delimiter=",",
+						   fmt='%.5ef')
+
 
 				print('Acc/std/AUC/std : %s/%s/%s/%s' % (avg_acc, std_acc, avg_auc, std_auc))
 

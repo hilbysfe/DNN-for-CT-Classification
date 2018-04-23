@@ -63,7 +63,7 @@ def tower_accuracy(logits, labels):
 	with tf.name_scope('correct_prediction'):
 		correct_prediction = tf.equal(tf.argmax(softmax, 1), tf.argmax(labels, 1))
 	with tf.name_scope('Accuracy'):
-		accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float16))
+		accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 	#        tf.summary.scalar('Accuracy', accuracy)
 
 	return accuracy, correct_prediction, softmax
@@ -100,6 +100,22 @@ def tower_loss_dense(logits, labels):
 		l2_loss = tf.add_n([tf.nn.l2_loss(var) for var in tf.trainable_variables()], name='l2_loss')
 
 	return cross_entropy_mean, l2_loss
+
+def tower_loss_dense_wd(logits, labels, weight_decay, vars, scope):
+	with tf.name_scope('Cross_Entropy_Loss'):
+		cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=labels,
+																name='cross_entropy_per_example')
+		cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
+		tf.add_to_collection('losses', cross_entropy_mean)
+	with tf.name_scope('L2_Loss'):
+		l2_loss = tf.add_n(
+			[tf.nn.l2_loss(var) for var in vars], name='l2_loss') * weight_decay
+		tf.add_to_collection('losses', l2_loss)
+
+	with tf.name_scope('Total_Loss'):
+		total_loss = tf.add_n(tf.get_collection('losses', scope), name='total_loss')
+
+	return total_loss, l2_loss, cross_entropy_mean
 
 def tower_loss_exp(logits, labels, alpha, scope):
 	with tf.name_scope('Cross_Entropy_Loss'):

@@ -70,10 +70,12 @@ FLAGS.model_type = 'DenseNet'
 FLAGS.bc_mode = True
 
 # Training
-FLAGS.max_epochs = 100
+FLAGS.max_epochs = 40
 FLAGS.batch_size = 32
 FLAGS.xvalidation_folds = 4
-FLAGS.trials = 3
+FLAGS.trials = 1
+FLAGS.weight_decay = 1e-4
+FLAGS.refine = 30
 
 # Data
 FLAGS.normalization = True
@@ -83,34 +85,35 @@ FLAGS.feats_use = 'Baseline_contscore'
 
 FLAGS.input_num_units = 51
 # Combination model
-FLAGS.embedding = 100
-FLAGS.num_of_layers = 3
-FLAGS.num_of_neurons = [192, 256, 192]
+FLAGS.embedding = 128
+FLAGS.num_of_layers = 0
+FLAGS.num_of_neurons = []
 
 
 # Logging
 FLAGS.print_freq = 3
 FLAGS.eval_freq = 1
 
-FLAGS.learning_rate = 0.001
-
 configs = [
-	[0.0003, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'mrs']
+
+#	[0.0001, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'mrs',
+#	 '11x5_0.0003_8_21_4_0.9_32_learn_sq_2.0,1.51.0,0.5_200_200_100_0.70.7_0.9-0.999-0.001_red-0.5adaptWD-nobeta_45, 45',
+#	 0.8, 1e-4, 128, [512, 64]],
+#	[0.0001, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'mrs',
+#	 '11x5_0.0003_8_21_4_0.9_32_cnn_2.0,1.51.0,0.5_200_200_100_0.70.7_0.9-0.999-0.001_red-0.5adaptWD-nobeta_45, 45',
+#	 0.8, 1e-4, 128, [512, 64]],
+
+
+	[0.0001, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "learn_sq", False, '45, 45', 'tici_imp',
+	 '11x5_0.0003_8_21_4_0.9_32_learn_sq_2.0,1.51.0,0.5_200_200_100_0.70.7_0.9-0.999-0.001_red-0.5adaptWD-nobeta_45, 45',
+	 0.8, 1e-4, 128, [512, 64]],
+	[0.0001, 8, 21, 200, 200, '2.0,1.5', '1.0,0.5', "cnn", False, '45, 45', 'tici_imp',
+	 '11x5_0.0003_8_21_4_0.9_32_cnn_2.0,1.51.0,0.5_200_200_100_0.70.7_0.9-0.999-0.001_red-0.5adaptWD-nobeta_45, 45',
+	 0.8, 1e-4, 128, [512, 64]]
+
 ]
 
 for i, config in enumerate(configs):
-
-	FLAGS.label = config[10]
-
-	FLAGS.datapath = r'D:\Adam Hilbert\Data\data_binaries\MIP2D\\' + FLAGS.label
-
-	FLAGS.log_dir = r'D:\Experiments\logs\MIP2D_' + FLAGS.label + '\\comb\\' + config[7] + '\\'
-	FLAGS.checkpoint_dir = r'D:\Experiments\checkpoints\MIP2D_' + FLAGS.label + '\\comb\\' + config[7] + '\\'
-	FLAGS.stat_dir = r'D:\Experiments\stats\MIP2D_' + FLAGS.label + '\\comb\\' + config[7] + '\\'
-
-	FLAGS.log_dir_vars = r'D:\Experiments\logs\MIP2D_' + FLAGS.label + '\\NN'
-	FLAGS.stat_dir_vars = r'D:\Experiments\stats\MIP2D_' + FLAGS.label + '\\NN'
-	FLAGS.checkpoint_dir_vars = r'D:\Experiments\checkpoints\MIP2D_' + FLAGS.label + '\\NN'
 
 	FLAGS.learning_rate = config[0]
 	FLAGS.growth_rate = config[1]
@@ -122,64 +125,40 @@ for i, config in enumerate(configs):
 	FLAGS.rfnn = config[7]
 	FLAGS.bnorm_inc = config[8]
 	FLAGS.thetas = config[9]
+	FLAGS.label = config[10]
+	FLAGS.keep_prob_comb = config[12]
+	FLAGS.weight_decay = config[13]
+	FLAGS.embedding = config[14]
+	FLAGS.num_of_neurons = config[15]
+	FLAGS.num_of_layers = len(config[15])
+
+	FLAGS.datapath = r'D:\Adam Hilbert\Data\data_binaries\MIP2D\\' + FLAGS.label
+
+	FLAGS.log_dir = r'D:\Experiments\logs\MIP2D_' + FLAGS.label + '\\comb\\' + config[7] + '\\' + \
+		str(FLAGS.learning_rate) + '_' + str(FLAGS.num_of_neurons) + '_' + str(FLAGS.embedding) \
+		+ '_' + str(FLAGS.max_epochs) \
+		+ '_' + str(FLAGS.keep_prob_comb) \
+		+ '_' + str(FLAGS.weight_decay) + '_bn0.9_bias_refine'
+	FLAGS.checkpoint_dir = r'D:\Experiments\checkpoints\MIP2D_' + FLAGS.label + '\\comb\\' + config[7] + '\\' + \
+		str(FLAGS.learning_rate) + '_' + str(FLAGS.num_of_neurons) + '_' + str(FLAGS.embedding) \
+		+ '_' + str(FLAGS.max_epochs) \
+		+ '_' + str(FLAGS.keep_prob_comb) \
+		+ '_' + str(FLAGS.weight_decay) + '_bn0.9_bias_refine'
+	FLAGS.stat_dir = r'D:\Experiments\stats\MIP2D_' + FLAGS.label + '\\comb\\' + config[7] + '\\' + \
+		str(FLAGS.learning_rate) + '_' + str(FLAGS.num_of_neurons) + '_' + str(FLAGS.embedding) \
+		+ '_' + str(FLAGS.max_epochs) \
+		+ '_' + str(FLAGS.keep_prob_comb) \
+		+ '_' + str(FLAGS.weight_decay) + '_bn0.9_bias_refine'
+
+	FLAGS.log_dir_vars = r'D:\Experiments\logs\MIP2D_' + FLAGS.label + '\\NN'
+	FLAGS.stat_dir_vars = r'D:\Experiments\stats\MIP2D_' + FLAGS.label + '\\NN'
+	FLAGS.checkpoint_dir_vars = r'D:\Experiments\checkpoints\MIP2D_' + FLAGS.label + '\\NN'
+
+	FLAGS.checkpoint_dir_cnn = \
+		r'D:\Experiments\checkpoints\MIP2D_' + config[10] + '\\' + 'rfnn' + '\\' + 'Shallow' + '\\' + config[11]
+	FLAGS.stat_dir_cnn = \
+		r'D:\Experiments\stats\MIP2D_' + config[10] + '\\' + 'rfnn' + '\\' + 'Shallow' + '\\' + config[11]
 
 
-FLAGS.log_dir_cnn = r'D:\Experiments\logs\MIP2D_' + FLAGS.label + '\\rfnn\Shallow\\' \
-				+ str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
-				+ str(FLAGS.learning_rate) + '_' \
-				+ str(FLAGS.growth_rate) + '_' \
-				+ str(FLAGS.depth) + '_' \
-				+ str(FLAGS.total_blocks) + '_' \
-				+ str(FLAGS.keep_prob) + '_' \
-				+ str(FLAGS.batch_size) + '_' \
-				+ str(FLAGS.rfnn) + '_' \
-				+ str(FLAGS.init_sigmas) + str(FLAGS.comp_sigmas) + '_' \
-				+ str(FLAGS.reduce_lr_epoch_1) + '_' \
-				+ str(FLAGS.reduce_lr_epoch_2) + '_' + str(FLAGS.max_epochs) + '_' \
-				+ str(FLAGS.bnorm_mom) \
-				+ str(FLAGS.renorm) + '_' \
-				+ str(FLAGS.beta1) + '-' + str(FLAGS.beta2) + '-' + str(FLAGS.epsilon) + '_red-' \
-				+ str(FLAGS.reduction) + 'adaptWD-nobeta_' \
-				+ str(FLAGS.thetas)
-
-FLAGS.checkpoint_dir_cnn = r'D:\Experiments\checkpoints\MIP2D_' + FLAGS.label + '\\rfnn\Shallow\\' \
-				   + str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
-				   + str(FLAGS.learning_rate) + '_' \
-				   + str(FLAGS.growth_rate) + '_' \
-				   + str(FLAGS.depth) + '_' \
-				   + str(FLAGS.total_blocks) + '_' \
-				   + str(FLAGS.keep_prob) + '_' \
-				   + str(FLAGS.batch_size) + '_' \
-				   + str(FLAGS.rfnn) + '_' \
-				   + str(FLAGS.init_sigmas) + str(FLAGS.comp_sigmas) + '_' \
-				   + str(FLAGS.reduce_lr_epoch_1) + '_' \
-				   + str(FLAGS.reduce_lr_epoch_2) + '_' + str(FLAGS.max_epochs) + '_' \
-				   + str(FLAGS.bnorm_mom) \
-				   + str(FLAGS.renorm) + '_' \
-				   + str(FLAGS.beta1) + '-' + str(FLAGS.beta2) + '-' + str(FLAGS.epsilon) + '_red-' \
-				   + str(FLAGS.reduction) + 'adaptWD-nobeta_' \
-				   + str(FLAGS.thetas)
-
-FLAGS.stat_dir_cnn = r'D:\Experiments\stats\MIP2D_' + FLAGS.label + '\\rfnn\Shallow\\' \
-				 + str(FLAGS.init_kernel) + 'x' + str(FLAGS.comp_kernel) + '_' \
-				 + str(FLAGS.learning_rate) + '_' \
-				 + str(FLAGS.growth_rate) + '_' \
-				 + str(FLAGS.depth) + '_' \
-				 + str(FLAGS.total_blocks) + '_' \
-				 + str(FLAGS.keep_prob) + '_' \
-				 + str(FLAGS.batch_size) + '_' \
-				 + str(FLAGS.rfnn) + '_' \
-				 + str(FLAGS.init_sigmas) + str(FLAGS.comp_sigmas) + '_' \
-				 + str(FLAGS.reduce_lr_epoch_1) + '_' \
-				 + str(FLAGS.reduce_lr_epoch_2) + '_' + str(FLAGS.max_epochs) + '_' \
-				 + str(FLAGS.bnorm_mom) \
-				 + str(FLAGS.renorm) + '_' \
-				 + str(FLAGS.beta1) + '-' + str(FLAGS.beta2) + '-' + str(FLAGS.epsilon) + '_red-' \
-				 + str(FLAGS.reduction) + 'adaptWD-nobeta_' \
-				 + str(FLAGS.thetas)
-
-
-
-
-initialize_folders()
-train_ctnet(FLAGS)
+	initialize_folders()
+	train_ctnet(FLAGS)
